@@ -768,10 +768,10 @@ def render_layout_2d(path):
                           fc="none", ec="#e08a3a", lw=2, ls="--"))
     a.text(-RAD420_X / 2 + 8, RAD420_Z0 + 8, "420 (458) за платой, пунктир",
            fontsize=8, color="#b86a1c")
-    r(a, IOD_X0, IOD_Z0, IOD_X1 - IOD_X0, IOD_Z1 - IOD_Z0, "#e8c03a",
-      "I/O\nпод")
+    r(a, -229, 10, 32, 80, "#e8c03a", "USB\nC\njack")
+    r(a, 197, 10, 32, 56, "#e8c03a", "PWR")
     a.set_title("Вид спереди (смотрим на плату)")
-    a.set_xlim(-340, 360)
+    a.set_xlim(-280, 280)
     a.set_ylim(-30, 470)
 
     # SIDE
@@ -784,7 +784,7 @@ def render_layout_2d(path):
     r(b, RAD360_Y0, RAD360_Z0, RAD360_Y, RAD360_Z, "#a9cc6b", "360\n121×55")
     r(b, RAD420_Y0, RAD420_Z0, RAD420_Y, RAD420_Z, "#e08a3a", "420\n65×138\nна ребре")
     r(b, PSU_Y0, PSU_Z0, PSU_D, PSU_H, "#8e7cc3", "БП 210×86", alpha=0.7)
-    r(b, IOD_Y0, IOD_Z0, IOD_Y1 - IOD_Y0, IOD_Z1 - IOD_Z0, "#e8c03a", "I/O", alpha=0.9)
+    r(b, 4, 10, 22, 80, "#e8c03a", "I/O", alpha=0.85)
     # GPU
     gx, gy = x0 + H * 0.45, BOARD_Z0 + H * 0.45
     n = (-C, C)
@@ -812,7 +812,7 @@ def render_layout_2d(path):
         ax.set_xlabel("мм")
         ax.set_ylabel("мм")
     fig.suptitle(
-        "Вариант B5: 360 лежит спереди, 420 стоит на ребре за платой над БП, I/O-под справа  ·  мм",
+        "Вариант B5: 360 спереди, 420 за платой, I/O в щелях по бокам 360 (USB слева, питание справа)  ·  мм",
         fontsize=12,
     )
     plt.tight_layout()

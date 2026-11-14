@@ -1,0 +1,77 @@
+B5 organic frame v1
+================================================================
+Front-panel cables (30% slack):
+  JFP1  power/reset/LED, right cheek → bottom-right header
+    path 266 mm  need 346  /  500  PASS
+  JAUD1  3.5 mm jack, left cheek → bottom-left header
+    path 257 mm  need 334  /  500  PASS
+  JUSB3  2× USB-A, left cheek → right-edge header
+    path 493 mm  need 641  /  500  FAIL  — plan a 700 mm USB 3 cable
+  JUSBC1  USB-C, left cheek → right-edge Key-A header
+    path 487 mm  need 633  /  500  FAIL  — plan a 700 mm USB-C cable
+Tubes (fittings on the RIGHT, 30% slack):
+  CPU → 420 right end, around the right board edge
+    path 252 mm  need 328  /  500  PASS
+  GPU right → 360 right (same side, in front of the board)
+    path 138 mm  need 179  /  450  PASS
+
+Parts (world AABB mm, mass in g of ABS at 1.04 g/cm³):
+  rail_right_front        42.3 ×  194.5 ×  109.5  OK
+      184.7 cm³   100%    192 g    4 walls/20% infill ~     78 g
+    right cheek, front, I/O cutouts, M4 inserts at the knuckle
+  rail_right_rear         27.8 ×  261.5 ×  213.9  OK
+      346.2 cm³   100%    360 g    4 walls/20% infill ~    157 g
+    right cheek, rear, M4 through holes at the knuckle
+  rail_left_front         42.3 ×  194.5 ×  109.5  OK
+      184.8 cm³   100%    192 g    4 walls/20% infill ~     78 g
+    left cheek, front, I/O cutouts, M4 inserts at the knuckle
+  rail_left_rear          27.8 ×  261.5 ×  213.9  OK
+      346.2 cm³   100%    360 g    4 walls/20% infill ~    157 g
+    left cheek, rear, M4 through holes at the knuckle
+  base_front_left        246.2 ×  194.0 ×   25.2  OK
+      127.5 cm³   100%    133 g    4 walls/20% infill ~     80 g
+    vented skiff, 15 mm feet, intake ribs; print feet-down
+  base_rear_left         245.6 ×  256.0 ×   25.0  OK
+      112.4 cm³   100%    117 g    4 walls/20% infill ~     72 g
+    vented skiff, 15 mm feet, intake ribs; print feet-down
+  base_front_right       246.0 ×  194.0 ×   25.1  OK
+      127.5 cm³   100%    133 g    4 walls/20% infill ~     80 g
+    vented skiff, 15 mm feet, intake ribs; print feet-down
+  base_rear_right        245.6 ×  256.0 ×   25.0  OK
+      110.4 cm³   100%    115 g    4 walls/20% infill ~     71 g
+    vented skiff, 15 mm feet, intake ribs; print feet-down
+  spine_lower            228.0 ×  103.6 ×  103.6  OK
+      145.0 cm³   100%    151 g    4 walls/20% infill ~    107 g
+    slotted 45° backplate, lower half
+  spine_upper            228.0 ×  103.6 ×  103.6  OK
+      145.0 cm³   100%    151 g    4 walls/20% infill ~    107 g
+    slotted 45° backplate, upper half
+  wishbone_left          232.8 ×   13.4 ×   98.5  OK
+       58.5 cm³   100%     61 g    4 walls/20% infill ~     33 g
+    wishbone under the board / over the PSU; print on the split face
+  wishbone_right         232.8 ×   13.4 ×   98.5  OK
+       58.5 cm³   100%     61 g    4 walls/20% infill ~     33 g
+    wishbone under the board / over the PSU; print on the split face
+  TOTAL                100%   2025 g    4 walls/20% infill ~   1055 g
+
+Watertight STL:
+  rail_right_front      ok  2379 verts, 4742 faces
+  rail_right_rear       ok  9536 verts, 19068 faces
+  rail_left_front       ok  2382 verts, 4748 faces
+  rail_left_rear        ok  9558 verts, 19112 faces
+  base_front_left       ok  12121 verts, 24246 faces
+  base_rear_left        ok  9198 verts, 18396 faces
+  base_front_right      ok  12149 verts, 24302 faces
+  base_rear_right       ok  8857 verts, 17714 faces
+  spine_lower           ok  788 verts, 1584 faces
+  spine_upper           ok  788 verts, 1584 faces
+  wishbone_left         ok  672 verts, 1340 faces
+  wishbone_right        ok  672 verts, 1340 faces
+
+Frame × hardware intersections (mount = planned contact):
+  rail_right_front     × io_right     13242.7 mm³   mount
+  rail_left_front      × io_left      19047.1 mm³   mount
+  base_front_left      × rad360        1017.2 mm³   mount
+  base_front_right     × rad360        1017.2 mm³   mount
+
+ASSERTS: all passed (no unexpected interference, all parts ≤ 290 mm, all STLs watertight).
