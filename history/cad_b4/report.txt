@@ -1,0 +1,105 @@
+B4 CAD block-out  /  mm
+================================================================
+Components (parametric boxes):
+  board     X  -122.0..  122.0   Y   150.0..  367.1   Z    63.6..  280.7   vol 148840 mm3
+  rad420    X  -229.0..  229.0   Y    12.0..  150.0   Z     0.0..   65.0   vol 4108260 mm3
+  rad360    X  -197.0..  197.0   Y   315.0..  370.0   Z    90.0..  211.0   vol 2622070 mm3
+  psu       X   -75.0..   75.0   Y   190.0..  400.0   Z     0.0..   86.0   vol 2709000 mm3
+  gpu       X  -140.0..  140.0   Y   106.3..  247.1   Z   126.0..  266.7   vol 2113440 mm3
+  cpu       X   -35.0..   35.0   Y   240.9..  325.7   Z   191.2..  276.1   vol 245000 mm3
+
+PSU orientation: 150 along X (centred), 210 along Y (190..400), 86 along Z.
+  Cables at Y=190 (under the board). IEC inlet at Y=400 (rear).
+GPU: 280 along X (18 mm overhang each side of the 244 mm board),
+  148 mm out of the board (forward and up), 51 mm thickness down the board
+  from the slot at 45% so it stays clear of the CPU at 70%.
+
+Interference (pairwise intersection volume, must be 0):
+  board    × rad420        0.0000 mm3   ok
+  board    × rad360        0.0000 mm3   ok
+  board    × psu           0.0000 mm3   ok
+  board    × gpu           0.0000 mm3   ok
+  board    × cpu           0.0000 mm3   ok
+  rad420   × rad360        0.0000 mm3   ok
+  rad420   × psu           0.0000 mm3   ok
+  rad420   × gpu           0.0000 mm3   ok
+  rad420   × cpu           0.0000 mm3   ok
+  rad360   × psu           0.0000 mm3   ok
+  rad360   × gpu           0.0000 mm3   ok
+  rad360   × cpu           0.0000 mm3   ok
+  psu      × gpu           0.0000 mm3   ok
+  psu      × cpu           0.0000 mm3   ok
+  gpu      × cpu           0.0000 mm3   ok
+RESULT: no interference (all intersection volumes ~ 0)
+
+Minimum gaps between neighbours:
+  board    – rad420        0.0 mm   contact
+  board    – rad360       11.4 mm   ok
+  board    – psu          11.4 mm   ok
+  board    – gpu           0.0 mm   contact
+  board    – cpu           0.0 mm   contact
+  rad420   – gpu          86.2 mm   ok
+  rad360   – psu           4.0 mm   ok
+  rad360   – cpu          13.4 mm   ok
+  gpu      – cpu          41.2 mm   ok
+  psu      – rad420       40.0 mm   ok
+
+Bounding box of the iron (components only):
+  X -229.0 .. 229.0   (458.0)
+  Y 12.0 .. 400.0   (388.0)
+  Z 0.0 .. 280.7   (280.7)
+Envelope including 5 mm base, cheeks and 25 mm exhaust behind the 360:
+  X -242.0 .. 242.0   (484.0)
+  Y 0.0 .. 405.0   (405.0)
+  Z -5.0 .. 285.0   (290.0)
+
+Tube reach  (straight-line × 1.30 slack vs rated length):
+  CPU → 420 left end (nearer)
+    straight 272 mm  →  need 354  /  500  PASS
+  CPU → 420 right end (farther)
+    straight 272 mm  →  need 354  /  500  PASS
+  GPU right → 360 right (same side, around board)
+    straight 149 mm  →  need 194  /  450  PASS
+    around-board path 168 mm  →  need 218  /  450  PASS
+  GPU right → 360 left (opposite side, around board)
+    straight 344 mm  →  need 448  /  450  PASS
+    around-board path 434 mm  →  need 564  /  450  FAIL
+  GPU left → 360 left (same side, around board)
+    straight 149 mm  →  need 194  /  450  PASS
+    around-board path 168 mm  →  need 218  /  450  PASS
+
+Printable frame parts (each ≤ 290 mm, 300³ bed with 10 mm margin):
+  base_front_left          242.0 ×  155.0 ×    5.0   OK  — front half under the 420, left
+  base_front_right         242.0 ×  155.0 ×    5.0   OK  — front half under the 420, right
+  base_rear_left           242.0 ×  250.0 ×    5.0   OK  — rear half under PSU / 360, left
+  base_rear_right          242.0 ×  250.0 ×    5.0   OK  — rear half under PSU / 360, right
+  cheek_left_front           5.0 ×  200.0 ×  285.0   OK
+  cheek_left_rear            5.0 ×  205.0 ×  285.0   OK
+  cheek_right_front          5.0 ×  200.0 ×  285.0   OK
+  cheek_right_rear           5.0 ×  205.0 ×  285.0   OK
+  spine_lower              244.0 ×  152.5 ×    5.0   OK  — print flat, lower half of the 45° backplate
+  spine_upper              244.0 ×  152.5 ×    5.0   OK  — print flat, upper half of the 45° backplate
+  rad420_stop_left           5.0 ×  138.0 ×   20.0   OK  — keeps the 420 from sliding left
+  rad420_stop_right          5.0 ×  138.0 ×   20.0   OK  — keeps the 420 from sliding right
+  rad360_support_left       20.0 ×   55.0 ×   90.0   OK  — post under the 360 end, beside the PSU
+  rad360_support_right      20.0 ×   55.0 ×   90.0   OK  — post under the 360 end, beside the PSU
+  All parts fit.
+
+Issues / watch-outs:
+  • 420 sits on the base (Z=0). If it intakes from below, the base needs a grille
+    and short feet. If it blows up, that air goes into the PSU and the underside
+    of the board / GPU (86 mm clearance from the 420 to the GPU).
+  • PSU top is only ~4 mm under the 360. A top-mounted PSU fan would be starved.
+    Use a bottom intake (vented base + feet) or a rear/side intake; IEC is at Y=400.
+  • 360 exhaust needs a clear 25 mm behind it (Y 370..395). The back of the frame
+    is left open. Blow the 360 backward, away from the board.
+  • Board rear I/O is at the top edge (~Y 366, Z 281), facing up and back at 45°.
+    The 360 (top Z=211) does not block it, but cables come in from above.
+  • GPU already overhangs the board by 18 mm each side. A PCIe 5.0 riser would
+    let it move off the board entirely (not modelled here).
+  • GPU tubes must go around the board to reach the 360. Same-side ports pass;
+    opposite-side ports fail the 30% slack check on 450 mm tubes.
+  • Board-to-360 clearance is tight (11.4 mm). Do not thicken
+    the spine past 5 mm without checking.
+  • Split joints need fasteners / heat-set inserts later; this is only a volume check.
+Frame does not unexpectedly intersect the iron.

@@ -1,0 +1,81 @@
+# PC case reference images — source list
+01_winbot_sphere.jpg
+  label: WINBOT sphere
+  what: InWin WINBOT transparent sphere case, built with green loop
+  size: 720x720  (105158 bytes)
+  source: https://www.aiuto-jp.co.jp/products/product_2167.php
+02_dframe_tubes.jpg
+  label: D-Frame tubes
+  what: InWin D-Frame 2.0 motorcycle-tube open chassis, black/gold
+  size: 1024x1100  (143933 bytes)
+  source: https://www.in-win.com/en/gaming-chassis/d-frame-2
+03_hframe_stacked.jpg
+  label: H-Frame stacked
+  what: InWin H-Frame stacked-fin sculptural open case, side view
+  size: 1500x1000  (107992 bytes)
+  source: https://www.computerbase.de/bildstrecke/44165/
+04_diey_hanging.jpg
+  label: Diéy hanging case
+  what: InWin Diéy hanging lamp-like sculptural case
+  size: 594x1200  (161485 bytes)
+  source: https://www.techpowerup.com/265715/diey-is-an-astounding-new-case-design-only-in-win-could-conjure-up
+05_xframe_bench.jpg
+  label: X-Frame bench
+  what: InWin X-Frame 2.0 open bench with custom loop and 360 rad
+  size: 1600x1066  (309049 bytes)
+  source: https://www.techpowerup.com/223082/in-win-x-frame-2-0-pictured
+06_titan_openframe.jpg
+  label: TITAN open frame
+  what: EXTRUFRAME TITAN sculptural ATX open-frame chassis render
+  size: 2500x1875  (469212 bytes)
+  source: https://extruframe.com/cases/titan/
+07_pinasphere_printed.jpg
+  label: Piñasphere printed
+  what: Piñasphere fully 3D-printed sculptural SFF case, honeycomb shell
+  size: 937x613  (95305 bytes)
+  source: https://www.raspberrypi.com/news/homemade-pinasphere-pc/
+08_pinasphere_open.jpg
+  label: Piñasphere open
+  what: Piñasphere with shell off, showing printed structure and fan/rad
+  size: 935x612  (90302 bytes)
+  source: https://www.raspberrypi.com/news/homemade-pinasphere-pc/
+09_core_p3_open.jpg
+  label: Core P3 open
+  what: Thermaltake Core P3 open-frame / wall-mountable showcase build
+  size: 720x720  (109568 bytes)
+  source: https://thermaltake.com/products/core-p3
+10_core_p5_loop.jpg
+  label: Core P5 loop
+  what: Thermaltake Core P5 open frame with custom loop and 480 mm rad
+  size: 720x720  (124415 bytes)
+  source: https://thermaltake.com/products/core-p5
+11_ares_dual_rad.jpg
+  label: Ares dual rad
+  what: Project Ares: Thermaltake P5/P7 dual-radiator custom loop
+  size: 2446x2500  (1675857 bytes)
+  source: https://www.reddit.com/r/watercooling/comments/8bb8hr/project_ares_dual_rad_core_p5p7_build_additional/
+12_core_p8_showcase.jpg
+  label: Core P8 showcase
+  what: Thermaltake Core P8 custom RGB build with multiple radiators
+  size: 1944x2500  (2114261 bytes)
+  source: https://www.reddit.com/r/pcmasterrace/comments/k3fcw7/its_done_thermaltake_core_p8_custom_rgb_build/
+13_hyte_y70.jpg
+  label: Hyte Y70 panoramic
+  what: HYTE Y70 panoramic corner-glass showcase case
+  size: 1920x1357  (134791 bytes)
+  source: https://hyte.com/store/y70
+14_o11_vision.jpg
+  label: O11 Vision glass
+  what: Lian Li O11 Vision three-side glass fish-tank case
+  size: 2000x2000  (243454 bytes)
+  source: https://lian-li.com/product/o11-vision/
+15_horizontal_bench.jpg
+  label: Horizontal bench
+  what: Open Benchtable horizontal layout: board flat, PSU under the plate
+  size: 2500x1875  (1060582 bytes)
+  source: https://openbenchtable.com/news/pictures-community-members-show-off-open-benchtable/
+16_hframe_honeycomb.jpg
+  label: H-Frame honeycomb
+  what: InWin H-Frame top view, stacked fins and honeycomb cage
+  size: 1500x1000  (279280 bytes)
+  source: https://www.computerbase.de/bildstrecke/44165/

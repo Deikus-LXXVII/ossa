@@ -1,5 +1,8 @@
 # PC case B5
 
+
+Полная передача проекта (цель, история решений, текущая геометрия, как запускать, открытые вопросы) — в [HANDOFF.md](HANDOFF.md). Этот README — краткая справка по текущему варианту B5.
+
 Open, asymmetric, fully printed black-ABS case for a desk showpiece. Volume and clearance study plus organic frame v1 — not a finished case.
 
 Coordinates: X left–right, Y depth (front at 0, increasing backwards), Z up. Millimetres.
