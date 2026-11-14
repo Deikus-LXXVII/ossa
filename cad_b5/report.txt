@@ -1,0 +1,153 @@
+B5 CAD block-out  /  mm  (radiators swapped vs B4)
+================================================================
+Placement decisions:
+  • Board stays at Y=150, Z=65. Lowering it to 55 would drop the wedge
+    and the taller 420 would hit the board.
+  • Front 360 is raised 10 mm (Z 10..65) so fan tops line up with the
+    board bottom. The 10 mm plinth is an intake gap.
+  • In the old 360 slot the 420 already intersects the board (~0.8 mm).
+    It is 17 mm taller and 10 mm thicker. Moved back and up:
+      420 at Y 353..418, Z 106..244
+    giving 15 mm shortest distance to the board back and 20 mm to the PSU top.
+  • PSU stays 150 along X, 210 along Y, 86 tall, but is shifted back
+    to Y 243..453 so the IEC inlet at Y=453
+    sits behind the 25 mm exhaust and stays reachable from the rear.
+    Cables come out at the front of the PSU, under the board.
+  • Front I/O pod is reserved on the right (X 212..302, Y 8..98, Z 8..72),
+    in the width freed by the narrower 360 (394 vs 458) and the shallower
+    front (starts at Y=29 vs 12).
+
+Components:
+  board     X  -122.0..  122.0   Y   150.0..  367.1   Z    63.6..  280.7
+  rad360    X  -197.0..  197.0   Y    29.0..  150.0   Z    10.0..   65.0
+  rad420    X  -229.0..  229.0   Y   353.0..  418.0   Z   106.0..  244.0
+  psu       X   -75.0..   75.0   Y   243.0..  453.0   Z     0.0..   86.0
+  gpu       X  -140.0..  140.0   Y   106.3..  247.1   Z   126.0..  266.7
+  cpu       X   -35.0..   35.0   Y   240.9..  325.7   Z   191.2..  276.1
+  io_pod    X   212.0..  302.0   Y     8.0..   98.0   Z     8.0..   72.0
+
+Interference (pairwise intersection volume, must be 0):
+  board    × rad360        0.0000 mm3   ok
+  board    × rad420        0.0000 mm3   ok
+  board    × psu           0.0000 mm3   ok
+  board    × gpu           0.0000 mm3   ok
+  board    × cpu           0.0000 mm3   ok
+  board    × io_pod        0.0000 mm3   ok
+  rad360   × rad420        0.0000 mm3   ok
+  rad360   × psu           0.0000 mm3   ok
+  rad360   × gpu           0.0000 mm3   ok
+  rad360   × cpu           0.0000 mm3   ok
+  rad360   × io_pod        0.0000 mm3   ok
+  rad420   × psu           0.0000 mm3   ok
+  rad420   × gpu           0.0000 mm3   ok
+  rad420   × cpu           0.0000 mm3   ok
+  rad420   × io_pod        0.0000 mm3   ok
+  psu      × gpu           0.0000 mm3   ok
+  psu      × cpu           0.0000 mm3   ok
+  psu      × io_pod        0.0000 mm3   ok
+  gpu      × cpu           0.0000 mm3   ok
+  gpu      × io_pod        0.0000 mm3   ok
+  cpu      × io_pod        0.0000 mm3   ok
+RESULT: no interference (all intersection volumes ~ 0)
+
+Minimum gaps between neighbours:
+  board    – rad360        0.0 mm   contact
+  board    – rad420       15.0 mm   ok
+  board    – psu          48.9 mm   ok
+  board    – gpu           0.0 mm   contact
+  board    – cpu           0.0 mm   contact
+  rad360   – gpu          86.2 mm   ok
+  rad360   – io_pod       15.0 mm   ok
+  rad420   – psu          20.0 mm   ok
+  rad420   – cpu          27.3 mm   ok
+  gpu      – cpu          41.2 mm   ok
+  psu      – rad360       93.0 mm   ok
+  io_pod   – psu         199.5 mm   ok
+
+Bounding box of the iron (components + I/O pod):
+  X -229.0 .. 302.0   (531.0)
+  Y 8.0 .. 453.0   (445.0)
+  Z 0.0 .. 280.7   (280.7)
+Envelope including frame, 20 mm PSU gap stack, 25 mm exhaust:
+  X -242.0 .. 315.0   (557.0)
+  Y 0.0 .. 460.0   (460.0)
+  Z -6.0 .. 290.0   (296.0)
+
+Tube reach (straight × 1.30 slack vs rated length):
+  CPU → 420 left, over the board top
+    straight 229 mm  →  need 298  /  500  PASS
+    routed path 347 mm  →  need 451  /  500  PASS
+  CPU → 420 right, over the board top
+    straight 229 mm  →  need 298  /  500  PASS
+    routed path 347 mm  →  need 451  /  500  PASS
+  CPU → 420 left, around the left edge
+    straight 229 mm  →  need 298  /  500  PASS
+    routed path 252 mm  →  need 328  /  500  PASS
+  CPU → 420 right, around the right edge
+    straight 229 mm  →  need 298  /  500  PASS
+    routed path 252 mm  →  need 328  /  500  PASS
+  GPU left → 360 left (same side)
+    straight 138 mm  →  need 179  /  450  PASS
+  GPU right → 360 right (same side)
+    straight 138 mm  →  need 179  /  450  PASS
+  GPU right → 360 left (opposite side)
+    straight 340 mm  →  need 441  /  450  PASS
+
+Front-panel cables (I/O pod → headers, path around the 360, ×1.30 slack):
+  JFP1 (power/reset/LED, bottom-right)
+    straight 224  path 278  →  need 361  /  500  PASS
+  JAUD1 (front audio, bottom-left)
+    straight 400  path 525  →  need 683  /  700  PASS
+  JUSB3 (USB 5Gbps, right edge)
+    straight 246  path 282  →  need 367  /  500  PASS
+  JUSBC1 (USB-C 20Gbps Key-A, right edge below JUSB3)
+    straight 224  path 266  →  need 345  /  500  PASS
+
+Printable frame parts (each ≤ 290 mm):
+  base_front_left          245.0 ×  200.0 ×    6.0   OK  — skiff front left
+  base_front_center        200.0 ×  200.0 ×    6.0   OK  — skiff front centre
+  base_front_pod           110.0 ×  200.0 ×    6.0   OK  — skiff under the I/O pod
+  base_rear_left           245.0 ×  260.0 ×    6.0   OK  — skiff rear left
+  base_rear_right          245.0 ×  260.0 ×    6.0   OK  — skiff rear right
+  plinth_360_left          197.0 ×  121.0 ×   10.0   OK  — intake plinth under the 360, left; cut a grille later
+  plinth_360_right         197.0 ×  121.0 ×   10.0   OK  — intake plinth under the 360, right
+  rail_left_front           16.0 ×  200.0 ×  120.0   OK  — left rail, front
+  rail_left_rear            16.0 ×  260.0 ×  250.0   OK  — left rail, rear, taller around the 420
+  rail_right_front          16.0 ×  200.0 ×   90.0   OK  — right rail, front, outboard of the I/O pod
+  rail_right_rear           16.0 ×  260.0 ×  250.0   OK  — right rail, rear, against the 420
+  io_pod_shell              98.0 ×   98.0 ×   76.0   OK  — sculpted front I/O pod, right side; hollow later
+  spine_lower              244.0 ×  152.5 ×    5.0   OK  — print flat, lower 45° backplate
+  spine_upper              244.0 ×  152.5 ×    5.0   OK  — print flat, upper 45° backplate
+  rad420_cradle_left        22.0 ×   65.0 ×  106.0   OK  — post under the 420 end, beside the PSU
+  rad420_cradle_right       22.0 ×   65.0 ×  106.0   OK  — post under the 420 end, beside the PSU
+  rad360_stop_left           5.0 ×  121.0 ×   16.0   OK  — keeps the 360 from sliding left
+  rad360_stop_right          5.0 ×  121.0 ×   16.0   OK  — keeps the 360 from sliding right
+  All parts fit.
+
+Issues / watch-outs:
+  • The swap is possible, but the rear 420 no longer fits in the old 360
+    pocket. The case is deeper (~460 vs ~405) because the 420 had to
+    move back and the PSU had to follow so the IEC stays reachable.
+  • 20 mm between PSU top and 420 is better than 4 mm, but a top-mounted
+    PSU fan is still tight. Prefer a bottom intake (vented base) or a
+    rear/side intake. The IEC is at Y=447, below the 420's exhaust.
+  • 360 sits on a 10 mm plinth; cut a grille in it if the 360 intakes down,
+    or blow it up into the board/GPU (similar chimney to B4, slightly more
+    front space).
+  • Blow the 420 backward, away from the board (Y 418..443 is free).
+  • CPU tubes must go around or over the board to the rear 420. Same-side
+    or over-the-top routes should be used; fittings on one end of the 420,
+    not opposite corners.
+  • GPU tubes to the front 360 are short and stay in front of the board.
+    Same-side fittings are easiest; opposite-side also likely fine.
+  • I/O pod is on the right, next to JUSB3 / JUSBC1 / JFP1. Route the
+    USB 3 and USB-C cables around the 360's right end, not through it.
+    Typical 500 mm USB 3 and USB-C cables reach with plenty of slack.
+    JAUD1 sits on the opposite (left) edge: a stock 500 mm HD-audio cable is
+    short, so plan a 700 mm front-audio extension along the front lip.
+  • Rear I/O of the board is still at the top edge (~Y 366, Z 281),
+    45° up-back, above the 420 (top Z=244).
+  • The organic frame v1 is a volume sketch: skiff base, left/right rails,
+    filleted I/O pod, spine, 360 plinth and 420 cradles. Split joints and
+    real hollowing / grilles come later.
+Frame does not unexpectedly intersect the iron.
