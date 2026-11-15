@@ -9,3 +9,4 @@ __pycache__/
 !/refs/SOURCES.txt
 !/refs/README.md
 /HANDOFF.md
+/out/

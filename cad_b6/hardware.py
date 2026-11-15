@@ -241,7 +241,7 @@ ATX_TRAY_N = ATX_BOARD_N - ATX_STANDOFF_H  # tray (beam) surface, -8.35
 RAD420_HOLES_X = (-202.25, -77.75, -62.25, 62.25, 77.75, 202.25)
 RAD420_HOLES_N = (RAD420_MID_N - 62.25, RAD420_MID_N + 62.25)
 
-# rad360 inner-face threaded holes (n = 90): world X and u
+# rad360 inner-face threaded holes (n = RAD360_INNER_N): world X and u
 RAD360_HOLES_X = (-172.5, -67.5, -52.5, 52.5, 67.5, 172.5)
 RAD360_HOLES_U = (192.0, 297.0)
 
