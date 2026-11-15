@@ -304,6 +304,27 @@ The routes are drawn to the millimetre, but a real cable will lie centimetres fr
 - If a point cannot be placed (walls, a hose, a cable in the way), move it along its row; if a row cannot be placed at all, say so and leave it out. Do not move a cable to make room unless there is no other way, and then say which.
 - `cables.py` reports, for every PSU cable and the two front USB cables, the distance from the route to its nearest tie point and the longest stretch of route that has no tie point within 60 mm. No pass or fail on these two numbers in this pass: they show whether the rows are in the right places.
 
+### Tie points, built (15 Nov 2026): eleven, and the EPS pair is not served yet
+
+Checked in the main session: `frame_v0.py` passes, `test_checks.py` 124 of 124 (16 new cases), `cables.py` exits 0, `organic_frame.py` passes. `strength.py` has not been rerun with the bridges in the parts list.
+
+- **`tie_bridge`:** 28 x 13 x 9 mm, PA6, about 2 g. A 3 mm foot with an M3 clearance hole and an arch over a 12.5 x 3.5 mm slot for the strap. Prints foot down; the slot's roof is a 12.5 mm bridge. Screw M3 x 10.
+- **Eleven tie points:** three under beam_mid (X 20, 52, 84), four under the right rib's rail (u 72, 103, 185, 216), two under beam_low (X 60, 90), two under beam_top (X 77, 109). A new check, 3b, holds each bridge on its pilot, touching only its host and 2 mm from everything else. Every cable keeps at least 4.3 mm from every bridge.
+- **Departures from the spec, each measured:** a 28 mm bridge does not fit a 25 mm pitch; USB 3 runs 8.5 mm under beam_mid, so no bridge can sit above its lane; the rail's underside is taken at u 141 to 172 by the rib's mid leg and past u 250 by rib B's lap, so the rail row is four points in two groups.
+
+| Cable | Nearest tie point | Longest stretch below the board with no tie point within 60 mm |
+|---|---|---|
+| ATX 24-pin | 18 mm | 30 mm |
+| 12V-2x6 | 25 mm | 54 mm |
+| EPS 1 | 27 mm | **218 mm** |
+| EPS 2 | 22 mm | **301 mm** |
+| USB 3 front | 22 mm | 0 |
+| USB-C front | 21 mm | 0 |
+
+**The rows in the spec were in the wrong places for the EPS pair.** Their lanes lie 80 to 120 mm under the beams (n -106 and -147.5), where no bridge on a beam reaches. Measured nearby faces: rib B's inner face is 10 to 23 mm from EPS 2 and 13 mm from EPS 1; `skid_front`'s front face is 20 mm under EPS 2. Next: a row on the inner face (X 142) of rib B's post and runner and of rib A's mid leg, with the bridge standing out along -X.
+
+Also found: under the beams the bridge has to lie across the cables' direction, so the strap takes a quarter turn round the cable; `render_vtk.py` has no view that shows the bridges.
+
 ### Next
 
-Nylon clips for the cables and their insert pilots. Split the organic layer into printable pieces. Rerun the organic strength check when the gaming PC is back in Linux.
+A tie-point row for the EPS pair on rib B's inner face. Split the organic layer into printable pieces. Rerun `strength.py` with the bridges. Rerun the organic strength check when the gaming PC is back in Linux.

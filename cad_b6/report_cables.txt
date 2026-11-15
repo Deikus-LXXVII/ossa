@@ -1,7 +1,7 @@
 B6 cables, second pass: routes and checks (cad_b6/cables.py)
 
 cable             route   real  spare  smallest bend    smallest clearance  to                                            furthest in front of Y 0
-ATX 24-pin          517    610     93       30.0/30                   5.50  hw:board (route without the plug's descent)               none (Y 123)
+ATX 24-pin          517    610     93       30.0/30                   4.28  tie_bridge_rail_4                                         none (Y 123)
 12V-2x6             670    700     30       35.0/35                   3.50  rib_A_right                                                    10.4 mm
 EPS 1               649    700     51       20.0/20                   3.50  hw:board (route without the plug's descent)               none (Y 115)
 EPS 2               669    700     31       20.0/20                   3.50  hw:board (route without the plug's descent)               none (Y 120)
@@ -15,12 +15,12 @@ Right side fan      157    400    243        8.0/8                    5.55  hw:g
 Left side fan       167    400    233        8.0/8                    6.40  hw:gpu                                                    none (Y 111)
 
 per route: every clearance under 10 mm, and every failed check
-  ATX 24-pin       hw:board (route without the plug's descent) 5.5; rib_A_right 6.5
-  12V-2x6          rib_A_right 3.5; hw:rad360 4.0; hw:board 5.5; hw:atx24 5.5
+  ATX 24-pin       tie_bridge_rail_4 4.3; hw:board (route without the plug's descent) 5.5; rib_A_right 6.5; tie_bridge_rail_3 7.0
+  12V-2x6          rib_A_right 3.5; hw:rad360 4.0; tie_bridge_rail_3 4.7; hw:board 5.5; hw:atx24 5.5
   EPS 1            hw:board (route without the plug's descent) 3.5; hw:dimms 4.0; hw:rad420 4.0; rib_A_right 4.5; rib_B_right 4.5; hw:psu (route after its socket leg) 5.0; hw:atx24 7.1
-  EPS 2            hw:board (route without the plug's descent) 3.5; hw:dimms 3.5; hw:psu (route after its socket leg) 3.6; beam_top 3.9; hw:rad420 4.0; rib_A_right 4.5; rib_B_right 4.5
-  USB 3 front      beam_mid 3.5; hw:board (route without the plug's descent) 5.5; rib_A_right 6.5; front_sill 6.6; beam_low 8.5
-  USB-C front      hw:gpu (from n 11 up) 3.0; hw:board (route without the plug's descent) 3.4; rib_A_right 4.4; front_sill 6.6; fan_bracket_right 6.8; beam_low 9.3
+  EPS 2            hw:board (route without the plug's descent) 3.5; hw:dimms 3.5; hw:psu (route after its socket leg) 3.6; beam_top 3.9; hw:rad420 4.0; rib_A_right 4.5; rib_B_right 4.5; tie_bridge_top_2 7.4
+  USB 3 front      beam_mid 3.5; hw:board (route without the plug's descent) 5.5; tie_bridge_low_1 5.5; rib_A_right 6.5; front_sill 6.6; tie_bridge_mid_3 8.2; beam_low 8.5
+  USB-C front      hw:gpu (from n 11 up) 3.0; hw:board (route without the plug's descent) 3.4; rib_A_right 4.4; tie_bridge_low_2 6.4; front_sill 6.6; fan_bracket_right 6.8; beam_low 9.3
   Power switch     front_sill 4.2
   Light line       front_sill 4.3; hw:front_io 9.7
   Audio            front_sill 3.8; hw:board (route without the plug's descent) 8.7
@@ -84,10 +84,21 @@ What the skeleton has to provide (coordinates only; item 1 is built, nothing els
       USB 3 front      world (132, 179, 142) board (254, 164, -4)
       USB-C front      world (129, 123, 86) board (251, 84, -4)
 
+Cable tie points (frame_v0.TIE_POINTS, 11 bridges; from the route's centre line to the middle of a bridge's strap slot; no pass or fail)
+  nearest      = the smallest distance from the route to any tie point
+  unserved     = the longest stretch of route with no tie point within 60 mm, over the whole route and over its part below the board (n < -2) alone
+  cable               nearest  which               unserved, whole  unserved, below  below the board
+  ATX 24-pin          18.3 mm  tie_bridge_rail_4            167 mm            30 mm           318 mm
+  12V-2x6             25.0 mm  tie_bridge_rail_3            392 mm            54 mm           257 mm
+  EPS 1               27.2 mm  tie_bridge_low_1             218 mm           218 mm           466 mm
+  EPS 2               21.8 mm  tie_bridge_top_2             301 mm           301 mm           522 mm
+  USB 3 front         22.3 mm  tie_bridge_low_1             153 mm             0 mm           247 mm
+  USB-C front         21.2 mm  tie_bridge_low_2               0 mm             0 mm           180 mm
+
 Numbers chosen here (all in cables.py, each with its reason there):
   order in the gap, from low u: USB 3 163.5, 12V-2x6 slab 184 (round descent 173), ATX slab 224.5, EPS 1 255, EPS 2 275
   lanes under the board at v 235, levels n: USB 3 front -41, 12V-2x6 -57.5, ATX 24-pin -85, EPS 1 -106, EPS 2 -147.5; each cable's diagonal takes it to v 253.5 and it rises through the gap
   hooks (ATX, USB 3): up the gap, out over the rail (S-bend) to v 272.5 / 283.5, up, one U-turn of R 15, down at the header's v
   EPS: up the gap to the run over the board (n 65 / 59.5, over the DIMMs' 45 + 3 + r 6), a diagonal to above the header at u 300, down into it
   USB-C: up the gap at v 249.5 / u 84, then in the board's plane (n 4) a U-turn over the rail and the plug along -v
-Not built: clips and their insert pilots, any cut in the skeleton beyond the sill's window.
+Not built: nylon clips for single cables, any cut in the skeleton beyond the sill's window. The tie points (frame_v0.TIE_POINTS) are built; their distances are in the section above.

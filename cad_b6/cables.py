@@ -516,6 +516,47 @@ def skeleton_section(routes):
     return out
 
 
+TIE_REACH = 60.0           # a tie point holds a cable within this distance of its strap slot (the owner's number in the plan)
+TIE_ROUTES = ("atx24", "gpu12v", "eps1", "eps2", "usb3", "usbc")      # every PSU cable and the two front USB cables
+
+
+def tie_stats(rt, slots):
+    """(distance from the route's centre line to the nearest strap slot and which bridge, longest stretch of the whole route with no slot within TIE_REACH,
+    the same for the part of the route that lies below the board (n < -2, where the skeleton's tie points are), length of that part)."""
+    pts = rt.pts
+    seg = np.linalg.norm(np.diff(pts, axis=0), axis=1)
+    cum = np.concatenate([[0.0], np.cumsum(seg)])
+    d = np.array([[float(np.linalg.norm(p - c)) for c in slots.values()] for p in pts])
+    nearest = d.min(axis=1)
+    names = list(slots)
+    i = int(np.argmin(nearest))
+    below = np.array([hoses.world_to_bs(p)[2] < -2.0 for p in pts])
+
+    def longest(mask):
+        start = None
+        run = 0.0
+        for k in range(len(pts)):
+            if mask[k] and nearest[k] > TIE_REACH:
+                start = cum[k] if start is None else start
+                run = max(run, cum[k] - start)
+            else:
+                start = None
+        return run
+    return float(nearest[i]), names[int(np.argmin(d[i]))], longest(np.ones(len(pts), bool)), longest(below), float(cum[below][-1] - cum[below][0]) if below.any() else 0.0
+
+
+def tie_section(routes):
+    slots = {frame_v0.tie_name(tp): np.array(frame_v0.tie_slot_centre(tp)) for tp in frame_v0.TIE_POINTS}
+    out = ["", f"Cable tie points (frame_v0.TIE_POINTS, {len(slots)} bridges; from the route's centre line to the middle of a bridge's strap slot; no pass or fail)",
+           f"  nearest      = the smallest distance from the route to any tie point",
+           f"  unserved     = the longest stretch of route with no tie point within {TIE_REACH:g} mm, over the whole route and over its part below the board (n < -2) alone",
+           f"  {'cable':16} {'nearest':>10}  {'which':18} {'unserved, whole':>16} {'unserved, below':>16} {'below the board':>16}"]
+    for n in TIE_ROUTES:
+        near, which, whole, under, below_len = tie_stats(routes[n], slots)
+        out.append(f"  {TITLE[n]:16} {near:7.1f} mm  {which:18} {whole:13.0f} mm {under:13.0f} mm {below_len:13.0f} mm")
+    return out
+
+
 def facts_section(routes):
     gs = hw.GPU_PWR_SOCKET
     mouth_n = hw.GPU_BS[5] - gs["recess"]
@@ -542,7 +583,7 @@ Numbers chosen here (all in cables.py, each with its reason there):
   hooks (ATX, USB 3): up the gap, out over the rail (S-bend) to v {ATX_HOOK['v_up']:g} / {USB3_HOOK['v_up']:g}, up, one U-turn of R 15, down at the header's v
   EPS: up the gap to the run over the board (n {EPS_RUN_N['eps1']:g} / {EPS_RUN_N['eps2']:g}, over the DIMMs' 45 + 3 + r 6), a diagonal to above the header at u {EPS_END_U:g}, down into it
   USB-C: up the gap at v {USBC_RISER['v']:g} / u {USBC_RISER['u']:g}, then in the board's plane (n {USBC_N['plane']:g}) a U-turn over the rail and the plug along -v
-Not built: clips and their insert pilots, any cut in the skeleton beyond the sill's window.
+Not built: nylon clips for single cables, any cut in the skeleton beyond the sill's window. The tie points (frame_v0.TIE_POINTS) are built; their distances are in the section above.
 """
 
 
@@ -627,6 +668,7 @@ def main(argv):
     lines += [f"    {t}" for _c, t in fails]
     lines += facts_section(routes)
     lines += skeleton_section(routes)
+    lines += tie_section(routes)
     lines.append(notes().rstrip("\n"))
     with open(os.path.join(HERE_DIR, "report_cables.txt"), "w") as fh:
         fh.write("\n".join(lines) + "\n")

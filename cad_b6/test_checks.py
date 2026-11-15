@@ -14,6 +14,7 @@ from __future__ import annotations
 
 import ast
 import dataclasses
+import math
 import os
 import sys
 import time
@@ -573,9 +574,10 @@ def main():
           and abs(f.bbox_of(sill.solid)[0] + 140) < 1e-6 and abs(f.bbox_of(sill.solid)[1] - 140) < 1e-6
           and all(p.material in f.MATERIALS for p in parts),
           ("1 solid, X -140..140, materials in ABS/PA6", f"{len(sill.solid.Solids())} solid, X {f.bbox_of(sill.solid)[0]:.1f}..{f.bbox_of(sill.solid)[1]:.1f}"))
-    check("only the two hose guides are PA6, every other part is ABS", sorted(p.name for p in parts if p.material == "PA6") == ["hose_guide_cpu", "hose_guide_gpu"]
-          and all(p.material == "ABS" for p in parts if p.name not in f.GUIDE_PARTS),
-          ("PA6: hose_guide_cpu, hose_guide_gpu; the other parts ABS", ", ".join(f"{p.name}={p.material}" for p in parts if p.material != "ABS")))
+    tie_names = [f.tie_name(tp) for tp in f.TIE_POINTS]
+    check("only the two hose guides and the cable tie bridges are PA6, every other part is ABS", sorted(p.name for p in parts if p.material == "PA6") == sorted(["hose_guide_cpu", "hose_guide_gpu"] + tie_names)
+          and all(p.material == "ABS" for p in parts if p.name not in f.GUIDE_PARTS and p.name not in tie_names),
+          ("PA6: hose_guide_cpu, hose_guide_gpu and the tie bridges; the other parts ABS", ", ".join(f"{p.name}={p.material}" for p in parts if p.material != "ABS")))
     check("front_io and light_strip are hardware: front_io real, light_strip a keep-out; both in front of Y = 0 nowhere", "front_io" in hardware and "light_strip" in hardware
           and "light_strip" in hw.KEEP_OUT and "front_io" not in hw.KEEP_OUT and base["envelope"]["front"][2] >= hw.ENVELOPE_Y0,
           ("both in build_hardware, min Y >= 0", f"min Y {base['envelope']['front'][2]:.1f} ({base['envelope']['front'][3]})"))
@@ -702,6 +704,78 @@ def main():
     moved_own = dataclasses.replace(pp, holes=[h.moved(0.0, 0.5, 0.0) if h is hp else h for h in pp.holes])
     why = of.pad_fits(moved_own, np.array(q0), sgn)
     check("pad_fits: a pilot 0.5 mm off the pad's axis is not its own, and is too close", why is not None and "too close" in why, ("'... mm too close to the part's M3 hole'", str(why)))
+
+
+    # 10e. skeleton pass 2: the cable tie points and the one bridge shape
+    tps = f.TIE_POINTS
+    n_tie = len(tps)
+    bridges = [part_named(parts, f.tie_name(tp)) for tp in tps]
+    listed = {k: sum(x["count"] for x in f.FASTENERS if x["item"] == k) for k in ("tie_pilot", "tie_bridge")}
+    check("every tie point has an M3 pilot in its part and a clearance hole in its bridge: derived from the solids, and the fastener list agrees",
+          n_tie >= 8 and base["mounts"]["tie_pilot"] == n_tie and base["mounts"]["tie_bridge"] == n_tie and f.EXPECTED_MOUNTS["tie_pilot"] == n_tie and f.EXPECTED_MOUNTS["tie_bridge"] == n_tie
+          and listed == {"tie_pilot": n_tie, "tie_bridge": n_tie},
+          (f"{n_tie} pilots and {n_tie} holes derived, {n_tie} listed each", f"derived {base['mounts']['tie_pilot']} / {base['mounts']['tie_bridge']}, listed {listed}"))
+    check("the rows are the plan's four, on the plan's four parts, all on undersides", {tp["row"]: tp["host"] for tp in tps} == {"mid": "beam_mid", "rail": "rib_A_right", "low": "beam_low", "top": "beam_top"},
+          ("rows mid, rail, low, top on beam_mid, rib_A_right, beam_low, beam_top", str({tp["row"]: tp["host"] for tp in tps})))
+    vols = [b.blank.Volume() for b in bridges]
+    check("one bridge shape: every bridge has the same volume before and after its hole, and 28 x 13 x 9 mm", max(vols) - min(vols) < 1e-6
+          and max(b.solid.Volume() for b in bridges) - min(b.solid.Volume() for b in bridges) < 1e-6
+          and abs(f.TIE_ARCH_END + f.TIE_HOLE_END - 28.0) < 1e-9 and f.TIE_W == 13.0 and abs(f.TIE_H - 9.0) < 1e-9 and f.TIE_SLOT_W >= 12.0 + 0.4 and all(b.material == "PA6" for b in bridges),
+          ("equal volumes, 28 x 13 x 9, a slot wider than the 12 mm strap, PA6", f"{min(vols):.1f}..{max(vols):.1f} mm3, slot {f.TIE_SLOT_W:g}"))
+    tp0 = tps[0]
+    hp = part_named(parts, tp0["host"])
+    hole0 = next(h for h in hp.holes if h.pilot and h.kind == "M3" and math.dist(h.point(f.OVERSHOOT), f.tie_face_point(tp0)) < 0.01)
+    r = f.run_checks(hardware, with_part(parts, tp0["host"], solid=refilled(hp, hole0)), MEMO)
+    case(f"{f.tie_name(tp0)}: its pilot in {tp0['host']} filled back in", f"CHECK7 {tp0['host']} ... M3 pilot ... is not drilled", r["failures"], f"CHECK7 {tp0['host']}", "M3 pilot", "is not drilled")
+    case("  same damage, the tie pilot count derived from the solids", f"CHECK5 tie_pilot: {n_tie - 1} positions have a hole", r["failures"], f"CHECK5 tie_pilot: {n_tie - 1} positions")
+    tp_r = next(tp for tp in tps if tp["host"] == "rib_A_right")
+    hr = part_named(parts, "rib_A_right")
+    hole_r = next(h for h in hr.holes if h.pilot and h.kind == "M3" and math.dist(h.point(f.OVERSHOOT), f.tie_face_point(tp_r)) < 0.01)
+    r = f.run_checks(hardware, with_part(parts, "rib_A_right", solid=refilled(hr, hole_r)), MEMO)
+    case(f"{f.tie_name(tp_r)}: the rail's pilot filled back in", f"CHECK5 tie_pilot: {n_tie - 1} positions have a hole", r["failures"], f"CHECK5 tie_pilot: {n_tie - 1} positions")
+    case("  same damage, check 7 on the rail", "CHECK7 rib_A_right ... M3 pilot ... is not drilled", r["failures"], "CHECK7 rib_A_right", "M3 pilot", "is not drilled")
+    b0 = bridges[0]
+    ax = hw.U_DIR if tp0["dir"][0] == 0.0 else tp0["dir"]
+    mv = moved(b0, *(0.5 * c for c in ax))
+    r = f.run_checks(hardware, with_part(parts, b0.name, solid=mv.solid, blank=mv.blank, holes=mv.holes), MEMO)
+    case(f"{b0.name} slid 0.5 mm along its face: still on its host, but off its pilot", f"CHECK5 tie_bridge: {n_tie - 1} positions have a hole", r["failures"], f"CHECK5 tie_bridge: {n_tie - 1} positions")
+    axis_gap = max(math.dist(b.holes[0].point(f.TIE_FOOT_T + f.OVERSHOOT), f.tie_face_point(tp)) for b, tp in zip(bridges, tps))
+    check("every bridge sits on its pilot: the bridge's hole axis passes through the tie point on the host's face", axis_gap < 1e-6 and all(
+          abs(sum((a - c) * k for a, c, k in zip(b.holes[0].start, f.tie_face_point(tp), f.TIE_NORMAL)) - (f.TIE_FOOT_T + f.OVERSHOOT)) < 1e-6 for b, tp in zip(bridges, tps)),
+          ("each hole starts 3.5 mm above its tie point along the normal, on the axis", f"largest offset of an axis point from its tie point {axis_gap:.1e} mm"))
+    lift = moved(b0, *(1.0 * c for c in f.TIE_NORMAL))
+    r = f.run_checks(hardware, with_part(parts, b0.name, solid=lift.solid, blank=lift.blank, holes=lift.holes), MEMO)
+    case(f"{b0.name} lifted 1 mm off its host", f"CHECK3 tie bridge {b0.name} touches nothing, the plan lists only its host", r["failures"], f"CHECK3 tie bridge {b0.name} touches nothing")
+    sunk = moved(b0, *(-1.0 * c for c in f.TIE_NORMAL))
+    r = f.run_checks(hardware, with_part(parts, b0.name, solid=sunk.solid, blank=sunk.blank, holes=sunk.holes), MEMO)
+    case(f"{b0.name} pressed 1 mm into its host", f"CHECK3 part x part {tp0['host']} x {b0.name}: ... mm3", r["failures"], "CHECK3 part x part", b0.name, "mm3")
+    mid = [b for b, tp in zip(bridges, tps) if tp["row"] == "mid"]
+    gap_mid = f.solid_distance(mid[0].solid, mid[1].solid)
+    mv = moved(mid[0], gap_mid * 1.0, 0.0, 0.0)
+    r = f.run_checks(hardware, with_part(parts, mid[0].name, solid=mv.solid, blank=mv.blank, holes=mv.holes), MEMO)
+    case(f"{mid[0].name} slid along the beam until it touches {mid[1].name}", f"CHECK3 tie bridge {mid[0].name} touches ['{mid[1].name}'], the plan lists only its host", r["failures"],
+         f"CHECK3 tie bridge {mid[0].name} touches", mid[1].name)
+    mv = moved(mid[0], gap_mid - 1.0, 0.0, 0.0)
+    r = f.run_checks(hardware, with_part(parts, mid[0].name, solid=mv.solid, blank=mv.blank, holes=mv.holes), MEMO)
+    case(f"{mid[0].name} 1 mm from {mid[1].name}", f"CHECK3 tie bridge {mid[0].name} is 1.00 mm from {mid[1].name}, needs {f.TIE_CLEAR:g}", r["failures"], f"CHECK3 tie bridge {mid[0].name} is 1.00 mm from {mid[1].name}")
+    import cables
+    far = mid[-1]
+    routes = cables.build_routes()
+    mv = moved(far, 28.0, 0.0, 0.0)     # slid in X into the lane the USB 3 cable runs in under beam_mid (X 116..128, n -41)
+    ov = cables.evaluate(routes, with_part(parts, far.name, solid=mv.solid, blank=mv.blank, holes=mv.holes), hardware)
+    bad = [t for _c, t in cables.failures(routes, ov) if far.name in t]
+    check("a bridge slid into USB 3's lane is a cable failure: cables.py keeps 3 mm from every bridge", len(bad) >= 1 and "needs 3" in bad[0], (f"'... mm from {far.name}, needs 3'", "; ".join(bad) or "no failure"))
+    routes = cables.build_routes()
+    ov = cables.evaluate(routes, parts, hardware)
+    slots = {f.tie_name(tp): np.array(f.tie_slot_centre(tp)) for tp in tps}
+    stats = {n: cables.tie_stats(routes[n], slots) for n in cables.TIE_ROUTES}
+    check("cables.py gives the two tie numbers for the six cables, and no cable is closer than its 3 mm to a bridge", set(stats) == {"atx24", "gpu12v", "eps1", "eps2", "usb3", "usbc"}
+          and all(math.isfinite(v[0]) and v[0] > 3.0 and v[2] >= 0.0 for v in stats.values()) and not cables.failures(routes, ov),
+          ("six cables, nearest > 3 mm, no cable failure", "; ".join(f"{n} {v[0]:.1f} mm / {v[2]:.0f} mm" for n, v in stats.items())))
+    fewer = {k: v for k, v in slots.items() if not k.startswith("tie_bridge_rail")}
+    st2 = cables.tie_stats(routes["atx24"], fewer)
+    check("the tie numbers respond: ATX 24-pin without the rail's bridges is further from its nearest tie point and has a longer unserved stretch", st2[0] > stats["atx24"][0] + 5.0 and st2[2] > stats["atx24"][2],
+          (f"nearest > {stats['atx24'][0]:.1f} + 5 mm, unserved > {stats['atx24'][2]:.0f} mm", f"{st2[0]:.1f} mm, {st2[2]:.0f} mm"))
 
     # last: the undamaged model, once more with nothing remembered
     final = f.run_checks(hardware, parts)
