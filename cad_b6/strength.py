@@ -28,6 +28,7 @@ import gmsh
 import numpy as np
 from scipy.spatial import cKDTree
 from skfem import Basis, BilinearForm, ElementTetP0, ElementTetP1, ElementTetP2, ElementVector, LinearForm, MeshTet, asm, condense, solve
+from skfem.assembly.form.coo_data import COOData
 from skfem.helpers import ddot, sym_grad, trace
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
@@ -224,17 +225,45 @@ def self_weight(v, w):
     return -w["rho"] * G * v.value[2]
 
 
-def solve_case(mesh, basis, basis0, frac, infill, f_ext, gscale=1.0):
+def pick_solver():
+    """MKL Pardiso on all cores where pypardiso is installed (x86), else scikit-fem's default (SuperLU, one core).
+    STRENGTH_SOLVER=scipy forces the default, to compare the two."""
+    if os.environ.get("STRENGTH_SOLVER") != "scipy":
+        try:
+            import pypardiso
+            return (lambda A, b, **kw: pypardiso.spsolve(A.tocsr(), b)), "MKL Pardiso, все ядра"
+        except ImportError:
+            pass
+    return None, "SuperLU, одно ядро"
+
+
+SOLVER, SOLVER_NAME = pick_solver()
+
+
+def unit_stiffness(mesh, basis, basis0):
+    """Element stiffness matrices for a modulus of 1 MPa. With one Poisson ratio the stiffness is linear in each
+    element's modulus, so every infill case scales these instead of assembling again (assembly is most of the run time)."""
+    one = np.ones(mesh.t.shape[1])
+    lam = one * NU / ((1 + NU) * (1 - 2 * NU))
+    mu = one / (2 * (1 + NU))
+    return stiffness.coo_data(basis, lam=basis0.interpolate(lam), mu=basis0.interpolate(mu))
+
+
+def scaled_stiffness(unit, E):
+    nb = unit.local_shape
+    data = (unit.data.reshape(nb[1], nb[0], -1) * E).ravel()        # data[j, i, element], as scikit-fem lays it out
+    return COOData(unit.indices, data, unit.shape, unit.local_shape).tocsr()
+
+
+def solve_case(mesh, basis, basis0, frac, infill, f_ext, unit, gscale=1.0):
     k = infill ** 2
     E = E0 * (frac + (1 - frac) * k)
     rho = RHO * (frac + (1 - frac) * infill)
-    lam = E * NU / ((1 + NU) * (1 - 2 * NU))
-    mu = E / (2 * (1 + NU))
-    K = asm(stiffness, basis, lam=basis0.interpolate(lam), mu=basis0.interpolate(mu))
+    K = scaled_stiffness(unit, E)
     f = f_ext + gscale * asm(self_weight, basis, rho=basis0.interpolate(rho))
     feet = np.where(mesh.p[2] < -14.4)[0]
     D = basis.nodal_dofs[:, feet].ravel()
-    u = solve(*condense(K, f, D=D))
+    u = solve(*condense(K, f, D=D), solver=SOLVER)
     # strain per element (constant for linear tetrahedra) -> stress in the wall material and in the infill
     grad = basis.interpolate(u).grad                        # (3, 3, nel, nqp)
     eps = 0.5 * (grad + np.transpose(grad, (1, 0, 2, 3))).mean(axis=3)
@@ -285,7 +314,7 @@ def main():
     basis = Basis(mesh, ElementVector(ElementTetP2() if order == 2 else ElementTetP1()))
     basis0 = basis.with_element(ElementTetP0())
     out.append(f"СЕТКА: {mesh.t.shape[1]} тетраэдров, {basis.N // 3} узлов расчёта, элементы порядка {order}, шаг до {h_max:g} мм; "
-               f"объём {vol.sum() / 1000:.0f} см³; доля стенки по объёму {float((frac * vol).sum() / vol.sum()) * 100:.0f} %")
+               f"объём {vol.sum() / 1000:.0f} см³; доля стенки по объёму {float((frac * vol).sum() / vol.sum()) * 100:.0f} %; решатель: {SOLVER_NAME}")
     f1, log = load_vector(mesh, basis)
     out.append("НАГРУЗКИ (1 g): " + "; ".join(log))
     out.append(f"Допустимое напряжение в стенке: {ALLOW:.1f} МПа (прочность поперёк слоёв {STRENGTH_LAYER:.0f} МПа, запас {SAFETY:.0f})")
@@ -295,9 +324,10 @@ def main():
     p420 = near(mesh, hw.bp(hw.x_to_v(hw.RAD420_HOLES_X[5]), hw.RAD420_BS[3] + 5.0, hw.RAD420_HOLES_N[1]), 10.0)
     p360 = near(mesh, hw.bp(hw.x_to_v(hw.RAD360_HOLES_X[-1]), hw.RAD360_HOLES_U[0], hw.RAD360_INNER_N - 6.0), 10.0)
     worst, peaks, spots = None, [], []
+    unit = unit_stiffness(mesh, basis, basis0)
     cent = mesh.p.T[mesh.t.T].mean(axis=1)
     for infill in INFILLS:
-        disp, vm_wall, vm_core, _ = solve_case(mesh, basis, basis0, frac, infill, f1)
+        disp, vm_wall, vm_core, _ = solve_case(mesh, basis, basis0, frac, infill, f1, unit)
         mag = np.linalg.norm(disp, axis=1)
         wall = vm_wall[frac > 0.3]
         core = vm_core[frac < 0.7] if infill < 1 else np.array([0.0])

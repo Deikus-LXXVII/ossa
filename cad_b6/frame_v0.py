@@ -904,7 +904,10 @@ ANTLER_FINGER_N1 = hw.RAD420_BS[5] - 2.0                                # finger
 TONGUE_X = (X_OUT, X_OUT + ANTLER_T)                                    # laps onto the rib's outer face
 TONGUE_U = (338.0, ANTLER_U[1])
 TONGUE_N = (-56.0, hw.RAD420_BS[4] - 5.0)
-TONGUE_LINK_N1 = hw.RAD420_BS[4] - 1.0                                  # the part of the tongue behind the fan face reaches up into the bar
+TONGUE_LINK_N1 = hw.RAD420_HOLES_N[0] + ANTLER_BAR_HALF                 # the part of the tongue behind the fan face reaches up to the bar's top face
+ANTLER_BUTTRESS_DEPTH = 14.0                                            # revision 10: the buttress stands this far behind the plate (u)
+ANTLER_BUTTRESS_N0 = -44.0                                              # and starts on the plate's rear face at this n, below the bar
+ANTLER_BUTTRESS_N1 = hw.RAD420_HOLES_N[0]                               # and ends on it at the bar's centre line: a rounded foot needs flat rear face above it (the bar's top is 10 mm higher)
 
 
 def bsx(x0, x1, u0, u1, n0, n1):
@@ -939,8 +942,10 @@ def build_antler_right(side=1):
     bar = bsx(x_in, x_out, u0, u1, n_lo - ANTLER_BAR_HALF, n_lo + ANTLER_BAR_HALF)
     finger = bsx(max(holes_x) - 9.25, x_out, u0, u1, n_lo, ANTLER_FINGER_N1)
     plate = rounded_like(fuse_all([bar, finger]), hw.U_DIR, name + " plate", sides=sides, own=(name,), rings=rings)
+    buttress = Poly([hw.bp_yz(u1, ANTLER_BUTTRESS_N0), hw.bp_yz(u1 + ANTLER_BUTTRESS_DEPTH, TONGUE_N[1]),
+                     hw.bp_yz(u1, ANTLER_BUTTRESS_N1)]).solid(*TONGUE_X)      # a triangle behind the plate, as wide as the tongue
     tongue = bsx(*TONGUE_X, TONGUE_U[0], TONGUE_U[1], TONGUE_N[0], TONGUE_N[1]).fuse(
-        bsx(*TONGUE_X, u0, u1, TONGUE_N[0], TONGUE_LINK_N1))
+        bsx(*TONGUE_X, u0, u1, TONGUE_N[0], TONGUE_LINK_N1)).fuse(buttress)
     tongue = rounded_like(tongue.clean(), (1, 0, 0), name + " tongue", sides=sides, own=(name,), rings=rings)
     s = fuse_all([plate, tongue])
 
@@ -3003,6 +3008,10 @@ DEVIATIONS: list[str] = [
     "10 x 10: три по 2 мм, четвёртый острый; 4 x 4: ни одного; винт в 5.5 мм от угла держит его на 3 мм), порог (одно тело, зазоры 0.40 и 0.30, контакты, 4 x M4, 2 винта модуля из тел, "
     "сдвиг на 5 мм по X, front_io выше на 5 мм, light_strip на 4 мм в стенку, front_io перед Y = 0, 300 мм, заделанный штифт, порог без отверстий, сдвиг винта модуля в таблице), материалы. "
     "Случай «6 мм угол антлера даёт CONTACT» заменён: под предел 97 % он больше не провал (0.2 %).",
+    "Ревизия 10, корень антлера: контрфорс (треугольник в u, n: основание на задней грани плиты, вершина на u + 14, n -20) входит в контур языка и скругляется вместе с ним; "
+    "звено языка доходит до верха планки (TONGUE_LINK_N1 = n 1.75), и внутренний угол (u 378, n -20) скруглён радиусом 5 (больше нельзя: низ радиатора на n -15). "
+    "Отклонение от плана: верхняя точка контрфорса на оси планки (n -8.25), а не на её верху (n 1.75). Пока он кончался на верхней кромке, скругление его острого угла оставляло на задней грани "
+    "плиты острое вогнутое ребро 57° (проверка 12: без объяснения 1 на антлер); с точкой на оси стык переходит в плиту по касательной.",
 ]
 OPEN_ITEMS: list[str] = [
     "ПРАВЫЙ боковой вентилятор: три винта из четырёх (A, C с внутренней грани в штифты M4S, D с внешней через лапку Ø4.5; ревизия 7a), угол B без винта: на внутренней грани "

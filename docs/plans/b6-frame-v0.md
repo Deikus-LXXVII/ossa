@@ -415,3 +415,19 @@ Scope: `cad_b6/frame_v0.py`, both antlers (mirrored). No hardware moves. No hole
 5. Report: the radius reached at the corner, the buttress's clearance to `rad420` and `rib_B` (`measure.py`), the antler's volume before and after, largest Y of the antler.
 
 After it, the main session reruns `strength.py 7 2 --focus`. Aim: the peak in both focus zones at or below 3.5 MPa at 20 % infill (now 5.99 and 5.89).
+
+### Revision 10, result (15 Nov 2026)
+
+Built as planned, with one deviation: the buttress ends on the bar's centre line (n -8.25), not at the bar's top (n 1.75). Ending at the top edge left a sharp 57° concave edge on the plate's rear face that check 12 could not explain. The section at the root is the same 24 mm. The corner (u 378, n -20) has a 5 mm fillet. `frame_v0.py` passes, `test_checks.py` 92/92, sharp corners 54 of 156.
+
+| At 20 % infill, 4 perimeters | Before | After |
+|---|---|---|
+| Wall stress at the antler root, 1.5 mm mesh, left / right | 5.99 / 5.89 MPa | 2.58 / 2.63 MPa |
+| Sag at the 420 | 1.98 mm | 1.68 mm |
+| Sag at the 360 | 1.51 mm | 1.51 mm |
+| Wall stress, 99.9th percentile | 2.17 MPa | 1.99 MPa |
+| Skeleton plastic | 1475 g | 1478 g |
+
+The aim of 3.5 MPa is met. The most loaded places are now the feet (2.7 to 2.9 MPa), where the model fixes the skids to the desk; that is a boundary of the model more than a load in the part.
+
+`strength.py` changes made along the way: the stiffness matrix is assembled once for a unit modulus and scaled per infill (assembly was 71 s of every case), and MKL Pardiso is used where `pypardiso` is installed. Same numbers, 519 s -> 144 s on a 20-core x86 machine. On the Mac the solver stays SuperLU and the single assembly still applies.

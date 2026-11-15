@@ -9,5 +9,10 @@ scipy==1.18.1
 networkx==3.7
 pillow==13.0.0
 vtk==9.6.2
+# Strength check (cad_b6/strength.py):
+gmsh==4.15.2
+scikit-fem==12.0.2
+meshio==5.3.5
+# Optional, x86 only: pypardiso makes strength.py use every core for the solve.
 # Installed during development, not used in the final frame_v1 path:
 # pymeshfix==0.18.1  (aggressive repair destroyed volume; do not use)
