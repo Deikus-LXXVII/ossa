@@ -1,10 +1,10 @@
 B6 cables, second pass: routes and checks (cad_b6/cables.py)
 
 cable             route   real  spare  smallest bend    smallest clearance  to                                            furthest in front of Y 0
-ATX 24-pin          532    610     78       30.0/30                   5.50  hw:board (route without the plug's descent)               none (Y 123)
-12V-2x6             684    700     16       35.0/35                   3.50  rib_A_right                                                    10.4 mm
-EPS 1               692    700      8       20.0/20                   3.50  hw:board (route without the plug's descent)               none (Y 106)
-EPS 2               683    700     17       20.0/20                   3.50  hw:board (route without the plug's descent)               none (Y 121)
+ATX 24-pin          517    610     93       30.0/30                   5.50  hw:board (route without the plug's descent)               none (Y 123)
+12V-2x6             670    700     30       35.0/35                   3.50  rib_A_right                                                    10.4 mm
+EPS 1               649    700     51       20.0/20                   3.50  hw:board (route without the plug's descent)               none (Y 115)
+EPS 2               669    700     31       20.0/20                   3.50  hw:board (route without the plug's descent)               none (Y 120)
 USB 3 front         440    n/a    n/a       15.0/15                   3.53  beam_mid                                                   none (Y 40)
 USB-C front         302    n/a    n/a       15.0/15                   3.00  hw:gpu (from n 11 up)                                      none (Y 40)
 Power switch         31    n/a    n/a        -  /8                    4.24  front_sill                                                 none (Y 52)
@@ -17,8 +17,8 @@ Left side fan       167    400    233        8.0/8                    6.40  hw:g
 per route: every clearance under 10 mm, and every failed check
   ATX 24-pin       hw:board (route without the plug's descent) 5.5; rib_A_right 6.5
   12V-2x6          rib_A_right 3.5; hw:rad360 4.0; hw:board 5.5; hw:atx24 5.5
-  EPS 1            hw:board (route without the plug's descent) 3.5; skid_front 3.6; hw:dimms 4.0; hw:rad420 4.0; hw:psu (route after its socket leg) 4.0; rib_A_right 4.5; rib_B_right 4.5; hw:atx24 7.1; beam_low 8.6; desk plane Z -15 7.4
-  EPS 2            hw:board (route without the plug's descent) 3.5; hw:dimms 3.5; hw:psu (route after its socket leg) 3.8; beam_top 3.9; hw:rad420 4.0; rib_A_right 4.5; rib_B_right 4.5
+  EPS 1            hw:board (route without the plug's descent) 3.5; hw:dimms 4.0; hw:rad420 4.0; rib_A_right 4.5; rib_B_right 4.5; hw:psu (route after its socket leg) 5.0; hw:atx24 7.1
+  EPS 2            hw:board (route without the plug's descent) 3.5; hw:dimms 3.5; hw:psu (route after its socket leg) 3.6; beam_top 3.9; hw:rad420 4.0; rib_A_right 4.5; rib_B_right 4.5
   USB 3 front      beam_mid 3.5; hw:board (route without the plug's descent) 5.5; rib_A_right 6.5; front_sill 6.6; beam_low 8.5
   USB-C front      hw:gpu (from n 11 up) 3.0; hw:board (route without the plug's descent) 3.4; rib_A_right 4.4; front_sill 6.6; fan_bracket_right 6.8; beam_low 9.3
   Power switch     front_sill 4.2
@@ -27,7 +27,7 @@ per route: every clearance under 10 mm, and every failed check
   Pump / 420 fans  hw:dimms 3.5; hw:rad420 9.0; hw:atx24 9.7
   Right side fan   hw:gpu_hoses 5.5; neck_right 5.8
   Left side fan    hw:gpu 6.4
-route x route: smallest distances EPS 1 x EPS 2 0.43, ATX 24-pin x EPS 1 0.50, 12V-2x6 x USB 3 front 0.50, ATX 24-pin x 12V-2x6 0.50, ATX 24-pin x EPS 2 0.60, ATX 24-pin x USB 3 front 0.76
+route x route: smallest distances EPS 1 x EPS 2 0.40, 12V-2x6 x USB 3 front 0.46, ATX 24-pin x EPS 1 0.50, ATX 24-pin x 12V-2x6 0.50, EPS 2 x Pump / 420 fans 1.00, ATX 24-pin x USB 3 front 1.16
 
 failed checks: none
 
@@ -36,7 +36,8 @@ Socket numbers and assumptions used
   plug 13 mm out of the mouth (assumption), straight 35 mm from the plug's back; radius 7, bend 35
   slabs: strands r 4, pitch 8, bend 15; ATX 6 strands, 12V-2x6 4 strands (assumptions)
   USB-C: lying plug 15 x 8 mm (assumption); the card counts from n 11 up for this route only (assumption; the owner confirmed the port works under this card today)
-  PSU sockets (inferred from a photo, not checked): mb X 48 Z 43, eps1 X -52 Z 30, eps2 X -36 Z 30, gpu X 0 Z 43 on the face Y 165
+  PSU sockets (read off a photo of the modular face, +-3 mm in X, +-5 mm in Z, not measured; hardware.PSU_SOCKET_FIELD): mb = mb X 26 Z 28, eps1 = cpu_c1r2 X -19 Z 49, eps2 = cpu_c1r1 X -19 Z 29, gpu = gpu_z67 X 1.5 Z 67 on the face Y 165
+  the ATX 24-pin cable really ends in two plugs side by side at the PSU (the 10-pin and the 18-pin, X -5 to 56); it is modelled as one round bundle from the field's centre (X 26): a simplification
   radii and bends of every other cable: hardware.CABLES (assumptions)
 
 12V-2x6, furthest point in front of Y 0: 10.4 mm (surface at Y -10.4); the arch's top is n 220. Accepted by the owner on 15 Nov 2026 as a tolerance, up to 11 mm
@@ -50,25 +51,24 @@ What the skeleton has to provide (coordinates only; item 1 is built, nothing els
 2. Rail notch: none. No route comes within 3 mm of the ribs; the USB-C cable, which passes over the rail in the board's plane (n 4), is 4.4 mm from rib_A_right at the closest.
 3. Proposed clip points (where a cable changes direction under the board, and where it enters the gap), arc midpoints of each bend under the board (n < -2):
    ATX 24-pin:
-      113 deg, R 30.0: world (59, 140, 36) board (181, 61, -52)
-       95 deg, R 30.0: world (105, 155, 13) board (227, 55, -79)
+      148 deg, R 30.0: world (47, 136, 34) board (169, 57, -51)
+       45 deg, R 30.0: world (111, 205, 57) board (233, 121, -83)
        90 deg, R 30.0: world (130, 267, 129) board (252, 216, -76)
    12V-2x6:
-      130 deg, R 35.0: world (20, 127, 48) board (142, 60, -35)
-       55 deg, R 35.0: world (109, 181, 72) board (231, 115, -56)
-       22 deg, R 35.0: world (114, 199, 88) board (236, 139, -58)
-       90 deg, R 35.0: world (128, 217, 120) board (250, 175, -47)
+      128 deg, R 35.0: world (21, 133, 67) board (143, 78, -25)
+       63 deg, R 35.0: world (108, 181, 74) board (230, 117, -55)
+       24 deg, R 35.0: world (114, 201, 90) board (236, 142, -58)
+       90 deg, R 35.0: world (127, 217, 120) board (249, 175, -47)
    EPS 1:
-      108 deg, R 20.0: world (-44, 116, 28) board (78, 38, -41)
-       40 deg, R 20.0: world (70, 146, -2) board (192, 38, -83)
-       48 deg, R 20.0: world (111, 192, 13) board (233, 82, -105)
-       15 deg, R 20.0: world (113, 266, 87) board (235, 186, -106)
-       90 deg, R 20.0: world (130, 307, 136) board (252, 249, -100)
+       92 deg, R 20.0: world (-13, 126, 47) board (109, 59, -35)
+       74 deg, R 20.0: world (66, 127, 14) board (188, 36, -58)
+       36 deg, R 20.0: world (112, 222, 43) board (234, 123, -105)
+       90 deg, R 20.0: world (131, 307, 135) board (253, 249, -100)
    EPS 2:
-      107 deg, R 20.0: world (-28, 131, 29) board (94, 50, -51)
-       61 deg, R 20.0: world (84, 160, 17) board (206, 61, -80)
-       38 deg, R 20.0: world (113, 273, 36) board (235, 154, -146)
-       27 deg, R 20.0: world (114, 333, 94) board (236, 239, -148)
+      104 deg, R 20.0: world (-12, 130, 27) board (110, 47, -52)
+       76 deg, R 20.0: world (78, 149, 3) board (200, 44, -82)
+       21 deg, R 20.0: world (113, 329, 91) board (235, 233, -147)
+       29 deg, R 20.0: world (114, 336, 97) board (236, 242, -148)
        90 deg, R 20.0: world (129, 351, 121) board (251, 270, -142)
    USB 3 front:
        83 deg, R 15.0: world (61, 85, 3) board (183, -1, -37)

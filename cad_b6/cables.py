@@ -42,7 +42,7 @@ END_TOL = 5.0                              # a route's end may be this far from 
 V_GAP = hw.x_to_v(131.5)                   # the gap's v: the board's edge is X 122 and the rib's X 142; here 9.5 / 10.5 mm from them, so that r 6 and r 7 keep 3.5 mm from both
 V_IN = hw.x_to_v(113.0)                    # the lane under the board, inboard of the ribs (the r 12 ATX cable must stay 15 mm from X 142)
 LANE_N = {"usb3": -41.0, "gpu12v": -57.5, "atx24": -85.0, "eps1": -106.0, "eps2": -147.5}   # search: levels of the lanes at v 235: the cable that rises first lies on top, the next one under it by the two radii and air; USB 3 under beam_low (n -30) with r 4, EPS 2 above the desk (Z -15)
-SHIFT_DEG = {"gpu12v": 22.5, "atx24": 12.0, "eps1": 15.0, "eps2": 27.0}   # search: angle of the diagonal that moves a lane cable from v 235 to the gap (it sets where each cable crosses the others)
+SHIFT_DEG = {"gpu12v": 24.0, "atx24": 12.0, "eps1": 8.5, "eps2": 29.5}   # search: angle of the diagonal that moves a lane cable from v 235 to the gap (it sets where each cable crosses the others); third pass: the diagonal is also where a PSU cable leaves its straight run to the lane, so a small angle is a long gentle ramp
 
 # The u of each cable where it passes the gap, in the order USB 3, 12V-2x6, ATX, EPS 1, EPS 2. The spec has 12V-2x6 first: that cannot be, JUSB3 is at u 160 and
 # USB 3 would have to cross the 12V slab (u 167..199, n up to 53, and the round cable above it) to reach it. The window is u 158 (beam_mid, u 155, + 3 + r 4)
@@ -215,11 +215,11 @@ def psu_lead(name, theta):
 
 # ---- the numbers of each route (board space unless said) ----
 # PSU cables: out of the socket OUT_LEG mm along -Y, round the PSU's right front corner through WAY_* (EPS only), to the lane's start at u U_IN, then the lane.
-U_IN = {"atx24": 45.0, "gpu12v": 113.0, "eps1": 81.0, "eps2": 154.0}     # search: u at which a PSU cable reaches its lane (the plan's 45 for the ATX cable)
-OUT_LEG = {"atx24": 45.0, "gpu12v": 80.5, "eps1": 60.5, "eps2": 45.0}   # the plan's 45 mm along -Y; search: the 12V-2x6 80.5 (it is 17 mm short of its 700 mm at that, 25 mm more and it would be over), EPS 1 60.5 (it passes EPS 2's first leg in front)
-WAY_X = {"eps1": 70.5, "eps2": 86.0}       # search: world X, Y, Z of the point where an EPS cable passes the PSU's right front corner (X 75, Y 165): the straight way to the lane cuts the PSU
-WAY_Y = {"eps1": 145.0, "eps2": 157.5}
-WAY_Z = {"eps1": -2.5, "eps2": 16.0}
+U_IN = {"atx24": 120.0, "gpu12v": 113.5, "eps1": 123.0, "eps2": 233.0}   # third-pass search: u at which a PSU cable reaches its lane (EPS 2's 233 lies on the diagonal's own ramp: the cable meets its lane only just before the gap)
+OUT_LEG = {"atx24": 103.0, "gpu12v": 72.5, "eps1": 45.0, "eps2": 45.0}   # third-pass search; the plan's 45 mm along -Y is the lower bound for every cable (ATX 103: the shortest way to its lane starts out along -Y)
+WAY_X = {"eps1": 68.0, "eps2": 81.5}       # third-pass search: world X, Y, Z of the point where an EPS cable passes the PSU's right front corner (X 75, Y 165): the straight way to the lane cuts the PSU
+WAY_Y = {"eps1": 123.0, "eps2": 146.5}
+WAY_Z = {"eps1": 11.0, "eps2": 0.0}
 
 # 12V-2x6: from the socket's mouth along +n (plug 13 + straight 35), one arch in the vertical plane through the socket and the descent, down the gap.
 GPU12V_TOP_N = 220.0                       # top of the arch: mouth n 137 + plug 13 + straight 35 + the first bend's radius 35 (the arch cannot be lower)
@@ -524,7 +524,8 @@ def facts_section(routes):
            f"  plug {hw.GPU12V_PLUG:g} mm out of the mouth (assumption), straight {hw.GPU12V_STRAIGHT:g} mm from the plug's back; radius {hw.CABLES['gpu12v'][1]:g}, bend {hw.CABLES['gpu12v'][2]:g}",
            f"  slabs: strands r {hw.SLAB_STRAND_R:g}, pitch {hw.SLAB_PITCH:g}, bend {hw.SLAB_BEND:g}; ATX {hw.CABLE_SLAB['atx24']} strands, 12V-2x6 {hw.CABLE_SLAB['gpu12v']} strands (assumptions)",
            f"  USB-C: lying plug {hw.LYING_PLUG['length']:g} x {hw.LYING_PLUG['thick']:g} mm (assumption); the card counts from n {hw.GPU_UNDERSIDE_N:g} up for this route only (assumption; the owner confirmed the port works under this card today)",
-           f"  PSU sockets (inferred from a photo, not checked): " + ", ".join(f"{k} X {v[0]:g} Z {v[2]:g}" for k, v in hw.PSU_SOCKETS.items()) + f" on the face Y {hw.PSU_W[2]:g}",
+           f"  PSU sockets (read off a photo of the modular face, +-3 mm in X, +-5 mm in Z, not measured; hardware.PSU_SOCKET_FIELD): " + ", ".join(f"{k} = {hw.PSU_SOCKET_USE[k]} X {v[0]:g} Z {v[2]:g}" for k, v in hw.PSU_SOCKETS.items()) + f" on the face Y {hw.PSU_W[2]:g}",
+           "  the ATX 24-pin cable really ends in two plugs side by side at the PSU (the 10-pin and the 18-pin, X -5 to 56); it is modelled as one round bundle from the field's centre (X 26): a simplification",
            "  radii and bends of every other cable: hardware.CABLES (assumptions)",
            ""]
     rt = routes["gpu12v"]

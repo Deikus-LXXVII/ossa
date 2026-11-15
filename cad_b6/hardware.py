@@ -296,12 +296,20 @@ HEADERS = {
 }
 HEADER_TOP_N = 12.0                       # ASSUMPTION: a header stands 12 mm proud of the board (plan)
 
-# Sockets on the PSU's modular face (Y = PSU_W[2]), world (X, Y, Z). STANDING: INFERRED from a photo taken fan down, NOT CHECKED. Seen from
-# the front with the fan up: the CPU/PCIe field on the left (-X), the two 12V-2x6 in the centre, the motherboard pair on the right (+X).
-# The positions are the plan's, only the side is read off the photo.
-PSU_SOCKETS = {
-    "mb": (48.0, PSU_W[2], 43.0), "eps1": (-52.0, PSU_W[2], 30.0), "eps2": (-36.0, PSU_W[2], 30.0), "gpu": (0.0, PSU_W[2], 43.0),
+# The PSU's modular face (Y = PSU_W[2]), every socket, world (X, Y, Z). STANDING: READ OFF A PHOTO (refs/psu_tx1600_modular_face.jpg, a straight-on photo
+# from the Vortez review, local only), NOT MEASURED: +-3 mm in X, +-5 mm in Z. The photo is taken label side up, so fan down; the PSU stands fan up in the
+# case and the photo is turned half a turn. Seen from the front of the case, fan up: the CPU/PCIe field on the left (-X), the two 12V-2x6 in the middle,
+# the motherboard pair and the peripheral sockets on the right (+X). Scale in the photo: 9.73 px/mm across the 150 mm face, 6.9 px/mm over its 86 mm height.
+# "mb" is the centre of two sockets side by side (a 10-pin and an 18-pin, X -5 to 56, Z 28); the 24-pin cable ends in both. The six peripheral sockets
+# (X about 10 to 55, Z 49 and 67) are not used and not listed.
+PSU_SOCKET_FIELD = {
+    "mb": (26.0, PSU_W[2], 28.0),
+    **{f"cpu_c{c}r{r}": (x, PSU_W[2], z) for c, x in enumerate((-19.0, -37.0, -55.0), 1) for r, z in enumerate((29.0, 49.0, 67.0), 1)},   # nine 8-pin, an EPS cable fits any
+    "gpu_z49": (1.5, PSU_W[2], 49.0), "gpu_z67": (1.5, PSU_W[2], 67.0),                                                                      # the two 12V-2x6
 }
+# The sockets in use: cable -> key in PSU_SOCKET_FIELD. Chosen in cad_b6/cables.py for the shortest routes that pass every check (reason in report_cables.txt).
+PSU_SOCKET_USE = {"mb": "mb", "eps1": "cpu_c1r2", "eps2": "cpu_c1r1", "gpu": "gpu_z67"}
+PSU_SOCKETS = {k: PSU_SOCKET_FIELD[v] for k, v in PSU_SOCKET_USE.items()}
 
 # Cables: name -> (real length in mm or None, radius, minimum bend radius). STANDING: lengths of the PSU's own cables are Seasonic's spec
 # sheet (ATX 24-pin 610, EPS 700, 12V-2x6 700); "None" = unknown (front I/O cables of the Fractal North XL, the ARCTIC PWM lead, the light line,

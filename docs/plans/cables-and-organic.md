@@ -216,7 +216,7 @@ Every bend is at its minimum or above. No two routes overlap; the closest pairs 
 - The right side fan's lead crosses the board's edge at u 287, beyond EPS 2. The first pass's route ran into the new ATX and EPS hooks.
 - Two checks were added: a PSU cable keeps 3 mm from the PSU after its socket leg, and the 12V-2x6 keeps 3 mm from the card after its first bend.
 
-**Margins that are inside the model's error.** EPS 1 has 8 mm to spare, the 12V-2x6 16 mm and EPS 2 17 mm. The PSU's socket positions are inferred from a photo and the 12V socket from a render, so these three are not proven. Next: read the PSU's modular face from a photo and choose the sockets nearest the right edge.
+**Margins that were inside the model's error.** EPS 1 had 8 mm to spare, the 12V-2x6 16 mm and EPS 2 17 mm. Settled later the same day: see "The PSU's modular face" below.
 
 What the skeleton has to provide is listed with coordinates at the end of `cad_b6/report_cables.txt`: the sill slot (USB 3 at X 60, USB-C at X 70, power switch X 82, audio X 48, light line X -125), no rail notch, and the clip points.
 
@@ -279,8 +279,17 @@ Seen from the front of the case, fan up, world X and Z on the face Y 165:
 
 Against the model's old numbers: `mb` was (48, 43), now (26, 28); `eps1` and `eps2` were (-52, 30) and (-36, 30), which are two real sockets of the bottom row; `gpu` was (0, 43), the real ones are at Z 49 and 67.
 
-**Task (third cable pass, leads only):** put the field into `hardware.py` (`PSU_SOCKET_FIELD`, with its standing), let `PSU_SOCKETS` name the sockets in use, and choose them for the shortest routes that pass every check: the two EPS cables from the nine CPU/PCIe sockets, the 12V-2x6 from its two. Re-find the lead way-points of the four PSU cables. The aim is spare length: EPS 1 has 8 mm now, the 12V-2x6 16 mm, EPS 2 17 mm. Nothing else in the routes changes unless a check forces it.
+**Third cable pass, built (15 Nov 2026).** `hardware.PSU_SOCKET_FIELD` holds the field, `PSU_SOCKET_USE` names the sockets in use. Checked in the main session: `cables.py` exits 0 with no failed check; `test_checks.py` 108 of 108 (the subagent's run).
+
+| Cable | Socket (X, Z) | Route before, after | Real | Spare before, after |
+|---|---|---|---|---|
+| ATX 24-pin | MB (26, 28) | 532, 517 | 610 | 78, 93 |
+| 12V-2x6 | upper 12V-2x6 (1.5, 67) | 684, 670 | 700 | 16, 30 |
+| EPS 1 | CPU/PCIe column 1, row 2 (-19, 49) | 692, 649 | 700 | 8, 51 |
+| EPS 2 | CPU/PCIe column 1, row 1 (-19, 29) | 683, 669 | 700 | 17, 31 |
+
+The smallest spare is 30 mm now. That is more than the photo's error, but the 12V-2x6 socket on the card is still good only to about 12 mm, so its 30 mm is not a wide margin until the ruler measurement. The lanes, the order in the gap and everything above the board are unchanged. The ATX cable really ends in two plugs side by side (X -5 to 56); it is modelled as one round bundle from their centre.
 
 ### Next
 
-Read the PSU's modular face from a photo and choose the sockets nearest the right edge, then nylon clips and their insert pilots. Split the organic layer into printable pieces.
+Nylon clips for the cables and their insert pilots. Split the organic layer into printable pieces. Rerun the organic strength check when the gaming PC is back in Linux.
