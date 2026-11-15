@@ -54,12 +54,12 @@ The price: the layer is 1795 cm³, 2.2 kg if printed solid. Printed with walls a
 | PSU sockets, fan up, seen from the front | CPU/PCIe field on the left (-X), the two 12V-2x6 in the centre, motherboard pair on the right (+X) | Inferred from a photo taken fan down; not checked |
 | Board headers | Positions scaled off the manual's drawing, about ±5 mm. In (v, u): ATX_PWR1 (239, 220); CPU_PWR1 (190, 299); CPU_PWR2 (205, 299); JFP1 (235, 5); JUSB3 (239, 160); JUSBC1 (239, 110); JAUD1 (20, 5); CPU_FAN1 (225, 299); PUMP_SYS1 (239, 290); SYS_FAN1 (239, 270); SYS_FAN2 (45, 299); SYS_FAN3 (20, 135); JARGB_V2_1 (55, 5) | Agree with the keep-outs measured on the board scan (`ATX24_BS`, `EPS_BS`) |
 | ARGB header | 5 V, 3 A, 180 LEDs | Manual, via the research |
-| ARCTIC hose length | **450 mm in ARCTIC's spec sheet, 500 mm on ARCTIC's product page.** Both read on 15 Nov 2026. The model uses 500 | Conflict. The owner has to measure the real hose |
+| ARCTIC hose length | 450 mm in ARCTIC's spec sheet, 500 mm on ARCTIC's product page. **The owner chose 450 on 15 Nov 2026**; `hoses.CPU_HOSE` uses it | Decided |
 | ARCTIC wiring | Fan wires run inside the hose sleeve; one PWM lead leaves the pump head | Product page |
 
 Not found: where the 12V-2x6 socket sits on the RTX 5080 SUPRIM LIQUID, how its radiator fans and pump are wired, the lengths of the Fractal North XL front I/O cables, the lead length of the ARCTIC PWM cable, the outer size of any cable.
 
-**The hose conflict, tested.** With `CPU_HOSE` length 450 the solver still finds a route: the run below the visor's lip drops from n 161 / 169 to n 131 / 140, and `frame_v0.py` passes every check. So a 450 mm hose changes the look of that run, not the layout. Nothing is changed in the model until the owner measures.
+**The hose conflict, settled.** With 450 mm the solver finds a route: the run below the visor's lip sits at n 131 / 140 (161 / 169 with 500), and `frame_v0.py` passes every check. Details: `docs/plans/b6-frame-v0.md`, "Owner decisions".
 
 ### Where cables go
 

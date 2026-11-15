@@ -19,7 +19,7 @@ import numpy as np
 
 import hardware as hw
 
-CPU_HOSE = dict(length=500.0, r=hw.CPU_HOSE_R, min_bend=35.0)
+CPU_HOSE = dict(length=450.0, r=hw.CPU_HOSE_R, min_bend=35.0)     # ARCTIC spec sheet; the product page says 500. Owner decision of 15 Nov 2026: use 450
 GPU_HOSE = dict(length=450.0, r=hw.GPU_HOSE_R, min_bend=35.0)     # OD 11.2 measured on the 5090 sister card
 CPU_SPARE, GPU_SPARE = 18.0, 15.0        # hose left over after the drawn path
 SOCKET_V, SOCKET_U = hw.CPU_SOCKET_VU
