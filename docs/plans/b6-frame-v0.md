@@ -394,3 +394,24 @@ Change to the rules:
 - Hose guides stay unrounded (PA6 snap parts; their channel walls are thin).
 - The right bracket's rail group: round what can be rounded without splitting the part; otherwise leave it and say so.
 - Check 12 keeps reporting; the contact-area check now enforces the 97 % floor instead of "no loss".
+
+## Status after Revisions 8a and 9 (15 Nov 2026)
+
+- Checks: `frame_v0.py` passes, `test_checks.py` 92/92. Sharp outline corners 102 -> 56 of 150, every one explained in the report. No contact lost more than 2.3 % of its area.
+- `front_sill` is built (one ABS part, 280 mm). `organic_frame.py` now reads the real sill from `frame_v0.sill_geometry()` instead of its own placeholder box; its veil starts at the sill's upper edge, behind the light line.
+- Strength on the rounded skeleton (`strength.py 7 2`, 4 perimeters): sag at the 420 1.98 mm and at the 360 1.51 mm at 20 % infill, the same as before the rounding. Plastic with the sill: 1475 / 1864 / 2643 / 3032 g at 20 / 40 / 80 / 100 %.
+- The rounding did **not** lower the peak. It sits at the antler root, at the concave corner (u 378, n -20) where the tongue meets the plate, which Revision 8 could not round (the link step is 4 mm long). With a 1.5 mm mesh in a 12 mm ball there (`strength.py 7 2 --focus`) the wall stress is 5.99 MPa left and 5.89 MPa right at 20 % infill, against 6.7 MPa allowable. The next places are at 2.8 MPa (the feet).
+- Hand check of the same place: half of the 420's weight (9.3 N) acts about 75 mm from the root, about 730 N mm about X. The only material between the tongue (50 mm deep along u) and the radiator is the plate, 10 mm along u. That is about 4 MPa nominal, so the cause is the small section, not only the sharp corner.
+
+## Revision 10 — strengthen the antler root (15 Nov 2026)
+
+Scope: `cad_b6/frame_v0.py`, both antlers (mirrored). No hardware moves. No hole or bolt moves.
+
+1. **Buttress behind the plate.** A prism over the tongue's X range (`TONGUE_X`), on the plate's rear face (u = `ANTLER_U[1]`). In (u, n) it is the triangle (`ANTLER_U[1]`, -44), (`ANTLER_U[1]` + 14, `TONGUE_N[1]`), (`ANTLER_U[1]`, top of the bar). The section at the root grows from 10 to 24 mm along u. Use named constants (`ANTLER_BUTTRESS_DEPTH = 14.0`, `ANTLER_BUTTRESS_N0 = -44.0`); the other two numbers come from existing constants. Fuse it into the antler before drilling, so `blank` carries it. Round its apex and its two ends with the existing rounding rules.
+   Free space was measured in the main session with this exact triangle: 10.0 mm to `rad420`, 13.8 mm to `rib_B`, everything else beyond 80 mm; its largest Y is 365.5, inside the antler's present 371.5.
+2. **Fillet the concave corner (u 378, n -20).** Let the link reach the bar's top (`TONGUE_LINK_N1`), so the corner's upward edge is long enough, and give the corner the largest radius the checks accept. The radiator's bottom face at n -15 limits it to 5 mm; do not move the tongue's top to get more.
+3. Nothing else changes. The contact `rib_B x antler` keeps its area. The tongue bolts stay reachable from outside along X.
+4. All checks pass as they are. No check, tolerance or exemption is changed to make this pass. `test_checks.py` stays at 92/92; change an expected number only if a case measures the antler's own outline or volume, and say which.
+5. Report: the radius reached at the corner, the buttress's clearance to `rad420` and `rib_B` (`measure.py`), the antler's volume before and after, largest Y of the antler.
+
+After it, the main session reruns `strength.py 7 2 --focus`. Aim: the peak in both focus zones at or below 3.5 MPa at 20 % infill (now 5.99 and 5.89).
