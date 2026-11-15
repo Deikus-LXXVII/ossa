@@ -4,7 +4,7 @@
 In the manner of hoses.py: a route is a list of sections, a section is a list of way-points joined with hoses.fillet_path. A section is
 round (the cable's radius and bend from hardware.CABLES) or a slab (hardware.CABLE_SLAB round strands side by side along u, bend
 hardware.SLAB_BEND; a slab stays in a plane of constant u). The facts (headers, sockets, radii, lengths) are in hardware.py. Nothing here moves
-hardware or changes the skeleton; what the skeleton would have to give is listed in report_cables.txt.
+hardware or changes the skeleton; the front cables go through the sill's cable window (frame_v0.py), and what else the skeleton would have to give is listed in report_cables.txt.
 
 Board space (v, u, n) as in hardware.py: B(v, u, n) is the world point. Every way-point number is a named constant below with its reason.
 
@@ -144,6 +144,7 @@ class Route:
         self.pts = np.vstack([secs[0].pts] + [s.pts[1:] for s in secs[1:]])
         self.solid = self.body = self.psu_body = self.card_body = None
         self.clear = []            # (target, distance, needed)
+        self.stretch = None        # front USB routes: (distance to the board, to the sill) of the first stretch
         self.fail = []             # (class, text)
         self.ymin, self.xmax = min(surface_extent(p, r)[0] for p, r in self.strands), max(surface_extent(p, r)[1] for p, r in self.strands)
 
@@ -234,7 +235,13 @@ USB3_HOOK = dict(n1=29.0, n2=46.0, v_up=283.5, n_top=70.0)  # search: the same f
 EPS_RUN_N = {"eps1": 65.0, "eps2": 59.5}   # search: level of the run over the board: over the DIMMs (n 45) + 3 + r 6 = 54
 EPS_END_U = 300.0                          # u of the last leg: 4 mm from the DIMM box (u 290) and from the 420's core face (u 310) with r 6
 # Front I/O
-USB_START_W = {"usb3": (60.0, 54.0, 30.0), "usbc": (70.0, 54.0, 30.0)}   # the plan's (60, 50, 30) is 2.7 mm from the sill: Y moved +4 (r 4 would sit in it); X 70 for USB-C so the two do not start together
+# The two USB cables leave the module's rear face (Y FRONT_IO_W[3]) and pass the sill through its cable window (frame_v0.sill_geometry()["window_xz"], which follows
+# the module): X at these offsets from the window's left edge (the plan's 60 and, so that the two do not start together, 70 with the module as it is now), Z in
+# the window's middle. Before the window the start lay behind the sill (Y 54) and the cable passed the board's bottom edge 1.93 mm and the sill's rear face 2.65 mm
+# away, because the 12.6 mm between them is less than 8 + 2 x 3; through the window the cable no longer has the sill beside it there.
+USB_WINDOW_X = {"usb3": 20.0, "usbc": 30.0}
+_WX0, _WX1, _WZ0, _WZ1 = frame_v0.sill_geometry()["window_xz"]
+USB_START_W = {n: (_WX0 + dx, hw.FRONT_IO_W[3], (_WZ0 + _WZ1) / 2) for n, dx in USB_WINDOW_X.items()}
 U_EDGE = -9.5                              # search: u at which a USB cable passes the board's bottom edge
 USB_DIVE_U = -4.5                          # search: u at which a USB cable has dived under the board at the lane level
 USBC_RISER = dict(v=249.5, u=84.0)         # search: USB-C goes up the gap here, 3 mm + r 4 from the board's edge, and its U-turn stays off gpu_rest (u 75.6) by 3 mm
@@ -329,7 +336,6 @@ def waypoints_all():
 BODY_BOARD = "hw:board (route without the plug's descent)"
 BODY_PSU = "hw:psu (route after its socket leg)"
 BODY_CARD = "hw:gpu (route after the plug, the straight and the first bend)"
-SILL_ZONE_U = 16.0       # the part of a USB route with u below this is at the sill and the board's bottom edge
 
 
 def build_routes():
@@ -337,20 +343,14 @@ def build_routes():
             for name, secs in waypoints_all().items()}
 
 
-def sill_zone(rt):
-    """The first stretch of a front USB route, up to u SILL_ZONE_U (where it leaves the sill and dives under the board's bottom edge)."""
+FRONT_STRETCH_U = 16.0   # the stretch of a front USB route with u below this lies by the sill and the board's bottom edge (report only)
+
+
+def front_stretch(rt, targets):
+    """(distance to the board, distance to the sill) of the first stretch of a front USB route, where it passes the sill and the board's bottom edge."""
     us = np.array([hoses.world_to_bs(p)[1] for p in rt.pts])
-    k = int(np.argmax(us > SILL_ZONE_U))
-    return chain_solid(rt.pts[:k + 1], rt.r)
-
-
-def classify(rt, text, d, zone_d, target):
-    """skeleton / route, by the rules of the spec. (The spec's class "owner" was the 12V-2x6 cable's front excursion; the owner
-    accepted it on 15 Nov 2026 as hw.GPU12V_FRONT_TOL, so going past that tolerance is a route failure now.)"""
-    if rt.name in ("usb3", "usbc") and target in ("front_sill", BODY_BOARD) and zone_d is not None \
-            and zone_d < CLEAR_MM - 1e-6 and zone_d <= d + 1e-3:
-        return "skeleton"
-    return "route"
+    zone = chain_solid(rt.pts[:int(np.argmax(us > FRONT_STRETCH_U)) + 1], rt.r)
+    return frame_v0.solid_distance(zone, targets["hw:board"]), frame_v0.solid_distance(zone, targets["front_sill"])
 
 
 def evaluate(routes, parts, hardware):
@@ -380,7 +380,7 @@ def evaluate(routes, parts, hardware):
         zmin = float(min(p[:, 2].min() - r for p, r in rt.strands))
         rt.clear.append((f"desk plane Z {hw.DESK_Z:g}", zmin - hw.DESK_Z, 0.0, "desk"))
         rt.clear.sort(key=lambda c: c[1] - c[2])
-        zone = sill_zone(rt) if rt.name in ("usb3", "usbc") else None
+        rt.stretch = front_stretch(rt, targets) if rt.name in ("usb3", "usbc") else None
         # the checks
         if rt.real is not None and rt.length > rt.real + 1e-6:
             rt.fail.append(("route", f"length {rt.length:.0f} > real {rt.real:.0f}"))
@@ -389,19 +389,17 @@ def evaluate(routes, parts, hardware):
                 rt.fail.append(("route", f"bend {rmin:.1f} < min {bend:g} ({kind} section)"))
         for label, d, need, tn in rt.clear:
             if d < need - 1e-6:
-                zd = frame_v0.solid_distance(zone, targets["hw:board"] if tn == BODY_BOARD else targets[tn]) if zone is not None and tn in ("front_sill", BODY_BOARD) else None
-                text = f"{d:.2f} mm from {label}, needs {need:g}"
-                rt.fail.append((classify(rt, text, d, zd, tn), text))
+                rt.fail.append(("route", f"{d:.2f} mm from {label}, needs {need:g}"))
         off = rt.end_offset()
         if off is not None and off > END_TOL:
             rt.fail.append(("route", f"ends {off:.1f} mm from its header (scaled position +-5)"))
         front_tol = hw.GPU12V_FRONT_TOL if rt.name == "gpu12v" else 0.0       # the owner's tolerance, for this cable only
         if rt.ymin < hw.ENVELOPE_Y0 - front_tol - 1e-6:
             text = f"envelope: {hw.ENVELOPE_Y0 - rt.ymin:.1f} mm in front of Y {hw.ENVELOPE_Y0:g} (surface at Y {rt.ymin:.1f})" + (f", accepted up to {front_tol:g}" if front_tol else "")
-            rt.fail.append((classify(rt, "envelope", 0, None, "env"), text))
+            rt.fail.append(("route", text))
         if rt.xmax > hw.ENVELOPE_X + 1e-6:
             text = f"envelope: {rt.xmax - hw.ENVELOPE_X:.1f} mm outside |X| {hw.ENVELOPE_X:g} (surface at |X| {rt.xmax:.1f})"
-            rt.fail.append((classify(rt, "envelope", 0, None, "env"), text))
+            rt.fail.append(("route", text))
     overlaps, names = [], list(routes)
     for i, a in enumerate(names):
         for b in names[i + 1:]:
@@ -477,18 +475,17 @@ def fmt_rows(routes, overlaps):
 
 
 def skeleton_section(routes):
-    out = ["", "What the skeleton has to provide (coordinates only; nothing is cut in this pass)", ""]
-    out.append("1. The sill's cable slot. The front cables leave the front I/O module (Y 0..42) through the sill's rear wall (rear face Y 47) and start behind it (the module's place is a placeholder in hardware.py, so these follow it). Slot centre on the rear face, width = 2 r + 6:")
-    for n in ("usb3", "usbc", "jfp1", "jaud1", "argb"):
+    out = ["", "What the skeleton has to provide (coordinates only; item 1 is built, nothing else is cut)", ""]
+    wx0, wx1, wz0, wz1 = frame_v0.sill_geometry()["window_xz"]
+    ys = frame_v0.sill_geometry()["y_rear"]
+    out.append(f"1. The sill's cable window: BUILT (frame_v0.py, front_sill). PLACEHOLDER like the module: X {wx0:g}..{wx1:g}, Z {wz0:g}..{wz1:g} through the rear wall (Y {ys - frame_v0.SILL_REAR_WALL:g}..{ys:g}), "
+               f"corners R {frame_v0.SILL_WINDOW_R:g}, given as offsets from hw.FRONT_IO_W. The USB cables start on the module's rear face (Y {hw.FRONT_IO_W[3]:g}) and pass through it:")
+    for n in ("usb3", "usbc"):
         rt = routes[n]
         p = rt.pts[0]
-        out.append(f"   {TITLE[n]:16} centre world (X {p[0]:.0f}, Y 47, Z {p[2]:.0f}), {2 * rt.r + 6:.0f} wide, the cable continues along +Y to its start at {fmt(p)}")
-    out.append("   The USB cables pass between the sill's rear face (Y 47) and the board's bottom edge (Y 60): 12.6 mm for an 8 mm cable that wants 3 mm each side (14 in all; 2.65 + 1.93 = 4.58 is what is left now, 6 is wanted). Measured:")
-    for n in ("usb3", "usbc"):
-        for label, d, need, tn in routes[n].clear:
-            if tn in ("front_sill", BODY_BOARD):
-                out.append(f"      {TITLE[n]} {d:.2f} mm from {label} (needs {need:g})")
-    out.append("   What the slot has to allow: the cable's centre line 7 mm (3 + r 4) from the board's bottom edge, which is 1.1 mm closer to the sill than it is now (1.93 mm from the edge, 2.65 mm from the sill's rear face): the cable runs inside the slot, in the wall's thickness, where the wall's rear face is not 3 mm from it.")
+        d_board, d_sill = rt.stretch
+        out.append(f"   {TITLE[n]:16} starts at {fmt(p)}; its first stretch (u < {FRONT_STRETCH_U:g}, where it passes the sill and the board's bottom edge) is {d_sill:.2f} mm from the sill and {d_board:.2f} mm from the board (3 wanted)")
+    out.append("   Power switch (X 82) and audio (X 48) lie inside the window's X range but start behind the rear face (Y 55) and do not use it. The light line's lead needs no window: the light channel is open through both ends of the sill.")
     notch = []
     for n, rt in routes.items():
         for c, f in rt.fail:
@@ -544,7 +541,7 @@ Numbers chosen here (all in cables.py, each with its reason there):
   hooks (ATX, USB 3): up the gap, out over the rail (S-bend) to v {ATX_HOOK['v_up']:g} / {USB3_HOOK['v_up']:g}, up, one U-turn of R 15, down at the header's v
   EPS: up the gap to the run over the board (n {EPS_RUN_N['eps1']:g} / {EPS_RUN_N['eps2']:g}, over the DIMMs' 45 + 3 + r 6), a diagonal to above the header at u {EPS_END_U:g}, down into it
   USB-C: up the gap at v {USBC_RISER['v']:g} / u {USBC_RISER['u']:g}, then in the board's plane (n {USBC_N['plane']:g}) a U-turn over the rail and the plug along -v
-Not built: clips and their insert pilots, the slot in the sill's rear wall, any cut in the skeleton.
+Not built: clips and their insert pilots, any cut in the skeleton beyond the sill's window.
 """
 
 
@@ -626,10 +623,7 @@ def main(argv):
     lines += fmt_rows(routes, overlaps)
     lines.append("")
     lines.append("failed checks: " + (str(len(fails)) if fails else "none"))
-    for cls in ("owner", "skeleton", "route"):
-        sel = [t for c, t in fails if c == cls]
-        lines.append(f"  class {cls}: {len(sel)}")
-        lines += [f"    {t}" for t in sel]
+    lines += [f"    {t}" for _c, t in fails]
     lines += facts_section(routes)
     lines += skeleton_section(routes)
     lines.append(notes().rstrip("\n"))
@@ -639,8 +633,7 @@ def main(argv):
     if "-norender" not in argv:
         render_views(parts, hardware, routes)
     if fails:
-        by = {c: sum(1 for k, _ in fails if k == c) for c in ("owner", "skeleton", "route")}
-        sys.exit(f"cables.py: {len(fails)} check(s) failed: owner {by['owner']}, skeleton {by['skeleton']}, route {by['route']}")
+        sys.exit(f"cables.py: {len(fails)} check(s) failed")
     print("Done, all cable checks passed.")
 
 

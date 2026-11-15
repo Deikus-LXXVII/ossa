@@ -250,6 +250,20 @@ Two changes to the skeleton. Both are small and neither waits for the owner.
 
 Not in this pass: cable clips. They come after the PSU's sockets are read from a photo, because that may move the lanes.
 
-### After the second pass
+### Skeleton pass 1, built (15 Nov 2026)
 
-The parts the skeleton needs for cables: the cable slot in the sill's rear wall, the rail notch if the USB-C route needs it, nylon clips and their insert pilots.
+Checked in the main session: `frame_v0.py` passes, `test_checks.py` 108 of 108 (16 new cases), `cables.py` exits 0 with no failed check, `organic_frame.py` passes with its new check, `fit_gauges.py` passes.
+
+- **Cable window:** X 40 to 90, Z 14 to 46, through the sill's rear wall, corners R 8. It is tied to `hw.FRONT_IO_W` and moves with the module (a test shifts the module 10 mm and the window follows). It is a placeholder like the module. The light line needs no window: its channel is open at both ends of the sill.
+- **USB 3 and USB-C** now start on the module's rear face and go through the window: 6.6 mm from the sill, 5.6 mm from the board's bottom edge. With the window filled back in they hit the sill, so the window is what makes them pass. The `skeleton` and `owner` failure classes are gone from `cables.py`.
+- **Twelve M3 insert pilots** for the organic layer's pads are cut in rib A, rib B, the necks and the sill's ends. No pad had to move. Smallest wall left 4.3 mm (front feet); 1.6 is the minimum. `hardware.ORGANIC_PADS` is the only place the pad positions live; `organic_frame.py` checks that each pad's screw axis lies on its pilot within 0.01 mm.
+- **Organic strength not rerun:** the gaming PC could not be reached (its SSH host key changed, so it is probably booted into Windows). The layer changed by 0.1 cm³ (1842.7 to 1842.8), so the last result stands for now. Rerun when the PC is back.
+
+Found on the way, not changed:
+- The light line's route starts at X -125 behind the sill; the real lead leaves the channel's mouth at X -140 and goes round the sill's end.
+- Each `sill_end` pad's rim overlaps the light channel's mouth by under 2 mm³.
+- Nothing checks the window's rounding: the sill is outside check 12.
+
+### Next
+
+Read the PSU's modular face from a photo and choose the sockets nearest the right edge, then nylon clips and their insert pilots. Split the organic layer into printable pieces.

@@ -699,6 +699,7 @@ def rib_a_holes(with_rest: bool):
         holes.append(x_clear(y, z))
     if with_rest:                 # right rib only: the GPU hose guide's bolt, into the outer face
         holes.append(pilot((X_OUT, *guide_gpu_bolt()), (-1, 0, 0), "M4"))
+    holes += organic_pilots("rib_A_right" if with_rest else "rib_A_left", mirrored=not with_rest)     # the organic layer's pads, on the outer face
     return holes
 
 
@@ -731,6 +732,7 @@ def build_rib_b(side=1):
         holes.append(pilot((X_OUT, y, z), (-1, 0, 0), "M4"))
     for (y, z) in NECK_BOLTS:     # neck pad, along X into the post's outer face
         holes.append(pilot((X_OUT, y, z), (-1, 0, 0), "M4"))
+    holes += organic_pilots(name, mirrored=side < 0)      # the organic layer's pads, on the outer face
     cuts = lap_cut_boxes("B", side > 0)
     # revision 8a: the ends of the cradle surface are rounded like any other outside corner (the pad is not a listed contact)
     s = rounded_like(s, (1, 0, 0), name, sides=(1,) if side > 0 else (-1,), own=(name,),
@@ -763,6 +765,14 @@ SILL_CHANNEL_PLAY = 0.3       # the channel is the strip's box plus this on ever
 SILL_RING_WALL = 3.0          # a rounding keeps this much material round the channel
 SILL_BOLTS = [(-105.0, 10.0), (-105.0, 30.0), (118.0, 10.0), (118.0, 30.0)]      # (X, Y): M4 from below, clearance through beam_front, pilot in the sill
 SILL_PROBE_DEPTH = 3.0        # check 5: the axis point of a module screw lies this far into the wall of the pocket
+# Cable window (skeleton pass 1): one opening through the rear wall for the module's front cables (USB 3, USB-C, power switch, audio). PLACEHOLDER like the
+# module it follows: its numbers are offsets from hw.FRONT_IO_W, so it moves with the module when the real one is measured. The light line's lead
+# needs no window of its own: the channel is open through both ends of the sill (see the notes).
+SILL_WINDOW_INSET = 5.0       # the window ends this far inside the module's right end
+SILL_WINDOW_W = 50.0          # its width along X
+SILL_WINDOW_Z_LOW = 4.0       # its lower edge above the module's underside (the rear wall keeps this strip under it)
+SILL_WINDOW_Z_TOP = 0.0       # its upper edge above the module's top (it stays under the pocket's roof, which is SILL_POCKET_PLAY higher)
+SILL_WINDOW_R = ROUND_CONCAVE  # its four corners are inside corners of the wall: the concave radius
 
 
 def sill_geometry():
@@ -778,13 +788,25 @@ def sill_geometry():
     pts = [(hw.ENVELOPE_Y0, z0), hw.bp_yz(u_front, n_face), hw.bp_yz(u_top, n_face), hw.bp_yz(u_top, n_rear), (y_rear, z0)]
     v0, v1 = hw.x_to_v(-SILL_HALF_X - 1.0), hw.x_to_v(SILL_HALF_X + 1.0)
     u_c = (ls[2] + ls[3]) / 2
+    wx1 = io[1] - SILL_WINDOW_INSET
+    window_xz = (wx1 - SILL_WINDOW_W, wx1, io[4] + SILL_WINDOW_Z_LOW, io[5] + SILL_WINDOW_Z_TOP)
+    window = hw.wbox(window_xz[0], window_xz[1], io[3] + SILL_POCKET_PLAY - 1.0, y_rear + 1.0, window_xz[2], window_xz[3])
+    window = window.fillet(SILL_WINDOW_R, [e for e in window.Edges() if abs(e.startPoint().x - e.endPoint().x) < 1e-6 and abs(e.startPoint().z - e.endPoint().z) < 1e-6])
     cuts = dict(
         pocket=hw.wbox(io[0] - SILL_POCKET_PLAY, io[1] + SILL_POCKET_PLAY, hw.ENVELOPE_Y0 - 1.0, io[3] + SILL_POCKET_PLAY, z0 - 1.0, io[5] + SILL_POCKET_PLAY),
         channel=hw.bs_box(v0, v1, ls[2] - SILL_CHANNEL_PLAY, ls[3] + SILL_CHANNEL_PLAY, ls[4] - SILL_CHANNEL_PLAY, ls[5] + SILL_CHANNEL_PLAY),
-        slit=hw.bs_box(ls[0], ls[1], u_c - hw.LIGHT_LINE_W / 2, u_c + hw.LIGHT_LINE_W / 2, ls[5] - 1.0, n_face + 1.0))
+        slit=hw.bs_box(ls[0], ls[1], u_c - hw.LIGHT_LINE_W / 2, u_c + hw.LIGHT_LINE_W / 2, ls[5] - 1.0, n_face + 1.0),
+        window=window)
     ring = hw.bs_box(v0, v1, ls[2] - SILL_CHANNEL_PLAY - SILL_RING_WALL, ls[3] + SILL_CHANNEL_PLAY + SILL_RING_WALL,
                      ls[4] - SILL_CHANNEL_PLAY - SILL_RING_WALL, ls[5] + SILL_CHANNEL_PLAY + SILL_RING_WALL)
-    return dict(z0=z0, pts=pts, cuts=cuts, ring=ring, n_face=n_face, u_top=u_top, y_rear=y_rear)
+    return dict(z0=z0, pts=pts, cuts=cuts, ring=ring, n_face=n_face, u_top=u_top, y_rear=y_rear, window_xz=window_xz)
+
+
+def organic_pilots(name, mirrored=False):
+    """M3 insert pilots for the organic layer's pads on part `name` (hw.ORGANIC_PADS), along X into the part from the pad's centre on its outer face.
+    mirrored: the part is built right-handed and mirrored afterwards (the left ribs and neck), so the pilots go in its own coordinates."""
+    k = -1.0 if mirrored else 1.0
+    return [pilot((k * x, y, z), (-k * s, 0.0, 0.0), "M3") for (part, (x, y, z), s) in hw.ORGANIC_PADS.values() if part == name]
 
 
 def sill_holes():
@@ -793,6 +815,7 @@ def sill_holes():
     for (pt, d) in hw.FRONT_IO_SCREWS:                                                    # the module's screws, along X into the pocket's end walls
         org = tuple(c + k * SILL_POCKET_PLAY for c, k in zip(pt, d))
         holes.append(pilot(org, d, hw.FRONT_IO_SCREW_KIND))
+    holes += organic_pilots("front_sill")                                                 # the organic layer's two pads, on the end faces
     return holes
 
 
@@ -974,6 +997,7 @@ def build_neck_right(guide_pilot=False, side=1):
         holes.append(x_clear(y, z, X_OUT - OVERSHOOT, X_OUT - OVERSHOOT + 35.0))
     if guide_pilot:                         # the left neck carries the CPU hose guide: one M4S in its outer face
         holes.append(pilot((NECK_X[1], *guide_cpu_geometry()[3]), (-1, 0, 0), "M4S"))
+    holes += organic_pilots(name, mirrored=side < 0)      # the organic layer's pad on the strut's outer face
     rings = hole_rings(holes)
     sides = (1,) if side > 0 else (-1,)
     strut = bsx(*NECK_X, NECK_U[0], NECK_U[1], NECK_N[0], NECK_N[1])
@@ -1330,6 +1354,8 @@ def _build_frame():
     fastener("gpu_post", "gpu_post -> beam_mid", "M4 insert", 2, "along n")
     fastener("front_sill", "front_sill -> beam_front", "M4 insert", len(SILL_BOLTS),
              "2 per end block along Z: clearance through beam_front from below, pilot in the sill's bottom face; heads under the beam")
+    fastener("organic", "rib_A_L/R, rib_B_L/R, neck_L/R, front_sill", "M3 insert", len(hw.ORGANIC_PADS),
+             "the PLA layer's pads (hw.ORGANIC_PADS): 6 a side, one pilot each along X into the outer face; the screw and the pad are in organic_frame.py")
     return parts, neck_prims
 
 
@@ -1621,7 +1647,8 @@ def check_holes(parts, failures, memo=None):
 # ---------------------------------------------------------------------------
 # Check 5: mounts derived from the solids
 # ---------------------------------------------------------------------------
-EXPECTED_MOUNTS = {"board": 9, "rad420": 6, "rad360": 4, "psu": 4, "gpu_post": 2, "gpu_rest": 1, "front_io": 2}
+EXPECTED_MOUNTS = {"board": 9, "rad420": 6, "rad360": 4, "psu": 4, "gpu_post": 2, "gpu_rest": 1, "front_io": 2, "organic": 12}
+ORGANIC_PROBE_DEPTH = 3.0      # check 5: the axis point of a pad's pilot lies this far in from the face
 MIN_MOUNTS = {"fan_side_left": FAN_MIN_SCREWS, "fan_side_right": FAN_MIN_SCREWS}     # at least this many of the four corner holes
 FAN_HOLDER = {"fan_side_left": "fan_bracket_left", "fan_side_right": "fan_bracket_right"}
 FAN_PROBE_DEPTH = 1.5          # axis point inside the pilot, from the fan face: the pilot is 5.0 deep, so at 1.5 the bore wall (r 2.8) is the nearest material
@@ -1645,6 +1672,8 @@ def mount_points():
     for (pt, d) in hw.FRONT_IO_SCREWS:      # the module's screws: the axis point inside the pocket's end wall, which must be an empty bore of the insert's radius
         probe = tuple(c + k * (SILL_POCKET_PLAY + SILL_PROBE_DEPTH) for c, k in zip(pt, d))
         out.append(("front_io", "front_sill", probe, hw.INSERTS[hw.FRONT_IO_SCREW_KIND][0] / 2, None))
+    for (holder, (x, y, z), sgn) in hw.ORGANIC_PADS.values():      # the organic layer's pads: the axis point inside the pilot, which must be an empty bore of the insert's radius
+        out.append(("organic", holder, (x - sgn * ORGANIC_PROBE_DEPTH, y, z), hw.M3_PILOT_D / 2, None))
     for fan, holder in FAN_HOLDER.items():
         x = hw.FAN_SIDE_INNER_X[fan] + hw.FAN_SIDE_IN[fan] * FAN_PROBE_DEPTH
         x_out = hw.FAN_SIDE_X[fan][0 if hw.FAN_SIDE_IN[fan] > 0 else 1]
@@ -1719,7 +1748,8 @@ def derive_mounts(parts, contacts, failures, memo=None):
             failures.append(f"CHECK5 {item}: {got[item]} of 4 corner holes have a screw hole in {FAN_HOLDER[item]}, the plan needs at least {n}")
     # the hand-written registry must agree with what the solids show
     registry = {"board": "board", "rad420": "rad420", "rad360": "rad360", "psu": "psu", "front_io": "front_io",
-                "fan_side_left": "fan_side_left", "fan_side_right": "fan_side_right", "gpu": "gpu_post"}       # fastener item -> derived item
+                "fan_side_left": "fan_side_left", "fan_side_right": "fan_side_right", "gpu": "gpu_post",
+                "organic": "organic"}       # fastener item -> derived item
     for item, derived_item in registry.items():
         listed = sum(f["count"] for f in FASTENERS if f["item"] == item)
         if listed != got[derived_item]:
@@ -2586,7 +2616,8 @@ def format_report(hardware, parts, res, memo=None):
     m = res["mounts"]
     w(f"  5. держатели и крепёж, считаются по телам (отверстие на оси в держателе): board {m['board']}, rad420 {m['rad420']}, "
       f"rad360 {m['rad360']}, psu {m['psu']}, side fans {m['fan_side_left']} (L) + {m['fan_side_right']} (R) of 4 corners, "
-      f"gpu post {m['gpu_post']} + rest {m['gpu_rest']}, front_io {m['front_io']} (PLACEHOLDER-винты модуля в front_sill)   "
+      f"gpu post {m['gpu_post']} + rest {m['gpu_rest']}, front_io {m['front_io']} (PLACEHOLDER-винты модуля в front_sill), "
+      f"органическая оболочка {m['organic']} пилотов M3 под площадки (hw.ORGANIC_PADS)   "
       + ("PASS" if not any(f.startswith('CHECK5') for f in res['failures']) else "FAIL"))
     lz = min(z for _, z in res["low"])
     w(f"  6. нижняя точка >= -15: минимум {lz:.2f}                      "
@@ -2693,6 +2724,11 @@ def format_report(hardware, parts, res, memo=None):
           f"от светодиодов до диффузора не меньше {hw.LIGHT_LED_TO_DIFFUSER_MIN:g} мм (в канале глубиной {hw.LIGHT_STRIP_SECTION[1]:g} мм это держится только при диффузоре в щели стенки, не в канале).")
         w(f"  Крепление к beam_front: {len(SILL_BOLTS)} x M4 снизу (проходные Ø{hw.M4_CLEAR_D:g} в beam_front, вставки M4 в нижней грани порога), по 2 в каждом концевом блоке: "
           + ", ".join(f"(X {x:g}, Y {y:g})" for x, y in SILL_BOLTS) + ".")
+        wx0, wx1, wz0, wz1 = g["window_xz"]
+        w(f"  Окно для кабелей в задней стенке (PLACEHOLDER, как модуль): X {wx0:g}..{wx1:g}, Z {wz0:g}..{wz1:g} насквозь через стенку {SILL_REAR_WALL:g} мм (Y {g['y_rear'] - SILL_REAR_WALL:g}..{g['y_rear']:g}), углы R {SILL_WINDOW_R:g}. "
+          f"Заданы смещениями от hw.FRONT_IO_W: правый конец модуля минус {SILL_WINDOW_INSET:g}, ширина {SILL_WINDOW_W:g}, низ на {SILL_WINDOW_Z_LOW:g} мм выше низа модуля, верх по верху модуля. Винты модуля и их стенки в окно не попадают. "
+          f"Отдельного окна для кабеля светлой линии нет: канал открыт через оба торца порога.")
+        w(f"  Крепления органической оболочки: {len(organic_pilots('front_sill'))} пилота M3 в торцевых гранях (X +-{SILL_HALF_X:g}), см. hw.ORGANIC_PADS.")
         w(f"  Зазоры: до front_io {solid_distance(sl.solid, hardware['front_io']):.2f} мм, до light_strip {solid_distance(sl.solid, hardware['light_strip']):.2f} мм "
           f"(это зазоры кармана и канала по плану, не контакты); beam_front x front_io 0.00 мм: низ модуля стоит на верхней грани балки (контакт по плану: Z 10 у обоих).")
         w("")
@@ -3012,6 +3048,17 @@ DEVIATIONS: list[str] = [
     "звено языка доходит до верха планки (TONGUE_LINK_N1 = n 1.75), и внутренний угол (u 378, n -20) скруглён радиусом 5 (больше нельзя: низ радиатора на n -15). "
     "Отклонение от плана: верхняя точка контрфорса на оси планки (n -8.25), а не на её верху (n 1.75). Пока он кончался на верхней кромке, скругление его острого угла оставляло на задней грани "
     "плиты острое вогнутое ребро 57° (проверка 12: без объяснения 1 на антлер); с точкой на оси стык переходит в плиту по касательной.",
+    "Ревизия 11 (скелет, проход 1), окно для кабелей: одно окно X 40..90, Z 14..46 насквозь через заднюю стенку порога (SILL_REAR_WALL 5 мм), задано смещениями от hw.FRONT_IO_W "
+    "(правый конец модуля минус 5, ширина 50, низ на 4 мм выше низа модуля, верх по верху модуля), так что двигается вместе с модулем; PLACEHOLDER, как и сам модуль. Углы R 8 (внутренний угол стенки). "
+    "Верх окна на 0.4 мм ниже потолка кармана (SILL_POCKET_PLAY): ступенька 0.4 мм, не осколок. Винты модуля (X -70.4 и 95.4, Y 21) и их стенки окна не касаются. "
+    "Второго окна для кабеля светлой линии нет: канал light_strip открыт через оба торца порога (X -141..141), кабель выходит через торец. Кабели USB 3 и USB-C в cables.py теперь стартуют на задней грани "
+    "модуля и проходят через окно; с окном, заделанным обратно, оба упираются в порог (0.00 мм), так что окно несёт нагрузку в проверке.",
+    "Ревизия 11, пилоты под площадки органической оболочки: hw.ORGANIC_PADS (12 строк) - единственный источник, organic_frame.py берёт площадки оттуда. На каждой площадке пилот M3 вдоль X в деталь "
+    "(rib_A_L/R, rib_B_L/R x3, neck_L/R, front_sill x2), левые детали строятся правыми и зеркалятся, пилоты считаются в их координатах (organic_pilots, mirrored). Ни одна площадка не сдвинута: стенка вокруг "
+    "пилота по проверке 7 не меньше 4.3 мм (нужно 1.6). Проверка 5 считает пилоты по телам (organic 12, список крепежа сверяется). Отверстий в проверке 7 стало 157 (было 145).",
+    "Ревизия 11, test_checks.py: 92 -> 108 случаев. Новые: окно (есть, стенка под ним цела, следует за модулем, без него оба USB упираются в порог, с ним проверки кабелей проходят); пилоты "
+    "(счёт из тел 12, заделанный пилот правой и левой детали, сдвиг площадки в таблице); organic_frame: ось винта на пилоте, пилот сдвинут на 0.5 мм, площадка сдвинута на 0.5 мм, площадка утоплена на 1 мм, "
+    "pad_fits не считает свой пилот и считает любое другое отверстие.",
 ]
 OPEN_ITEMS: list[str] = [
     "ПРАВЫЙ боковой вентилятор: три винта из четырёх (A, C с внутренней грани в штифты M4S, D с внешней через лапку Ø4.5; ревизия 7a), угол B без винта: на внутренней грани "

@@ -13,9 +13,10 @@ Everything is one signed-distance field on one grid, so the layer is one solid:
 - members: bones, film strands, and a stub from each fixing pad to the nearest bone;
 - carved back from the hardware, the hoses, the board's keep-outs, the sill and the skeleton;
 - fixing pads: flat discs that sit on a skeleton face, one M3 screw each into a heat-set insert in the
-  ABS part (the insert pilots in the skeleton are not cut yet: see ANCHORS and the report).
-Checks at the end: every pad sits on its part with room for the insert and away from the part's own
-holes; pads clear the hardware and the hoses; the layer is one connected piece that contains every pad.
+  ABS part. Where they are is hardware.ORGANIC_PADS; frame_v0.py cuts the insert pilot there.
+Checks at the end: every pad sits on its part's face on an M3 pilot of that part, with room for the insert
+and away from the part's other holes; pads clear the hardware and the hoses; the layer is one connected
+piece that contains every pad.
 Not done here: the split into printable pieces, and the strength run (organic_strength.py).
 """
 from __future__ import annotations
@@ -261,23 +262,16 @@ def film_list():
 
 
 # ---------------------------------------------------------------------------
-# Fixings: pads on skeleton faces. Each is (name, part name with {side}, target (Y, Z) on the part's outer face, sides).
-# The face is found by a ray along X from outside; the pad moves to the nearest place near the target where it fits.
-# A pad also keeps clear of every other part, the hardware (PLA_GAP from the card and the PSU) and the hoses, so it slides
-# along the face until all of that holds. (The right rib's upper front arm cannot take one: it is 2 mm from the card.)
+# Fixings: pads on skeleton faces. Their places are hardware.ORGANIC_PADS (name -> part, centre on the part's outer face, side), the
+# single source: the skeleton cuts an M3 insert pilot at each. Here is only what ties a pad to its bone: the bone's name (None takes the nearest).
+# A pad also keeps clear of every other part, the hardware (PLA_GAP from the card and the PSU) and the hoses, and has a free line for the driver;
+# place_anchors fails if a pad of the table does not. (The right rib's upper front arm cannot take one: it is 2 mm from the card. Tried and
+# dropped: the visor arms, whose outward face is a 10 mm edge, and the neck's lower half, which hoses, the 420 and the rib close in.)
 # ---------------------------------------------------------------------------
-BOTH = (1, -1)
-# The last field names the bone the stub ties to; None takes the nearest.
-# Tried and dropped: the right rib's upper front arm (2 mm from the card), the visor arms (their outward face is a 10 mm edge),
-# the neck's lower half (a stub cannot leave it: hoses, the 420 and the rib close it in).
-ANCHORS = [
-    ("front_foot", "rib_A_{side}", (60.0, 12.0), BOTH, None),
-    ("sill_end", "front_sill", (28.0, 45.0), BOTH, "front"),
-    ("base_mid", "rib_B_{side}", (250.0, -6.0), BOTH, "base"),
-    ("rear_foot", "rib_B_{side}", (372.0, -6.0), BOTH, "rear"),
-    ("rear_post", "rib_B_{side}", (374.0, 50.0), BOTH, "rear"),
-    ("neck_top", "neck_{side}", (216.0, 289.0), BOTH, "side"),
-]
+BONE_OF = {"front_foot": None, "sill_end": "front", "base_mid": "base", "rear_foot": "rear", "rear_post": "rear", "neck_top": "side"}
+PAD_PILOT_TOL = 0.01                       # mm: a pad's screw axis and its pilot's axis coincide within this
+PAD_FACE_TOL = 0.05                        # mm: a pad's centre is on its part's face within this
+PAD_FACE_PROBE = 3.0                       # mm: where the face is read, off the pilot's axis
 
 
 def face_hit(solid, y, z, s):
@@ -303,8 +297,15 @@ def face_hit(solid, y, z, s):
     return None
 
 
+def is_pilot_of(h, q, s):
+    """True if the hole `h` is the M3 insert pilot of a pad centred at q on a face whose outward normal is (s, 0, 0): its mouth at q, its axis along -s X."""
+    d = np.array(h.d)
+    return (h.kind == "M3" and h.pilot and np.linalg.norm(d - np.array([-float(s), 0.0, 0.0])) < 1e-6
+            and np.linalg.norm(np.array(h.point(frame_v0.OVERSHOOT)) - np.array(q, dtype=float)) < PAD_PILOT_TOL)
+
+
 def pad_fits(part, q, s):
-    """None if a pad at q on the part's outer face fits, else the reason."""
+    """None if a pad at q on the part's outer face fits, else the reason. The pad's own pilot is not a hole too close to it; every other hole is."""
     import cadquery as cq
     depth = hw.M3_PILOT_DEPTH
     for h in (0.5, depth):
@@ -315,6 +316,8 @@ def pad_fits(part, q, s):
                     return "less than 4 mm of flat face round the screw" if h < 1 else "no material round the insert at its depth"
     axis0, axis1 = np.array(q), np.array(q) - np.array([s * depth, 0.0, 0.0])
     for h in part.holes:
+        if is_pilot_of(h, q, s):
+            continue
         need = h.r + hw.M3_PILOT_D / 2 + PAD_HOLE_WALL
         for t in np.arange(0.0, h.length + 0.5, 1.0):
             c = np.array(h.point(float(t)))
@@ -352,46 +355,57 @@ def driver_blocked(q, s, lines):
     return None
 
 
-def place_anchors(parts, lines, hware):
-    """Find each pad's place on the skeleton and the bone point its stub ties to."""
+def pad_pilot_failures(anchors, parts):
+    """Failure lines of the check "every pad sits on an M3 pilot": the pad's screw axis coincides within PAD_PILOT_TOL with an M3 insert pilot of
+    its part (mouth on the pad's centre, axis into the part), and the part's face is at the pad's centre within PAD_FACE_TOL."""
     by_name = {p.name: p for p in parts}
     out = []
-    offsets = sorted(((dy, dz) for dy in np.arange(-24, 24.1, 2.0) for dz in np.arange(-24, 24.1, 2.0)), key=lambda o: o[0] ** 2 + o[1] ** 2)
-    for s, side in ((1, "right"), (-1, "left")):
-        tag = "R" if s > 0 else "L"
-        for name, pname, (ty, tz), sides, want in ANCHORS:
-            if s not in sides:
+    for a in anchors:
+        part, q, s = by_name.get(a["part"]), a["q"], int(round(a["n"][0]))
+        if part is None:
+            out.append(f"{a['name']}: no part {a['part']}")
+            continue
+        if not any(is_pilot_of(h, q, s) for h in part.holes):
+            near = min((np.linalg.norm(np.array(h.point(frame_v0.OVERSHOOT)) - np.array(q)) for h in part.holes if h.kind == "M3" and h.pilot), default=float("nan"))
+            out.append(f"{a['name']}: the screw axis at ({q[0]:.2f}, {q[1]:.2f}, {q[2]:.2f}) along X lies on no M3 pilot of {part.name} within {PAD_PILOT_TOL:g} mm"
+                       f" (the nearest M3 pilot mouth is {near:.2f} mm away)")
+        # the face is read beside the bore (the pilot is empty on the axis): 3 mm off the axis, in four directions, between the bore (r 2) and the insert's wall ring
+        xs = [face_hit(part.solid, q[1] + dy, q[2] + dz, s) for dy, dz in ((PAD_FACE_PROBE, 0.0), (-PAD_FACE_PROBE, 0.0), (0.0, PAD_FACE_PROBE), (0.0, -PAD_FACE_PROBE))]
+        if any(x is None or abs(x - q[0]) > PAD_FACE_TOL for x in xs):
+            out.append(f"{a['name']}: the pad's centre X {q[0]:.2f} is not on {part.name}'s face (the face beside the bore is at X "
+                       + ", ".join("none" if x is None else f"{x:.2f}" for x in xs) + ")")
+    return out
+
+
+def place_anchors(parts, lines, hware, pads=None):
+    """The pads of hardware.ORGANIC_PADS, each checked to fit its part, with the bone point its stub ties to. Fails if one does not fit."""
+    pads = hw.ORGANIC_PADS if pads is None else pads
+    by_name = {p.name: p for p in parts}
+    out = []
+    for name, (pname, q, s) in pads.items():
+        tag = name[-1]
+        kind = name[:-2]
+        want = BONE_OF[kind]
+        part = by_name[pname]
+        q, nrm = np.array(q, dtype=float), np.array([float(s), 0.0, 0.0])
+        why = pad_fits(part, q, s) or pad_clear(part, q, s, parts, hware) or driver_blocked(q, s, lines)
+        assert why is None, f"pad {name} on {part.name} at {tuple(q)}: {why}"
+        best = None
+        for bname, pts in lines.items():
+            if want is not None and bname != f"{want}_{tag}":
                 continue
-            part = by_name[pname.format(side=side)]
-            found, why = None, "no face under the target"
-            for dy, dz in offsets:
-                x = face_hit(part.solid, ty + dy, tz + dz, s)
-                if x is None:
-                    continue
-                q = (x, ty + dy, tz + dz)
-                why = pad_fits(part, q, s) or pad_clear(part, q, s, parts, hware) or driver_blocked(q, s, lines)
-                if why is None:
-                    found = q
-                    break
-            assert found is not None, f"anchor {name}_{tag} on {part.name}: no place within 24 mm of the target ({why})"
-            q, nrm = np.array(found), np.array([float(s), 0.0, 0.0])
-            best = None
-            for bname, pts in lines.items():
-                if want is not None and bname != f"{want}_{tag}":
-                    continue
-                if not bname.endswith("_" + tag) and bname not in ("lip", "card", "brow"):
-                    continue
-                v = pts - (q + nrm * PAD_H)
-                dist = np.linalg.norm(v, axis=1)
-                cosang = (v @ nrm) / np.maximum(dist, 1e-6)
-                ok = (dist > 10.0) & (cosang < math.cos(math.radians(STUB_CONE_DEG)))
-                if ok.any():
-                    i = int(np.argmin(np.where(ok, dist, 1e9)))
-                    if best is None or dist[i] < best[0]:
-                        best = (float(dist[i]), bname, pts[i])
-            assert best is not None, f"anchor {name}_{tag}: no bone to tie to"
-            out.append(dict(name=f"{name}_{tag}", part=part.name, q=q, n=nrm, bone=best[1], tie=best[2], stub_len=best[0],
-                            moved=float(math.hypot(q[1] - ty, q[2] - tz))))
+            if not bname.endswith("_" + tag) and bname not in ("lip", "card", "brow"):
+                continue
+            v = pts - (q + nrm * PAD_H)
+            dist = np.linalg.norm(v, axis=1)
+            cosang = (v @ nrm) / np.maximum(dist, 1e-6)
+            ok = (dist > 10.0) & (cosang < math.cos(math.radians(STUB_CONE_DEG)))
+            if ok.any():
+                i = int(np.argmin(np.where(ok, dist, 1e9)))
+                if best is None or dist[i] < best[0]:
+                    best = (float(dist[i]), bname, pts[i])
+        assert best is not None, f"pad {name}: no bone to tie to"
+        out.append(dict(name=name, part=part.name, q=q, n=nrm, bone=best[1], tie=best[2], stub_len=best[0]))
     return out
 
 
@@ -600,7 +614,9 @@ def check(F, anchors, parts, hware, lines):
             loose.append(f"{sizes[i]:.1f} см³ у X {F.xs[int(c[0])]:.0f}, Y {F.ys[int(c[1])]:.0f}, Z {F.zs[int(c[2])]:.0f}")
         fails.append(f"слой не одно тело: отдельных кусков {n - 1}: " + "; ".join(loose[:10]))
     out.append("")
-    out.append(f"{'крепление':14} {'деталь каркаса':18} {'центр площадки X, Y, Z':>26} {'сдвиг от цели':>14} {'кость':>9} {'стойка, мм':>11} {'до железа':>22} {'до шлангов':>11}")
+    out.append(f"{'крепление':14} {'деталь каркаса':18} {'центр площадки X, Y, Z':>26} {'до оси пилота':>14} {'кость':>9} {'стойка, мм':>11} {'до железа':>22} {'до шлангов':>11}")
+    fails += pad_pilot_failures(anchors, parts)
+    by_part = {p.name: p for p in parts}
     hoses_h = {k: v for k, v in hware.items() if k in hw.HOSES}
     solids_h = {k: v for k, v in hware.items() if k not in hw.KEEP_OUT}
     for a in anchors:
@@ -610,7 +626,8 @@ def check(F, anchors, parts, hware, lines):
         hose = min((pad.distance(s_) for s_ in hoses_h.values()))
         i = tuple(int(round((c - g[0]) / F.vox)) for c, g in zip(q + nrm * (PAD_H * 0.5) + np.array([0.0, PAD_R * 0.6, 0.0]), (F.xs, F.ys, F.zs)))
         joined = lab[i] == main
-        out.append(f"{a['name']:14} {a['part']:18} {q[0]:8.1f} {q[1]:8.1f} {q[2]:8.1f} {a['moved']:11.1f} мм {a['bone']:>9} {a['stub_len']:11.0f} "
+        off = min((float(np.linalg.norm(np.array(h.point(frame_v0.OVERSHOOT)) - q)) for h in by_part[a["part"]].holes if h.kind == "M3" and h.pilot), default=float("nan"))
+        out.append(f"{a['name']:14} {a['part']:18} {q[0]:8.1f} {q[1]:8.1f} {q[2]:8.1f} {off:11.2f} мм {a['bone']:>9} {a['stub_len']:11.0f} "
                    f"{near[0]:8.1f} мм {near[1]:>10} {hose:8.1f} мм" + ("" if joined else "   НЕ СОЕДИНЕНО С ТЕЛОМ"))
         hot = PLA_GAP if near[1] in ("gpu", "psu") else GAP_HW
         if near[0] < hot:
@@ -647,7 +664,7 @@ def main():
             f"Правила прочности: нить плёнки в середине Ø{2 * STRAND_R_MID[0]:g}..{2 * STRAND_R_MID[1]:g} мм, у кости Ø{2 * STRAND_R_END[0]:g}..{2 * STRAND_R_END[1]:g}; "
             f"поперечная нить Ø{2 * LINK_R[1]:g}..{2 * LINK_R[0]:g}; стойка крепления Ø{2 * STUB[1]:g}..{2 * STUB[0]:g}",
             f"Крепления: {len(anchors)} площадок Ø{2 * PAD_R:g} x {PAD_H:g} мм на гранях каркаса, винт M3 в резьбовую вставку в ABS "
-            f"(пилоты во вставки в каркасе ещё не вырезаны). Зазоры слоя: каркас {GAP_SKEL:g}, запретные зоны платы {GAP_KEEP:g}, железо и шланги {GAP_HW:g}, "
+            f"(места из hw.ORGANIC_PADS; пилот M3 под каждую вырезан в каркасе, ось винта лежит на оси пилота). Зазоры слоя: каркас {GAP_SKEL:g}, запретные зоны платы {GAP_KEEP:g}, железо и шланги {GAP_HW:g}, "
             f"видеокарта и БП {PLA_GAP:g} мм."]
     head.append(f"Крошки после вырезания зазоров (отдельные куски меньше {CRUMB_CM3:g} см³) удалены: {info['crumbs']} шт., {info['crumb_cm3']:.1f} см³. Перемычки тоньше {MIN_THICK:g} мм удалены: {info['thin_cm3']:.1f} см³.")
     text = "\n".join(head + [""] + lines + [""] + (["ПРОВЕРКИ НЕ ПРОЙДЕНЫ:"] + ["  - " + f for f in fails] if fails else ["Все проверки пройдены."]))

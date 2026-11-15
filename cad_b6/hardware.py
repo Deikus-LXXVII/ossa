@@ -341,6 +341,29 @@ SLAB_PITCH = 8.0
 SLAB_BEND = 15.0
 
 
+# ---------------------------------------------------------------------------
+# Fixings of the organic outer layer (PLA): twelve pads, six a side, each one M3 screw into a heat-set insert in an ABS part
+# (docs/plans/cables-and-organic.md, "Skeleton pass 1"). name -> (part name, centre of the pad = the mouth of the insert pilot on the part's
+# outer face, world (X, Y, Z), sign along X of the face's outward normal). The pilot is cut by frame_v0.py along -sign * X into the part;
+# organic_frame.py puts its pads here and checks that each screw axis lies on a pilot. The rows are organic_frame.py's pads of the first
+# build, except neck_top_L, which moved (8, 8) from its target (216, 289) because the left neck's CPU hose guide has a pilot of its own there.
+# ---------------------------------------------------------------------------
+ORGANIC_PADS = {
+    "front_foot_R": ("rib_A_right", (158.0, 60.0, 12.0), +1),
+    "sill_end_R": ("front_sill", (140.0, 28.0, 45.0), +1),
+    "base_mid_R": ("rib_B_right", (158.0, 250.0, -6.0), +1),
+    "rear_foot_R": ("rib_B_right", (158.0, 372.0, -6.0), +1),
+    "rear_post_R": ("rib_B_right", (158.0, 374.0, 50.0), +1),
+    "neck_top_R": ("neck_right", (192.0, 216.0, 289.0), +1),
+    "front_foot_L": ("rib_A_left", (-158.0, 60.0, 12.0), -1),
+    "sill_end_L": ("front_sill", (-140.0, 28.0, 45.0), -1),
+    "base_mid_L": ("rib_B_left", (-158.0, 250.0, -6.0), -1),
+    "rear_foot_L": ("rib_B_left", (-158.0, 372.0, -6.0), -1),
+    "rear_post_L": ("rib_B_left", (-158.0, 374.0, 50.0), -1),
+    "neck_top_L": ("neck_left", (-192.0, 208.0, 297.0), -1),
+}
+
+
 def cpu_block_solid() -> Solid:
     """Round body plus the lug that carries the two collars, fused. Board space, n out of the board."""
     sv, su = CPU_SOCKET_VU

@@ -623,6 +623,86 @@ def main():
     check("mass_estimate takes the material's density", abs(f.mass_estimate(sill.solid, "PA6")[1] / f.mass_estimate(sill.solid, "ABS")[1] - f.PA6_DENSITY / f.ABS_DENSITY) < 1e-9,
           (f"PA6/ABS mass ratio {f.PA6_DENSITY / f.ABS_DENSITY:.4f}", f"{f.mass_estimate(sill.solid, 'PA6')[1] / f.mass_estimate(sill.solid, 'ABS')[1]:.4f}"))
 
+    # 10d. skeleton pass 1: the sill's cable window, and the insert pilots of the organic layer's twelve pads
+    import numpy as np
+    import organic_frame as of
+    import cables
+    g = f.sill_geometry()
+    wx0, wx1, wz0, wz1 = g["window_xz"]
+    io = hw.FRONT_IO_W
+    ym = g["y_rear"] - f.SILL_REAR_WALL / 2                                       # the middle of the rear wall
+    centre, wall_under = (cq.Vector((wx0 + wx1) / 2, ym, (wz0 + wz1) / 2), cq.Vector((wx0 + wx1) / 2, ym, io[4] + f.SILL_WINDOW_Z_LOW / 2))
+    check("the sill's rear wall has the cable window and keeps the strip under it", not sill.solid.isInside(centre) and sill.solid.isInside(wall_under)
+          and (wx0, wx1, wz0, wz1) == (40.0, 90.0, 14.0, 46.0),
+          ("window X 40..90, Z 14..46 (offsets from hw.FRONT_IO_W): empty in the middle, wall below it", f"X {wx0:g}..{wx1:g}, Z {wz0:g}..{wz1:g}; middle empty {not sill.solid.isInside(centre)}, strip under it solid {sill.solid.isInside(wall_under)}"))
+    old_io = hw.FRONT_IO_W
+    hw.FRONT_IO_W = (old_io[0] + 10.0, old_io[1] + 10.0) + old_io[2:]
+    try:
+        moved_xz = f.sill_geometry()["window_xz"]
+    finally:
+        hw.FRONT_IO_W = old_io
+    check("the window follows the module: FRONT_IO_W moved 10 mm in X moves it 10 mm", all(abs(a - b - 10.0) < 1e-9 for a, b in zip(moved_xz[:2], (wx0, wx1))) and moved_xz[2:] == (wz0, wz1),
+          (f"X {wx0 + 10:g}..{wx1 + 10:g}, Z unchanged", f"X {moved_xz[0]:g}..{moved_xz[1]:g}, Z {moved_xz[2]:g}..{moved_xz[3]:g}"))
+    filled = sill.solid.fuse(g["cuts"]["window"].intersect(f.Poly(g["pts"]).solid(-f.SILL_HALF_X, f.SILL_HALF_X))).clean()     # the sill as it was without the window
+    parts_nowin = with_part(parts, "front_sill", solid=filled)
+    routes = cables.build_routes()
+    cables.evaluate(routes, parts_nowin, hardware)
+    bad = [t for n in ("usb3", "usbc") for _c, t in routes[n].fail if "front_sill" in t]
+    check("the two front USB cables go through the window: with it filled back in both hit the sill", len(bad) == 2,
+          ("USB 3 and USB-C each report 'N mm from front_sill, needs 3'", "; ".join(bad) or "no failure"))
+    routes = cables.build_routes()
+    ov = cables.evaluate(routes, parts, hardware)
+    check("with the window every cable check passes", not cables.failures(routes, ov), ("0 failed cable checks", f"{len(cables.failures(routes, ov))}: {'; '.join(t for _c, t in cables.failures(routes, ov)[:2])}"))
+
+    pads = list(hw.ORGANIC_PADS.items())
+    check("twelve pads, six a side, each with an M3 pilot in its part: derived from the solids", len(pads) == 12 and base["mounts"]["organic"] == 12 and f.EXPECTED_MOUNTS["organic"] == 12
+          and sum(x["count"] for x in f.FASTENERS if x["item"] == "organic") == 12,
+          ("organic 12 derived, 12 listed", f"{len(pads)} rows; derived {base['mounts']['organic']}, listed {sum(x['count'] for x in f.FASTENERS if x['item'] == 'organic')}"))
+    nm, (pn, q0, sgn) = pads[0]
+    pp = part_named(parts, pn)
+    hp = next(h for h in pp.holes if h.kind == "M3" and h.pilot and of.is_pilot_of(h, q0, sgn))
+    r = f.run_checks(hardware, with_part(parts, pn, solid=refilled(pp, hp)), MEMO)
+    case(f"{nm}: its M3 pilot filled back in", f"CHECK7 {pn} ... M3 pilot ... is not drilled", r["failures"], f"CHECK7 {pn}", "M3 pilot", "is not drilled")
+    case("  same damage, organic count derived from the solids", "CHECK5 organic: 11 positions have a hole", r["failures"], "CHECK5 organic: 11 positions")
+    nm_l, (pn_l, q_l, sgn_l) = next(row for row in pads if row[1][0] == "neck_left")
+    pl = part_named(parts, pn_l)
+    r = f.run_checks(hardware, with_part(parts, pn_l, solid=refilled(pl, next(h for h in pl.holes if h.kind == "M3" and h.pilot))), MEMO)
+    case(f"{nm_l}: the left neck's pilot (built right-handed, mirrored) filled back in", f"CHECK5 organic: 11 positions", r["failures"], "CHECK5 organic: 11 positions")
+    hw.ORGANIC_PADS[nm] = (pn, (q0[0], q0[1] + 5.0, q0[2]), sgn)
+    try:
+        r = f.run_checks(hardware, parts, MEMO)
+    finally:
+        hw.ORGANIC_PADS[nm] = (pn, q0, sgn)
+    case(f"{nm} shifted 5 mm in hardware.py, the pilot left where it was", "CHECK5 organic: 11 positions have a hole", r["failures"], "CHECK5 organic: 11 positions")
+
+    def anchors_of(table):
+        return [dict(name=n, part=p_, q=np.array(q_, dtype=float), n=np.array([float(s_), 0.0, 0.0])) for n, (p_, q_, s_) in table.items()]
+    check("organic_frame: every pad's screw axis coincides with an M3 pilot of its part, on the part's face", not of.pad_pilot_failures(anchors_of(hw.ORGANIC_PADS), parts),
+          ("no failure", "; ".join(of.pad_pilot_failures(anchors_of(hw.ORGANIC_PADS), parts)[:2]) or "none"))
+    moved_pilot = with_part(parts, pn, holes=[h.moved(0.0, 0.5, 0.0) if h is hp else h for h in pp.holes])
+    got = of.pad_pilot_failures(anchors_of(hw.ORGANIC_PADS), moved_pilot)
+    check(f"organic_frame: the pilot of {nm} moved 0.5 mm in the part, the pad does not follow it", len(got) == 1 and nm in got[0] and "lies on no M3 pilot" in got[0],
+          (f"one failure naming {nm}: the screw axis lies on no M3 pilot within 0.01 mm", "; ".join(got) or "NOTHING"))
+    moved_pad = dict(hw.ORGANIC_PADS, **{nm: (pn, (q0[0], q0[1], q0[2] + 0.5), sgn)})
+    got = of.pad_pilot_failures(anchors_of(moved_pad), parts)
+    check(f"organic_frame: the pad {nm} moved 0.5 mm in the table, the pilot does not follow it", len(got) == 1 and nm in got[0] and "lies on no M3 pilot" in got[0],
+          (f"one failure naming {nm}", "; ".join(got) or "NOTHING"))
+    deep = dict(hw.ORGANIC_PADS, **{nm: (pn, (q0[0] - sgn * 1.0, q0[1], q0[2]), sgn)})
+    got = of.pad_pilot_failures(anchors_of(deep), parts)
+    check(f"organic_frame: the pad {nm} sunk 1 mm into the part is not on its face", any("not on" in x and nm in x for x in got),
+          (f"a failure 'not on {pn}'s face'", "; ".join(got) or "NOTHING"))
+    # pad_fits: a pad's own pilot is not "another hole too close"; any other hole is
+    check("pad_fits ignores a pad's own pilot and accepts the pad", of.pad_fits(pp, np.array(q0), sgn) is None,
+          ("None (fits)", str(of.pad_fits(pp, np.array(q0), sgn))))
+    other = f.pilot((q0[0], q0[1] + 4.0, q0[2]), (-sgn, 0.0, 0.0), "M3")        # another M3 pilot 4 mm from the pad's axis (centres 6.1 needed)
+    with_other = dataclasses.replace(pp, holes=pp.holes + [other])
+    why = of.pad_fits(with_other, np.array(q0), sgn)
+    check("pad_fits still counts every other hole: a second M3 pilot 4 mm from the axis rejects the pad", why is not None and "too close" in why and "M3 hole" in why,
+          ("'... mm too close to the part's M3 hole'", str(why)))
+    moved_own = dataclasses.replace(pp, holes=[h.moved(0.0, 0.5, 0.0) if h is hp else h for h in pp.holes])
+    why = of.pad_fits(moved_own, np.array(q0), sgn)
+    check("pad_fits: a pilot 0.5 mm off the pad's axis is not its own, and is too close", why is not None and "too close" in why, ("'... mm too close to the part's M3 hole'", str(why)))
+
     # last: the undamaged model, once more with nothing remembered
     final = f.run_checks(hardware, parts)
     check("undamaged model reports no failure", not base["failures"] and not final["failures"],
