@@ -290,6 +290,20 @@ Against the model's old numbers: `mb` was (48, 43), now (26, 28); `eps1` and `ep
 
 The smallest spare is 30 mm now. That is more than the photo's error, but the 12V-2x6 socket on the card is still good only to about 12 mm, so its 30 mm is not a wide margin until the ruler measurement. The lanes, the order in the gap and everything above the board are unchanged. The ATX cable really ends in two plugs side by side (X -5 to 56); it is modelled as one round bundle from their centre.
 
+### Cable fixing: tie points, not per-cable clips (decision of 15 Nov 2026, main session)
+
+The routes are drawn to the millimetre, but a real cable will lie centimetres from its drawn line: the front I/O lengths are unknown, the sockets are read off pictures, and sleeved wires take their own set. A clip printed for one cable at one drawn point would be false precision. So the skeleton gets **rows of general tie points**, and one small printed part fits all of them.
+
+- **Tie point:** an M3 insert pilot in a skeleton face.
+- **`tie_bridge`:** one printed part, PA6. A foot with an M3 clearance hole and, beside it, an arch that a 12 mm hook-and-loop strap or a cable tie passes under. About 30 x 14 x 9 mm. One at every tie point. It is its own printed part in the parts list, with its material, and takes part in every check like any other part.
+- **Rows** (the builder finds the exact places; each must keep every check, check 7's walls in particular, and the cables must keep their 3 mm from every bridge):
+  1. Under beam_mid, on its underside, four points across the right half (about X 60, 85, 110, 135): the lanes pass below it.
+  2. Under the right rib's rail, on its underside, five points from u about 150 to 280: beside the place where the cables rise into the gap.
+  3. Under beam_low, two points at about X 60 and 85: where the front USB cables dive under the board.
+  4. Under beam_top, two points on the right half: for the EPS pair before it rises.
+- If a point cannot be placed (walls, a hose, a cable in the way), move it along its row; if a row cannot be placed at all, say so and leave it out. Do not move a cable to make room unless there is no other way, and then say which.
+- `cables.py` reports, for every PSU cable and the two front USB cables, the distance from the route to its nearest tie point and the longest stretch of route that has no tie point within 60 mm. No pass or fail on these two numbers in this pass: they show whether the rows are in the right places.
+
 ### Next
 
 Nylon clips for the cables and their insert pilots. Split the organic layer into printable pieces. Rerun the organic strength check when the gaming PC is back in Linux.
