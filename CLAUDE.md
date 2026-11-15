@@ -1,6 +1,6 @@
-# PC case B6
+# Ossa (PC case, layout B6)
 
-A 3D-printed open PC case modelled as CadQuery scripts. Current model: `cad_b6/`. Design record and coordinates: `docs/plans/b6-frame-v0.md`. History and constraints: `HANDOFF.md` (its B5 layout is superseded by B6).
+A 3D-printed open PC case modelled as CadQuery scripts. Current model: `cad_b6/`. Design record and coordinates: `docs/plans/b6-frame-v0.md`. History and constraints: `HANDOFF.md` (its B5 layout is superseded by B6; the file and the reference images under `refs/` are kept on the owner's disk and are not in the public repository, see `refs/README.md`).
 
 - Run scripts from the repo root with `.venv/bin/python`.
 - `cad_b6/hardware.py` is the only place hardware dimensions and mounting coordinates live.

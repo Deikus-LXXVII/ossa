@@ -2,3 +2,10 @@ __pycache__/
 *.pyc
 .DS_Store
 .venv/
+
+# Kept on the owner's disk only, not published:
+# third-party reference images and drawings (see refs/README.md), and the internal hand-off notes.
+/refs/*
+!/refs/SOURCES.txt
+!/refs/README.md
+/HANDOFF.md
