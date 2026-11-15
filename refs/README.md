@@ -9,6 +9,8 @@ The images and drawings the model was measured from are other people's work, so 
 | `arctic_radiator_ports_front.png`, `arctic_radiator_ports_side.png` | Crops of that drawing with the radiator ports measured | Made from the drawing |
 | `board_scan_overlay.png` | Straight-on scan of the MSI MAG Z890 Tomahawk WiFi with the ATX hole grid laid over it | Scan from the ixbt review of the board |
 | `gpu_5080_suprim_liquid_tubes.png` | Photo showing where the hoses leave the MSI RTX 5080 SUPRIM LIQUID | Product photo found by image search |
+| `gpu_5080_suprim_liquid_power.png` | MSI's render of the card showing the 12V-2x6 socket in a notch on the lettering face | Product render supplied by the owner |
+| `usbc_under_card.png` | Crop of the board scan with the card's footprint and the JUSBC1 header marked | Made from the board scan |
 | `north_io_front_measured.png` | Straight-on photo of the Fractal North front I/O with the port spacing measured | Photo of the Fractal North front panel found by image search |
 
 `SOURCES.txt` lists the sources of the earlier look-and-feel references for the B5 study.

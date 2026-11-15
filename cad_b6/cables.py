@@ -1,14 +1,15 @@
 #!/usr/bin/env python3
-"""Cable routes of the B6 case, from docs/plans/cables-and-organic.md ("## Cables", "Build: cad_b6/cables.py").
+"""Cable routes of the B6 case, second pass (docs/plans/cables-and-organic.md, "Second pass: spec for cad_b6/cables.py").
 
-In the manner of hoses.py: every route is a list of way-points joined with hoses.fillet_path. The facts (headers, PSU
-sockets, cable radius / real length / minimum bend) are in hardware.py. Nothing here moves hardware or changes the skeleton.
+In the manner of hoses.py: a route is a list of sections, a section is a list of way-points joined with hoses.fillet_path. A section is
+round (the cable's radius and bend from hardware.CABLES) or a slab (hardware.CABLE_SLAB round strands side by side along u, bend
+hardware.SLAB_BEND; a slab stays in a plane of constant u). The facts (headers, sockets, radii, lengths) are in hardware.py. Nothing here moves
+hardware or changes the skeleton; what the skeleton would have to give is listed in report_cables.txt.
 
-Board space (v, u, n) as in hardware.py. Every way-point number the plan does not give, and every move of a plan number, is
-in the tables below and is listed in report_cables.txt.
+Board space (v, u, n) as in hardware.py: B(v, u, n) is the world point. Every way-point number is a named constant below with its reason.
 
-Run:  .venv/bin/python cad_b6/cables.py
-Out:  cad_b6/report_cables.txt, previews/b6_cables_<view>.png; exits non-zero when a check fails (after writing both).
+Run:  .venv/bin/python cad_b6/cables.py [-norender]
+Out:  cad_b6/report_cables.txt, previews/b6_cables_<view>.png; exits 1 if a check fails (after writing both), 0 if nothing fails.
 """
 from __future__ import annotations
 
@@ -25,69 +26,44 @@ import hardware as hw                      # noqa: E402
 import hoses                               # noqa: E402
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+HERE_DIR = os.path.dirname(os.path.abspath(__file__))
 
 # ---------------------------------------------------------------------------
-# Numbers of the plan
+# Checks (unchanged from the first pass)
 # ---------------------------------------------------------------------------
-LANE_V = hw.x_to_v(132.0)                  # right edge: 10 mm outside the board's edge (v 244), world X 132
-LANE_LEFT_V = hw.x_to_v(-132.0)            # left edge
-LANE_N = -45.0                             # under the board
-UP_N = 35.0                                # over the board, after the edge
-OUT_PSU = 45.0                             # straight run out of a PSU socket, along -Y
-FRONT_START_W = (60.0, 50.0, 30.0)         # the plan's start of the front I/O cables, behind the sill (the sill has no cable exit yet); see USB_START_W / THIN_START_YZ for what is used
 CLEAR_MM, HOSE_CLEAR_MM = 3.0, 5.0         # to every skeleton part / hardware solid, and to the hoses
+END_TOL = 5.0                              # a route's end may be this far from its header (the headers are scaled off a drawing, +-5)
 
 # ---------------------------------------------------------------------------
-# Numbers the plan does not give (chosen here, listed in the report)
+# Lanes and the gap at the right edge (board space)
 # ---------------------------------------------------------------------------
-LANE_GAP = 2.0                             # air between two cables stacked in the lane, on top of their radii
-U_EDGE = -6.0                              # u at which a USB cable passes the board's bottom edge
-FRONT_START_X = {"jaud1": 48.0, "jfp1": 82.0}     # along X on the plan's start line (Y 50, Z 30); usb3 is the plan's X 60
-LIGHT_START_W = (-125.0, 50.0, 30.0)       # "sill end": the left end, behind the sill (only its X is used; Y and Z as THIN_START_YZ)
-USB_START_W = {"usb3": (60.0, 54.0, 30.0), "usbc": (70.0, 54.0, 30.0)}   # the plan's (60, 50, 30) is 2.7 mm from the sill: Y moved +4 (r 4 would sit in it); X 70 for USB-C so the two do not start together
-THIN_START_YZ = (55.0, 40.0)               # front start of JFP1, JAUD1 and the light line: the plan's (Y 50, Z 30) is 2.7 mm from the sill; Y +5 and Z +10 (11 mm) put an r 2 lead 3.5 mm off it and 4.5 mm off the board's edge
-THIN_ENTRY_N = 14.0                        # n at which JFP1 and the light line meet their header (2 mm over the plug's top, one radius)
-AUD_RUN = (30.0, 20.0)                     # (n, u) of JAUD1's run over the board's front strip: it descends into its header from there, over the light line
-AUD_RUN_V0 = 110.0                         # v at which JAUD1 reaches the level of its run
-LIGHT_PASS_UN = (14.0, 14.0)               # (u, n) at which the light line passes under JAUD1's descent, at JAUD1's header's v
-SIDE_FAN_START_N = -30.0                   # n at which a side fan's lead leaves its frame
-FAN_RIGHT_START_U, FAN_LEFT_START_U = 255.0, 130.0       # u at which it leaves the fan (the fans span u 120..260)
-FAN_LEFT_START_V = hw.x_to_v(hw.FAN_SIDE_X["fan_side_left"][1])      # inner face of the left fan
-FAN_RIGHT_START_V = hw.x_to_v(hw.FAN_SIDE_X["fan_side_right"][0])    # inner face of the right fan
-PUMP_START_N = 60.0                        # where the pump lead leaves the block's wall
-EPS_N_RUN = {"eps1": 44.0, "eps2": 30.0}   # EPS2 at the plan's n 30; EPS1 passes 14 mm over it (6 + 6 + 2)
-U_IN = {"atx24": 45.0, "eps1": 45.0, "eps2": 90.0}    # u at which a PSU cable meets the lane (EPS2 later: its level is below the skid's top)
-OUT_LEG = {"atx24": OUT_PSU, "eps1": OUT_PSU + 15.0, "eps2": OUT_PSU}   # EPS1's socket is the left one: it runs 15 mm further out so that it passes EPS2's first leg
-U_LOW_B = {"usb3": 6.0, "usbc": 0.0}    # u at which a USB cable has gone under the board and turns towards the lane (the board edge and beam_low are what it steers between)
-ALT_FAN_LEFT = dict(u=190.0, n=55.0)    # alternative, not the plan: over the board at n 55, see ALTERNATIVE in the report
-ALT_FAN_RIGHT = dict(u=190.0, n=56.0)
-LANE_CABLES = ("usbc", "usb3", "atx24", "eps1", "eps2")  # these run in the right-edge lane under the board; the lowest rise u lies on top
+# Every number below that was found by search (a hill-climb / annealing run against the checks, with 0.5 mm of margin on every clearance) is marked
+# "search"; the rest are from the spec or the geometry and say so.
+V_GAP = hw.x_to_v(131.5)                   # the gap's v: the board's edge is X 122 and the rib's X 142; here 9.5 / 10.5 mm from them, so that r 6 and r 7 keep 3.5 mm from both
+V_IN = hw.x_to_v(113.0)                    # the lane under the board, inboard of the ribs (the r 12 ATX cable must stay 15 mm from X 142)
+LANE_N = {"usb3": -41.0, "gpu12v": -57.5, "atx24": -85.0, "eps1": -106.0, "eps2": -147.5}   # search: levels of the lanes at v 235: the cable that rises first lies on top, the next one under it by the two radii and air; USB 3 under beam_low (n -30) with r 4, EPS 2 above the desk (Z -15)
+SHIFT_DEG = {"gpu12v": 22.5, "atx24": 12.0, "eps1": 15.0, "eps2": 27.0}   # search: angle of the diagonal that moves a lane cable from v 235 to the gap (it sets where each cable crosses the others)
 
-# The plan says "about" for the rise u; where the header is within 5 mm of the plan's number the cable rises at the header's u (so that it
-# meets the header straight). Rise u = descent u. EPS2 at 265 would sit on EPS1, so it is 14 mm further (the plan gives one number for both).
-PLAN_RISE = {"usbc": 110.0, "usb3": 160.0, "atx24": 220.0, "eps1": 265.0, "eps2": 279.0, "fan_right": 270.0, "fan_left": 135.0}
-PLAN_EPS_RUN_U = 297.0                     # the plan: along u to 297
-# Moves of a way-point, within 15 mm of the plan's number, for the clearances (each is in the report with the reason).
-MOVED = {
-    "rise": {"usb3": 163.0, "eps1": 261.0, "eps2": 275.5},
-    "eps_run_u": 301.0,
-    "lane_v": {"fan_right": 256.0},
-}
-OWN = {   # the two ends of a route, which it may touch
-    "atx24": {"psu", "board", "atx24"}, "eps1": {"psu", "board", "eps"}, "eps2": {"psu", "board", "eps"},
+# The u of each cable where it passes the gap, in the order USB 3, 12V-2x6, ATX, EPS 1, EPS 2. The spec has 12V-2x6 first: that cannot be, JUSB3 is at u 160 and
+# USB 3 would have to cross the 12V slab (u 167..199, n up to 53, and the round cable above it) to reach it. The window is u 158 (beam_mid, u 155, + 3 + r 4)
+# to 282 (beam_top, u 285, - 3).
+GAP_U = {"usb3": 163.5, "gpu12v": 184.0, "atx24": 224.5, "eps1": 255.0, "eps2": 275.0}   # search: the slabs and USB 3 within 0.5..1 mm of each other, the ATX slab 4.5 mm from its header (u 220), EPS 2 6 mm + r 6 from beam_top
+
+OWN = {   # the hardware a route may touch: its two ends
+    "atx24": {"psu", "board", "atx24"}, "eps1": {"psu", "board", "eps"}, "eps2": {"psu", "board", "eps"}, "gpu12v": {"psu", "gpu"},
     "usb3": {"front_io", "board"}, "usbc": {"front_io", "board"}, "jfp1": {"front_io", "board"}, "jaud1": {"front_io", "board"},
     "argb": {"light_strip", "board"}, "cpu_fan": {"cpu_block", "board", "eps"},      # CPU_FAN1 lies inside the EPS keep-out box
     "fan_right": {"fan_side_right", "board"}, "fan_left": {"fan_side_left", "board"},
 }
 HEADER_OF = {"atx24": "ATX_PWR1", "eps1": "CPU_PWR1", "eps2": "CPU_PWR2", "usb3": "JUSB3", "usbc": "JUSBC1", "jfp1": "JFP1",
              "jaud1": "JAUD1", "argb": "JARGB_V2_1", "cpu_fan": "CPU_FAN1", "fan_right": "SYS_FAN1", "fan_left": "SYS_FAN3"}
-SOCKET_OF = {"atx24": "mb", "eps1": "eps1", "eps2": "eps2"}
+SOCKET_OF = {"atx24": "mb", "eps1": "eps1", "eps2": "eps2", "gpu12v": "gpu"}
 TITLE = {"atx24": "ATX 24-pin", "eps1": "EPS 1", "eps2": "EPS 2", "gpu12v": "12V-2x6", "usb3": "USB 3 front", "usbc": "USB-C front",
          "jfp1": "Power switch", "jaud1": "Audio", "argb": "Light line", "cpu_fan": "Pump / 420 fans", "fan_right": "Right side fan",
          "fan_left": "Left side fan"}
-RGB = {"atx24": (0.85, 0.10, 0.10), "eps1": (0.95, 0.55, 0.05), "eps2": (0.95, 0.80, 0.05), "usb3": (0.10, 0.35, 0.85),
-       "usbc": (0.05, 0.65, 0.85), "jfp1": (0.80, 0.10, 0.75), "jaud1": (0.10, 0.70, 0.25), "argb": (0.55, 0.20, 0.85),
-       "cpu_fan": (0.0, 0.0, 0.0), "fan_right": (0.60, 0.35, 0.10), "fan_left": (0.30, 0.55, 0.10)}
+RGB = {"atx24": (0.85, 0.10, 0.10), "eps1": (0.95, 0.55, 0.05), "eps2": (0.95, 0.80, 0.05), "gpu12v": (0.95, 0.20, 0.55),
+       "usb3": (0.10, 0.35, 0.85), "usbc": (0.05, 0.65, 0.85), "jfp1": (0.80, 0.10, 0.75), "jaud1": (0.10, 0.70, 0.25),
+       "argb": (0.55, 0.20, 0.85), "cpu_fan": (0.0, 0.0, 0.0), "fan_right": (0.60, 0.35, 0.10), "fan_left": (0.30, 0.55, 0.10)}
 
 
 def B(v, u, n):
@@ -95,85 +71,35 @@ def B(v, u, n):
 
 
 def header(name):
-    v, u = hw.HEADERS[HEADER_OF[name]]
-    return v, u
+    return hw.HEADERS[HEADER_OF[name]]
 
 
-def lane_levels(rise):
-    """n of each lane cable's run under the board: the one that rises first lies on top at LANE_N, the next below it
-    spaced by the two radii and LANE_GAP, so that a cable rising later passes under the ones that have gone up."""
-    levels, prev = {}, None
-    for name in sorted(LANE_CABLES, key=lambda k: rise[k]):
-        r = hw.CABLES[name][1]
-        levels[name] = LANE_N if prev is None else levels[prev] - (hw.CABLES[prev][1] + r + LANE_GAP)
-        prev = name
-    return levels
+# ---------------------------------------------------------------------------
+# Sections and routes
+# ---------------------------------------------------------------------------
+class Sec:
+    """A stretch of one cross-section: kind "round" (radius and bend of the cable) or "slab" (hw.CABLE_SLAB strands, hw.SLAB_BEND)."""
 
-
-def waypoints(variant: str):
-    """{cable: [world way-points]} for the variant "plan" (the plan's numbers), "moved" (way-points moved within 15 mm) or
-    "alt" (moved, and the two side fans on a route that is not the plan's)."""
-    moved = variant != "plan"
-    rise = dict(PLAN_RISE)
-    eps_run_u = PLAN_EPS_RUN_U
-    lane_v = {}
-    if moved:
-        rise.update(MOVED["rise"])
-        eps_run_u = MOVED["eps_run_u"]
-        lane_v.update(MOVED["lane_v"])
-    levels = lane_levels(rise)
-    P = {}
-    # ---- PSU cables: out of the socket 45 mm along -Y, to the lane under the board, up round the right edge, to the header
-    for name in ("atx24", "eps1", "eps2"):
-        sx, sy, sz = hw.PSU_SOCKETS[SOCKET_OF[name]]
-        hv, _hu = header(name)
-        u, n = rise[name], levels[name]
-        pts = [np.array([sx, sy, sz]), np.array([sx, sy - OUT_LEG[name], sz]), B(LANE_V, U_IN[name], n), B(LANE_V, u, n)]
-        if name == "atx24":
-            pts += [B(LANE_V, u, UP_N), B(hv, u, UP_N), B(hv, u, hw.HEADER_TOP_N)]
+    def __init__(self, kind, wps, name):
+        self.kind, self.wps = kind, [np.array(p, dtype=float) for p in wps]
+        real, r, bend = hw.CABLES[name]
+        if kind == "slab":
+            self.r, self.bend, self.strands = hw.SLAB_STRAND_R, hw.SLAB_BEND, hw.CABLE_SLAB[name]
         else:
-            nr = EPS_N_RUN[name]
-            pts += [B(LANE_V, u, nr), B(LANE_V, eps_run_u, nr), B(hv, eps_run_u, nr), B(hv, eps_run_u, hw.HEADER_TOP_N)]
-        P[name] = pts
-    # ---- front I/O cables into the lane (USB 3, USB-C)
-    for name in ("usb3", "usbc"):
-        x = USB_START_W[name][0]
-        hv, _hu = header(name)
-        u, n = rise[name], levels[name]
-        v0 = hw.x_to_v(x)
-        P[name] = [np.array(USB_START_W[name]), B(v0, U_EDGE, -3.0), B(v0, U_LOW_B[name], n), B(LANE_V, U_LOW_B[name], n), B(LANE_V, u, n),
-                   B(LANE_V, u, UP_N), B(hv, u, UP_N), B(hv, u, hw.HEADER_TOP_N)]
-    # ---- front cables that stay in front of the board: an arch over the header
-    hv, hu = header("jfp1")
-    P["jfp1"] = [np.array([FRONT_START_X["jfp1"], *THIN_START_YZ]), B(hv, hu, THIN_ENTRY_N)]
-    hv, hu = header("argb")
-    P["argb"] = [np.array([LIGHT_START_W[0], *THIN_START_YZ]), B(hw.HEADERS["JAUD1"][0], *LIGHT_PASS_UN), B(hv, hu, THIN_ENTRY_N)]
-    hv, hu = header("jaud1")
-    P["jaud1"] = [np.array([FRONT_START_X["jaud1"], *THIN_START_YZ]), B(AUD_RUN_V0, AUD_RUN[1], AUD_RUN[0]), B(hv, AUD_RUN[1], AUD_RUN[0]), B(hv, hu, hw.HEADER_TOP_N)]
-    # ---- the pump lead: over the board from the block's wall to its header
-    sv, su = hw.CPU_SOCKET_VU
-    hv, hu = header("cpu_fan")
-    d = np.array([hv - sv, hu - su])
-    d /= np.linalg.norm(d)
-    wall = (sv + hw.CPU_BODY_R * d[0], su + hw.CPU_BODY_R * d[1])
-    P["cpu_fan"] = [B(wall[0], wall[1], PUMP_START_N), B(hv, wall[1], PUMP_START_N), B(hv, hu, PUMP_START_N), B(hv, hu, hw.HEADER_TOP_N)]
-    # ---- the side fans: out of the fan's inner face, round the edge at the header's u, over the board to the header
-    hv, _hu = header("fan_right")
-    u, lv = rise["fan_right"], lane_v.get("fan_right", LANE_V)
-    P["fan_right"] = [B(FAN_RIGHT_START_V, FAN_RIGHT_START_U, SIDE_FAN_START_N), B(lv, u, SIDE_FAN_START_N), B(lv, u, UP_N),
-                      B(hv, u, UP_N), B(hv, u, hw.HEADER_TOP_N)]
-    hv, _hu = header("fan_left")
-    u = rise["fan_left"]
-    P["fan_left"] = [B(FAN_LEFT_START_V, FAN_LEFT_START_U, SIDE_FAN_START_N), B(LANE_LEFT_V, u, SIDE_FAN_START_N), B(LANE_LEFT_V, u, UP_N),
-                     B(hv, u, UP_N), B(hv, u, hw.HEADER_TOP_N)]
-    if variant == "alt":
-        hv, hu = header("fan_left")
-        a = ALT_FAN_LEFT
-        P["fan_left"] = [B(FAN_LEFT_START_V, a["u"], a["n"]), B(hv, a["u"], a["n"]), B(hv, hu, a["n"]), B(hv, hu, hw.HEADER_TOP_N)]
-        hv, hu = header("fan_right")
-        a = ALT_FAN_RIGHT
-        P["fan_right"] = [B(FAN_RIGHT_START_V, a["u"], a["n"]), B(hv, hu, a["n"]), B(hv, hu, hw.HEADER_TOP_N)]
-    return P, levels
+            self.r, self.bend, self.strands = r, bend, 1
+        pts, self.length, self.rmin, _t = hoses.fillet_path(self.wps, [self.bend] * (len(self.wps) - 2))
+        self.pts = np.array(pts)
+        if kind == "slab":
+            us = np.array([hoses.world_to_bs(p)[1] for p in self.pts])
+            assert us.max() - us.min() < 1e-6, f"{name}: a slab section leaves its plane of constant u ({us.min():.3f}..{us.max():.3f})"
+            self.u0 = float(us[0])
+
+    def strand_pts(self):
+        """[(points, radius)] of every strand of the section; a slab's strands are the centre line shifted along u."""
+        if self.kind == "round":
+            return [(self.pts, self.r)]
+        k = self.strands
+        return [(self.pts + np.array(hw.U_DIR) * ((i - (k - 1) / 2) * hw.SLAB_PITCH), self.r) for i in range(k)]
 
 
 def chain_solid(pts, r):
@@ -190,18 +116,36 @@ def chain_solid(pts, r):
     return cq.Compound.makeCompound(items)
 
 
+def surface_extent(pts, r):
+    """(min Y, max |X|) of the surface of a chain of cylinders of radius r along the polyline pts (exact for cylinders and their end spheres)."""
+    ymin, xmax = float("inf"), 0.0
+    for a, b in zip(pts[:-1], pts[1:]):
+        d = b - a
+        L = float(np.linalg.norm(d))
+        if L < 1e-9:
+            continue
+        d = d / L
+        ry, rx = r * math.sqrt(max(1 - d[1] ** 2, 0.0)), r * math.sqrt(max(1 - d[0] ** 2, 0.0))
+        ymin = min(ymin, a[1] - ry, b[1] - ry)
+        xmax = max(xmax, abs(a[0]) + rx, abs(b[0]) + rx)
+    return ymin, xmax
+
+
 class Route:
-    def __init__(self, name, wps):
-        self.name = name
-        real, self.r, self.min_bend = hw.CABLES[name]
-        self.real = real
-        self.wps = wps
-        pts, self.length, self.rmin, _t = hoses.fillet_path(wps, [self.min_bend] * (len(wps) - 2))
-        self.pts = np.array(pts)
-        self.solid = None
-        self.body = None
+    def __init__(self, name, secs, own_leg=None, lying=False):
+        """own_leg: the length at the start that stays in its socket's neighbourhood (a PSU cable's first leg): not held off its PSU."""
+        self.name, self.secs, self.own_leg, self.lying = name, secs, own_leg, lying
+        self.real = hw.CABLES[name][0]
+        self.r = hw.CABLES[name][1]
+        self.length = sum(s.length for s in secs)
+        self.rmin = min(s.rmin for s in secs)
+        self.bend_checks = [(s.kind, s.rmin, s.bend) for s in secs]
+        self.strands = [sp for s in secs for sp in s.strand_pts()]
+        self.pts = np.vstack([secs[0].pts] + [s.pts[1:] for s in secs[1:]])
+        self.solid = self.body = self.psu_body = self.card_body = None
         self.clear = []            # (target, distance, needed)
-        self.fail = []
+        self.fail = []             # (class, text)
+        self.ymin, self.xmax = min(surface_extent(p, r)[0] for p, r in self.strands), max(surface_extent(p, r)[1] for p, r in self.strands)
 
     def end_offset(self):
         """(v, u) distance of the route's end from its header."""
@@ -209,24 +153,211 @@ class Route:
             return None
         v, u, _n = hoses.world_to_bs(self.pts[-1])
         hv, hu = header(self.name)
+        if self.lying:                                   # a lying socket is on the board's edge: the plug stops at the edge, in u it is held to the header's u
+            hv = hw.BOARD_BS[1]
         return math.hypot(v - hv, u - hu)
 
+    def _cut_end(self, pts, r):
+        """The part of a section's points before the plug's descent into its header (which touches the board): up to the level of the header's top + r + 0.5."""
+        ns = np.array([hoses.world_to_bs(p)[2] for p in pts])
+        low = hw.HEADER_TOP_N + r + 0.5
+        k = len(ns) - 1
+        while k > 0 and ns[k] <= low:
+            k -= 1
+        return pts[:k + 1]
+
     def build(self):
-        self.solid = chain_solid(self.pts, self.r)
-        if self.name in HEADER_OF:                     # the part of the route that is not the plug's descent: it is held off the board
-            ns = np.array([hoses.world_to_bs(p)[2] for p in self.pts])
-            low = hw.HEADER_TOP_N + self.r + 0.5
-            k = len(ns) - 1
-            while k > 0 and ns[k] <= low:
-                k -= 1
-            self.body = chain_solid(self.pts[:k + 1], self.r) if k > 2 else None
+        self.solid = cq.Compound.makeCompound([s for p, r in self.strands for s in chain_solid(p, r)])
+        if self.name == "gpu12v":              # the card is this route's end: held off it after the plug, the straight and the first bend
+            cum = np.concatenate([[0], np.cumsum(np.linalg.norm(np.diff(self.pts, axis=0), axis=1))])
+            keep = self.pts[cum <= cum[-1] - (hw.GPU12V_PLUG + hw.GPU12V_STRAIGHT + hw.CABLES["gpu12v"][2])]
+            self.card_body = chain_solid(keep, self.r)
+        if self.name not in HEADER_OF:
+            return
+        body = []
+        for i, sec in enumerate(self.secs):
+            last = i == len(self.secs) - 1
+            for p, r in sec.strand_pts():
+                if last:
+                    if self.lying:                       # the plug (LYING_PLUG length) is the part that touches the board's edge
+                        cum = np.concatenate([[0], np.cumsum(np.linalg.norm(np.diff(p, axis=0), axis=1))])
+                        p = p[cum <= cum[-1] - hw.LYING_PLUG["length"] - 1.0]
+                    else:
+                        p = self._cut_end(p, r)
+                if len(p) > 2:
+                    body.append((p, r))
+        self.body = cq.Compound.makeCompound([s for p, r in body for s in chain_solid(p, r)]) if body else None
+        if self.own_leg is not None:                     # a PSU cable after its socket leg
+            cum = np.concatenate([[0], np.cumsum(np.linalg.norm(np.diff(self.pts, axis=0), axis=1))])
+            keep = self.pts[cum >= self.own_leg + 5.0]
+            self.psu_body = chain_solid(keep, self.r) if len(keep) > 2 else None
 
 
-def evaluate(variant: str, parts, hardware):
-    P, levels = waypoints(variant)
-    routes = {n: Route(n, w) for n, w in P.items()}
+# ---------------------------------------------------------------------------
+# Way-points
+# ---------------------------------------------------------------------------
+def shift_wps(v_from, v_to, c, n, theta_deg):
+    """From the lane at v_from along +u, a diagonal to v_to at u = c, both in the plane n: the two corners."""
+    return [B(v_from, c - (v_to - v_from) / math.tan(math.radians(theta_deg)), n), B(v_to, c, n)]
+
+
+def psu_lead(name, theta):
+    """A PSU cable out of its socket OUT_LEG[name] mm along -Y, round the PSU's front corner through (WAY_X, WAY_Y, WAY_Z) (world) where the straight way would
+    cut the PSU, to the lane's start (v V_IN, U_IN, LANE_N), along u, and a diagonal to the gap at u = GAP_U, still at the lane level."""
+    sx, sy, sz = hw.PSU_SOCKETS[SOCKET_OF[name]]
+    pts = [np.array([sx, sy, sz]), np.array([sx, sy - OUT_LEG[name], sz])]
+    if name in WAY_X:
+        pts.append(np.array([WAY_X[name], WAY_Y[name], WAY_Z[name]]))
+    pts += [B(V_IN, U_IN[name], LANE_N[name])] + shift_wps(V_IN, V_GAP, GAP_U[name], LANE_N[name], theta)
+    return pts
+
+
+# ---- the numbers of each route (board space unless said) ----
+# PSU cables: out of the socket OUT_LEG mm along -Y, round the PSU's right front corner through WAY_* (EPS only), to the lane's start at u U_IN, then the lane.
+U_IN = {"atx24": 45.0, "gpu12v": 113.0, "eps1": 81.0, "eps2": 154.0}     # search: u at which a PSU cable reaches its lane (the plan's 45 for the ATX cable)
+OUT_LEG = {"atx24": 45.0, "gpu12v": 80.5, "eps1": 60.5, "eps2": 45.0}   # the plan's 45 mm along -Y; search: the 12V-2x6 80.5 (it is 17 mm short of its 700 mm at that, 25 mm more and it would be over), EPS 1 60.5 (it passes EPS 2's first leg in front)
+WAY_X = {"eps1": 70.5, "eps2": 86.0}       # search: world X, Y, Z of the point where an EPS cable passes the PSU's right front corner (X 75, Y 165): the straight way to the lane cuts the PSU
+WAY_Y = {"eps1": 145.0, "eps2": 157.5}
+WAY_Z = {"eps1": -2.5, "eps2": 16.0}
+
+# 12V-2x6: from the socket's mouth along +n (plug 13 + straight 35), one arch in the vertical plane through the socket and the descent, down the gap.
+GPU12V_TOP_N = 220.0                       # top of the arch: mouth n 137 + plug 13 + straight 35 + the first bend's radius 35 (the arch cannot be lower)
+GPU12V_ARCH_U = 173.0                      # search: u of the round descent: its surface (r 7) stands 4 mm off the 360's face (u 184), which the descent passes at n 122..177
+GPU12V_S_N = [118.5, 67.0]                 # search: n of the two corners of the S-bend that moves the descent from GPU12V_ARCH_U to the slab's u (below the 360's face, n 122, and above USB 3's hook)
+GPU12V_SLAB_TOP_N = 53.0                   # search: the slab (4 strands r 4, constant u) starts here ...
+GPU12V_SLAB_BOTTOM_N = -22.0               # ... and ends here: the round part's bend ends at the lane level + 35 = -23; its r 7 stays 3.5 mm off the rib at X 142
+# ATX 24-pin: round r 12 to the foot of the gap, slab up through it, hook out over the rail, one U-turn, down into ATX_PWR1.
+ATX_SLAB_BOTTOM_N = -50.0                  # the r 12 part ends 3 mm under the rail's bottom (n -34) + 12
+ATX_HOOK = dict(n1=12.0, n2=22.0, v_up=272.5, n_top=90.0)   # search: the slab goes up the gap to n1, out over the rail to v_up at n2, up, and one U-turn (R 15, corners at n_top) down at the header's v
+USB3_HOOK = dict(n1=29.0, n2=46.0, v_up=283.5, n_top=70.0)  # search: the same for USB 3 (round r 4), clear of the 12V-2x6's S-bend, which stands 3 mm from the same u
+# EPS: round r 6 to the gap, up to the run over the board, a diagonal to above the header, down into it.
+EPS_RUN_N = {"eps1": 65.0, "eps2": 59.5}   # search: level of the run over the board: over the DIMMs (n 45) + 3 + r 6 = 54
+EPS_END_U = 300.0                          # u of the last leg: 4 mm from the DIMM box (u 290) and from the 420's core face (u 310) with r 6
+# Front I/O
+USB_START_W = {"usb3": (60.0, 54.0, 30.0), "usbc": (70.0, 54.0, 30.0)}   # the plan's (60, 50, 30) is 2.7 mm from the sill: Y moved +4 (r 4 would sit in it); X 70 for USB-C so the two do not start together
+U_EDGE = -9.5                              # search: u at which a USB cable passes the board's bottom edge
+USB_DIVE_U = -4.5                          # search: u at which a USB cable has dived under the board at the lane level
+USBC_RISER = dict(v=249.5, u=84.0)         # search: USB-C goes up the gap here, 3 mm + r 4 from the board's edge, and its U-turn stays off gpu_rest (u 75.6) by 3 mm
+USBC_N = {"lane": -46.0, "plane": hw.LYING_PLUG["thick"] / 2}   # search: lane level under beam_low (n -30) with r 4; the plug's centre line over the board's plane (spec)
+USBC_U_TURN = dict(v=290.0, u_end=121.5, v_exit=259.0)   # search: apex of the in-plane U-turn over the rail; the u it comes back to; the v where it straightens for the plug
+FRONT_START_X = {"jaud1": 48.0, "jfp1": 82.0}     # first pass: along X on the plan's start line (Y 50, Z 30)
+LIGHT_START_W = (-125.0, 50.0, 30.0)       # first pass: "sill end", the left end, behind the sill (only its X is used; Y and Z as THIN_START_YZ)
+THIN_START_YZ = (55.0, 40.0)               # first pass: front start of JFP1, JAUD1 and the light line: the plan's (Y 50, Z 30) is 2.7 mm from the sill; Y +5 and Z +10 put an r 2 lead 3.5 mm off it
+THIN_ENTRY_N = 14.0                        # first pass: n at which JFP1 and the light line meet their header (2 mm over the plug's top, one radius)
+AUD_RUN = (30.0, 20.0)                     # first pass: (n, u) of JAUD1's run over the board's front strip: it descends into its header from there, over the light line
+AUD_RUN_V0 = 110.0                         # first pass: v at which JAUD1 reaches the level of its run
+LIGHT_PASS_UN = (14.0, 14.0)               # first pass: (u, n) at which the light line passes under JAUD1's descent, at JAUD1's header's v
+# Pump lead and side fans
+PUMP_START_N = 50.5                        # search: where the pump lead leaves the block's wall: 3 mm + r 2 over the DIMMs (n 45), in from the DIMM side
+FAN_LEFT_START_V = hw.x_to_v(hw.FAN_SIDE_X["fan_side_left"][1])      # inner face of the left fan
+FAN_RIGHT = dict(v0=347.0, u0=260.0, n=46.0, ua=287.0, va=270.0)   # search: the right fan's lead leaves the fan's rear edge (u 260) at v0 (inside the fan's thickness, v 323..348), crosses the board's edge beyond EPS 2's rise (u ua) at level n, and enters SYS_FAN1 from the +u side; 5.5 mm off the hoses
+FAN_LEFT = dict(u=177.5, n=65.0)           # search: the left fan's lead runs straight from the fan to above the header (the first pass's `alt`), over the board at level n, u from the fan to the header's
+
+
+def hook(v_from, v_up, u, n1, n2, n_top, v_down, n_end):
+    """Over the board: up the gap to n1 at v_from, out over the rail to v_up at n2 (an S-bend), up to n_top, U-turn (corners at n_top), down at v_down."""
+    return [B(v_from, u, n1), B(v_up, u, n2), B(v_up, u, n_top), B(v_down, u, n_top), B(v_down, u, n_end)]
+
+
+def waypoints_all():
+    R = {}
+    top = hw.HEADER_TOP_N
+    # --- ATX 24-pin
+    c = GAP_U["atx24"]
+    hv, hu = header("atx24")
+    h = ATX_HOOK
+    rd = psu_lead("atx24", SHIFT_DEG["atx24"]) + [B(V_GAP, c, ATX_SLAB_BOTTOM_N)]
+    sl = [B(V_GAP, c, ATX_SLAB_BOTTOM_N)] + hook(V_GAP, h["v_up"], c, h["n1"], h["n2"], h["n_top"], hv, top)
+    R["atx24"] = [Sec("round", rd, "atx24"), Sec("slab", sl, "atx24")]
+    # --- 12V-2x6 (from the PSU to the card, so the card is the end)
+    c = GAP_U["gpu12v"]
+    gs = hw.GPU_PWR_SOCKET
+    mouth_n = hw.GPU_BS[5] - gs["recess"]
+    rd1 = psu_lead("gpu12v", SHIFT_DEG["gpu12v"]) + [B(V_GAP, c, GPU12V_SLAB_BOTTOM_N)]
+    sl = [B(V_GAP, c, GPU12V_SLAB_BOTTOM_N), B(V_GAP, c, GPU12V_SLAB_TOP_N)]
+    rd2 = [B(V_GAP, c, GPU12V_SLAB_TOP_N), B(V_GAP, c, GPU12V_S_N[1]), B(V_GAP, GPU12V_ARCH_U, GPU12V_S_N[0]),
+           B(V_GAP, GPU12V_ARCH_U, GPU12V_TOP_N), B(gs["v"], gs["u"], GPU12V_TOP_N), B(gs["v"], gs["u"], mouth_n)]
+    R["gpu12v"] = [Sec("round", rd1, "gpu12v"), Sec("slab", sl, "gpu12v"), Sec("round", rd2, "gpu12v")]
+    # --- EPS 1 and 2
+    for name in ("eps1", "eps2"):
+        c, nr = GAP_U[name], EPS_RUN_N[name]
+        hv, _hu = header(name)
+        pts = psu_lead(name, SHIFT_DEG[name]) + [B(V_GAP, c, nr), B(hv, EPS_END_U, nr), B(hv, EPS_END_U, top)]
+        R[name] = [Sec("round", pts, name)]
+    # --- USB 3: under the bottom edge, diagonal under the board to the gap, up, hook, down into JUSB3
+    hv, hu = header("usb3")
+    c, v0 = GAP_U["usb3"], hw.x_to_v(USB_START_W["usb3"][0])
+    h = USB3_HOOK
+    pts = [np.array(USB_START_W["usb3"]), B(v0, U_EDGE, -3.0), B(v0, USB_DIVE_U, LANE_N["usb3"]), B(V_GAP, c, LANE_N["usb3"])] \
+        + hook(V_GAP, h["v_up"], c, h["n1"], h["n2"], h["n_top"], hv, top)
+    R["usb3"] = [Sec("round", pts, "usb3")]
+    # --- USB-C: under the bottom edge, up the gap at u 83, in the board's plane (n 4) a U-turn over the rail, into the lying plug along -v
+    hv, hu = header("usbc")
+    v0, rs, ut, pn = hw.x_to_v(USB_START_W["usbc"][0]), USBC_RISER, USBC_U_TURN, USBC_N["plane"]
+    edge = hw.BOARD_BS[1]
+    pts = [np.array(USB_START_W["usbc"]), B(v0, U_EDGE, -3.0), B(v0, USB_DIVE_U, USBC_N["lane"]), B(rs["v"], rs["u"], USBC_N["lane"]),
+           B(rs["v"], rs["u"], pn), B(ut["v"], rs["u"], pn), B(ut["v"], ut["u_end"], pn), B(ut["v_exit"], hu, pn), B(edge, hu, pn)]
+    R["usbc"] = [Sec("round", pts, "usbc")]
+    # --- the front cables that stay in front of the board
+    hv, hu = header("jfp1")
+    R["jfp1"] = [Sec("round", [np.array([FRONT_START_X["jfp1"], *THIN_START_YZ]), B(hv, hu, THIN_ENTRY_N)], "jfp1")]
+    hv, hu = header("argb")
+    R["argb"] = [Sec("round", [np.array([LIGHT_START_W[0], *THIN_START_YZ]), B(hw.HEADERS["JAUD1"][0], *LIGHT_PASS_UN), B(hv, hu, THIN_ENTRY_N)], "argb")]
+    hv, hu = header("jaud1")
+    R["jaud1"] = [Sec("round", [np.array([FRONT_START_X["jaud1"], *THIN_START_YZ]), B(AUD_RUN_V0, AUD_RUN[1], AUD_RUN[0]), B(hv, AUD_RUN[1], AUD_RUN[0]),
+                                B(hv, hu, top)], "jaud1")]
+    # --- the pump lead: over the DIMMs from the block's wall, in from the DIMM side to its header
+    sv, su = hw.CPU_SOCKET_VU
+    hv, hu = header("cpu_fan")
+    d = np.array([hv - sv, hu - su])
+    d /= np.linalg.norm(d)
+    wall = (sv + hw.CPU_BODY_R * d[0], su + hw.CPU_BODY_R * d[1])
+    R["cpu_fan"] = [Sec("round", [B(wall[0], wall[1], PUMP_START_N), B(hv, wall[1], PUMP_START_N), B(hv, hu, PUMP_START_N), B(hv, hu, top)], "cpu_fan")]
+    # --- the side fans: straight from the fan to above the header
+    hv, hu = header("fan_right")
+    a = FAN_RIGHT
+    R["fan_right"] = [Sec("round", [B(a["v0"], a["u0"], a["n"]), B(a["va"], a["ua"], a["n"]), B(hv, a["ua"], a["n"]), B(hv, hu, a["n"]), B(hv, hu, top)], "fan_right")]
+    hv, hu = header("fan_left")
+    a = FAN_LEFT
+    R["fan_left"] = [Sec("round", [B(FAN_LEFT_START_V, a["u"], a["n"]), B(hv, a["u"], a["n"]), B(hv, hu, a["n"]), B(hv, hu, top)], "fan_left")]
+    return R
+
+
+# ---------------------------------------------------------------------------
+# Evaluation
+# ---------------------------------------------------------------------------
+BODY_BOARD = "hw:board (route without the plug's descent)"
+BODY_PSU = "hw:psu (route after its socket leg)"
+BODY_CARD = "hw:gpu (route after the plug, the straight and the first bend)"
+SILL_ZONE_U = 16.0       # the part of a USB route with u below this is at the sill and the board's bottom edge
+
+
+def build_routes():
+    return {name: Route(name, secs, own_leg=OUT_LEG.get(name), lying=(HEADER_OF.get(name) in hw.HEADERS_LYING))
+            for name, secs in waypoints_all().items()}
+
+
+def sill_zone(rt):
+    """The first stretch of a front USB route, up to u SILL_ZONE_U (where it leaves the sill and dives under the board's bottom edge)."""
+    us = np.array([hoses.world_to_bs(p)[1] for p in rt.pts])
+    k = int(np.argmax(us > SILL_ZONE_U))
+    return chain_solid(rt.pts[:k + 1], rt.r)
+
+
+def classify(rt, text, d, zone_d, target):
+    """owner / skeleton / route, by the rules of the spec."""
+    if rt.name == "gpu12v" and text.startswith("envelope"):
+        return "owner"
+    if rt.name in ("usb3", "usbc") and target in ("front_sill", BODY_BOARD) and zone_d is not None \
+            and zone_d < CLEAR_MM - 1e-6 and zone_d <= d + 1e-3:
+        return "skeleton"
+    return "route"
+
+
+def evaluate(routes, parts, hardware):
     targets = {p.name: p.solid for p in parts}
     targets.update({f"hw:{k}": v for k, v in hardware.items()})
+    gpu_under = hw.bs_box(hw.GPU_BS[0], hw.GPU_BS[1], hw.GPU_BS[2], hw.GPU_BS[3], hw.GPU_UNDERSIDE_N, hw.GPU_BS[5])
     for rt in routes.values():
         rt.build()
         own = {f"hw:{k}" for k in OWN[rt.name]}
@@ -234,86 +365,219 @@ def evaluate(variant: str, parts, hardware):
         for tn, ts in targets.items():
             if tn in own:
                 continue
+            if tn == "hw:gpu" and rt.name == "usbc":
+                ts = gpu_under                                # for this route only the card counts from GPU_UNDERSIDE_N up
             if frame_v0.bbox_gap(rb, frame_v0.bbox_of(ts)) > 30.0:
                 continue
             need = HOSE_CLEAR_MM if tn in ("hw:cpu_hoses", "hw:gpu_hoses") else CLEAR_MM
-            d = frame_v0.solid_distance(rt.solid, ts)
-            rt.clear.append((tn, d, need))
-        if rt.body is not None and rt.name in HEADER_OF:
-            d = frame_v0.solid_distance(rt.body, targets["hw:board"])
-            rt.clear.append(("hw:board (route without the plug's descent)", d, CLEAR_MM))
-        zmin = float(rt.pts[:, 2].min()) - rt.r
-        rt.clear.append((f"desk plane Z {hw.DESK_Z:g}", zmin - hw.DESK_Z, 0.0))
+            rt.clear.append((tn if tn != "hw:gpu" or rt.name != "usbc" else f"hw:gpu (from n {hw.GPU_UNDERSIDE_N:g} up)",
+                             frame_v0.solid_distance(rt.solid, ts), need, tn))
+        if rt.body is not None:
+            rt.clear.append((BODY_BOARD, frame_v0.solid_distance(rt.body, targets["hw:board"]), CLEAR_MM, BODY_BOARD))
+        if rt.psu_body is not None:
+            rt.clear.append((BODY_PSU, frame_v0.solid_distance(rt.psu_body, targets["hw:psu"]), CLEAR_MM, BODY_PSU))
+        if rt.card_body is not None:
+            rt.clear.append((BODY_CARD, frame_v0.solid_distance(rt.card_body, targets["hw:gpu"]), CLEAR_MM, BODY_CARD))
+        zmin = float(min(p[:, 2].min() - r for p, r in rt.strands))
+        rt.clear.append((f"desk plane Z {hw.DESK_Z:g}", zmin - hw.DESK_Z, 0.0, "desk"))
         rt.clear.sort(key=lambda c: c[1] - c[2])
-        # checks 1, 2, 3
+        zone = sill_zone(rt) if rt.name in ("usb3", "usbc") else None
+        # the checks
         if rt.real is not None and rt.length > rt.real + 1e-6:
-            rt.fail.append(f"length {rt.length:.0f} > real {rt.real:.0f}")
-        if rt.rmin < rt.min_bend - 1e-6:
-            rt.fail.append(f"bend {rt.rmin:.1f} < min {rt.min_bend:g}")
-        for tn, d, need in rt.clear:
+            rt.fail.append(("route", f"length {rt.length:.0f} > real {rt.real:.0f}"))
+        for kind, rmin, bend in rt.bend_checks:
+            if rmin < bend - 1e-6:
+                rt.fail.append(("route", f"bend {rmin:.1f} < min {bend:g} ({kind} section)"))
+        for label, d, need, tn in rt.clear:
             if d < need - 1e-6:
-                rt.fail.append(f"{d:.2f} mm from {tn}, needs {need:g}")
+                zd = frame_v0.solid_distance(zone, targets["hw:board"] if tn == BODY_BOARD else targets[tn]) if zone is not None and tn in ("front_sill", BODY_BOARD) else None
+                text = f"{d:.2f} mm from {label}, needs {need:g}"
+                rt.fail.append((classify(rt, text, d, zd, tn), text))
         off = rt.end_offset()
-        if off is not None and off > 5.0:
-            rt.fail.append(f"ends {off:.1f} mm from its header (scaled position +-5)")
-    overlaps = []
-    names = list(routes)
+        if off is not None and off > END_TOL:
+            rt.fail.append(("route", f"ends {off:.1f} mm from its header (scaled position +-5)"))
+        if rt.ymin < hw.ENVELOPE_Y0 - 1e-6:
+            text = f"envelope: {hw.ENVELOPE_Y0 - rt.ymin:.1f} mm in front of Y {hw.ENVELOPE_Y0:g} (surface at Y {rt.ymin:.1f})"
+            rt.fail.append((classify(rt, "envelope", 0, None, "env"), text))
+        if rt.xmax > hw.ENVELOPE_X + 1e-6:
+            text = f"envelope: {rt.xmax - hw.ENVELOPE_X:.1f} mm outside |X| {hw.ENVELOPE_X:g} (surface at |X| {rt.xmax:.1f})"
+            rt.fail.append((classify(rt, "envelope", 0, None, "env"), text))
+    overlaps, names = [], list(routes)
     for i, a in enumerate(names):
         for b in names[i + 1:]:
-            d = frame_v0.solid_distance(routes[a].solid, routes[b].solid)
+            ra, rb_ = frame_v0.bbox_of(routes[a].solid), frame_v0.bbox_of(routes[b].solid)
+            d = 1e9 if frame_v0.bbox_gap(ra, rb_) > 30.0 else frame_v0.solid_distance(routes[a].solid, routes[b].solid)
             overlaps.append((a, b, d))
     overlaps.sort(key=lambda t: t[2])
-    return routes, levels, overlaps
+    return overlaps
+
+
+def failures(routes, overlaps):
+    """[(class, 'Cable: text')] over every route and every pair of routes."""
+    out = [(c, f"{TITLE[n]}: {t}") for n, rt in routes.items() for c, t in rt.fail]
+    out += [("route", f"{TITLE[a]} x {TITLE[b]} overlap ({d:.2f} mm)") for a, b, d in overlaps if d <= 1e-6]
+    return out
+
+
+# ---------------------------------------------------------------------------
+# Report
+# ---------------------------------------------------------------------------
+def arcs_of(sec):
+    """[(waypoint index, turn angle deg, radius used, arc midpoint)] of a section's bends (the fillet of hoses.fillet_path, replicated)."""
+    P, m = sec.wps, len(sec.wps)
+    seg = [P[i + 1] - P[i] for i in range(m - 1)]
+    sl = [float(np.linalg.norm(d)) for d in seg]
+    un = [d / l for d, l in zip(seg, sl)]
+    th, tan = [0.0] * m, [0.0] * m
+    for i in range(1, m - 1):
+        th[i] = math.acos(float(np.clip(un[i - 1] @ un[i], -1, 1)))
+        tan[i] = sec.bend * math.tan(th[i] / 2)
+    for _ in range(3):
+        for i in range(m - 1):
+            need = tan[i] + tan[i + 1]
+            if need > sl[i] > 0:
+                k = sl[i] / need
+                tan[i] *= k
+                tan[i + 1] *= k
+    out = []
+    for i in range(1, m - 1):
+        if th[i] < 0.1:
+            continue
+        r = tan[i] / math.tan(th[i] / 2)
+        b = un[i] - un[i - 1]
+        b = b / np.linalg.norm(b)
+        out.append((i, math.degrees(th[i]), r, P[i] + b * r * (1 / math.cos(th[i] / 2) - 1)))
+    return out
+
+
+def fmt(p):
+    return f"world ({p[0]:.0f}, {p[1]:.0f}, {p[2]:.0f}) board ({hoses.world_to_bs(p)[0]:.0f}, {hoses.world_to_bs(p)[1]:.0f}, {hoses.world_to_bs(p)[2]:.0f})"
 
 
 def fmt_rows(routes, overlaps):
-    out = [f"{'cable':16} {'route':>6} {'real':>6} {'spare':>6} {'bend':>9} {'r':>4}  {'smallest clearance':>20}  to"]
-    for name in hw.CABLES:
-        if name == "gpu12v":
-            real, r, mb = hw.CABLES[name]
-            out.append(f"{TITLE[name]:16} {'OPEN':>6} {real:6.0f} {'':>6} {'':>9} {r:4g}  socket on the card unknown, 35 mm straight at the plug, not routed")
-            continue
-        rt = routes[name]
-        tn, d, _need = rt.clear[0]
+    out = [f"{'cable':16} {'route':>6} {'real':>6} {'spare':>6} {'smallest bend':>14}  {'smallest clearance':>20}  {'to':44} {'furthest in front of Y 0':>25}"]
+    for name, rt in routes.items():
+        label, d, _need, _tn = rt.clear[0]
         real = f"{rt.real:6.0f}" if rt.real is not None else f"{'n/a':>6}"
         spare = f"{rt.real - rt.length:6.0f}" if rt.real is not None else f"{'n/a':>6}"
-        bend = f"{rt.rmin:5.1f}" if math.isfinite(rt.rmin) else "  -  "
-        out.append(f"{TITLE[name]:16} {rt.length:6.0f} {real} {spare} {bend}/{rt.min_bend:<3g} {rt.r:4g}  {d:20.2f}  {tn}")
+        k = min(range(len(rt.bend_checks)), key=lambda i: rt.bend_checks[i][1] - rt.bend_checks[i][2])
+        kind, rmin, bend = rt.bend_checks[k]
+        bend_s = f"{rmin:5.1f}/{bend:<3g}" if math.isfinite(rmin) else "  -  /" + f"{bend:<3g}"
+        front = f"{-rt.ymin:6.1f} mm" if rt.ymin < hw.ENVELOPE_Y0 else f"none (Y {rt.ymin:.0f})"
+        out.append(f"{TITLE[name]:16} {rt.length:6.0f} {real} {spare} {bend_s:>14}  {d:20.2f}  {label:44} {front:>25}")
     out.append("")
     out.append("per route: every clearance under 10 mm, and every failed check")
     for name, rt in routes.items():
-        near = [f"{tn} {d:.1f}" for tn, d, _n in rt.clear if d < 10.0]
+        near = [f"{label} {d:.1f}" for label, d, _n, _t in rt.clear if d < 10.0]
         out.append(f"  {TITLE[name]:16} {'; '.join(near) or 'nothing under 10 mm'}")
-        for f in rt.fail:
-            out.append(f"  {'':16} FAIL {f}")
-    touch = [(a, b, d) for a, b, d in overlaps if d < 3.0]
+        for c, f in rt.fail:
+            out.append(f"  {'':16} FAIL [{c}] {f}")
     out.append("route x route: smallest distances " + ", ".join(f"{TITLE[a]} x {TITLE[b]} {d:.2f}" for a, b, d in overlaps[:6]))
     return out
+
+
+def skeleton_section(routes):
+    out = ["", "What the skeleton has to provide (coordinates only; nothing is cut in this pass)", ""]
+    out.append("1. The sill's cable slot. The front cables leave the front I/O module (Y 0..42) through the sill's rear wall (rear face Y 47) and start behind it (the module's place is a placeholder in hardware.py, so these follow it). Slot centre on the rear face, width = 2 r + 6:")
+    for n in ("usb3", "usbc", "jfp1", "jaud1", "argb"):
+        rt = routes[n]
+        p = rt.pts[0]
+        out.append(f"   {TITLE[n]:16} centre world (X {p[0]:.0f}, Y 47, Z {p[2]:.0f}), {2 * rt.r + 6:.0f} wide, the cable continues along +Y to its start at {fmt(p)}")
+    out.append("   The USB cables pass between the sill's rear face (Y 47) and the board's bottom edge (Y 60): 12.6 mm for an 8 mm cable that wants 3 mm each side (14 in all; 2.65 + 1.93 = 4.58 is what is left now, 6 is wanted). Measured:")
+    for n in ("usb3", "usbc"):
+        for label, d, need, tn in routes[n].clear:
+            if tn in ("front_sill", BODY_BOARD):
+                out.append(f"      {TITLE[n]} {d:.2f} mm from {label} (needs {need:g})")
+    out.append("   What the slot has to allow: the cable's centre line 7 mm (3 + r 4) from the board's bottom edge, which is 1.1 mm closer to the sill than it is now (1.93 mm from the edge, 2.65 mm from the sill's rear face): the cable runs inside the slot, in the wall's thickness, where the wall's rear face is not 3 mm from it.")
+    notch = []
+    for n, rt in routes.items():
+        for c, f in rt.fail:
+            if "rib_A_right" in f or "rib_B_right" in f:
+                notch.append((n, f))
+    rail = {n: d for n in ("usbc",) for label, d, _need, _t in routes[n].clear if label == "rib_A_right"}
+    out.append("2. Rail notch: " + ("needed, see the failed checks against rib_A_right / rib_B_right above" if notch else
+               f"none. No route comes within 3 mm of the ribs; the USB-C cable, which passes over the rail in the board's plane (n {USBC_N['plane']:g}), is {rail.get('usbc', float('nan')):.1f} mm from rib_A_right at the closest."))
+    out.append("3. Proposed clip points (where a cable changes direction under the board, and where it enters the gap), arc midpoints of each bend under the board (n < -2):")
+    for n, rt in routes.items():
+        pts = []
+        for sec in rt.secs:
+            for _i, ang, r, mid in arcs_of(sec):
+                if hoses.world_to_bs(mid)[2] < -2.0 and ang > 15.0:
+                    pts.append((ang, r, mid))
+        if pts:
+            out.append(f"   {TITLE[n]}:")
+            for ang, r, mid in pts:
+                out.append(f"      {ang:3.0f} deg, R {r:4.1f}: {fmt(mid)}")
+    out.append("   where each cable enters the gap (its centre line crosses the board's underside n -2 at the gap):")
+    for n, rt in routes.items():
+        if n in ("atx24", "gpu12v", "eps1", "eps2", "usb3", "usbc"):
+            ns = np.array([hoses.world_to_bs(p)[2] for p in rt.pts])
+            vs = np.array([hoses.world_to_bs(p)[0] for p in rt.pts])
+            idx = [i for i in range(len(ns) - 1) if (ns[i] + 2.0) * (ns[i + 1] + 2.0) <= 0 and vs[i] > 247.0]
+            for i in idx[:1]:
+                out.append(f"      {TITLE[n]:16} {fmt(rt.pts[i])}")
+    return out
+
+
+def facts_section(routes):
+    gs = hw.GPU_PWR_SOCKET
+    mouth_n = hw.GPU_BS[5] - gs["recess"]
+    out = ["", "Socket numbers and assumptions used",
+           f"  12V-2x6 socket on the card (read off MSI's render, +-12 mm along v, +-3 mm along u, +-8 mm recess): v {gs['v']:g}, u {gs['u']:g}, mouth n {mouth_n:g} (card face n {hw.GPU_BS[5]:g} - recess {gs['recess']:g})",
+           f"  plug {hw.GPU12V_PLUG:g} mm out of the mouth (assumption), straight {hw.GPU12V_STRAIGHT:g} mm from the plug's back; radius {hw.CABLES['gpu12v'][1]:g}, bend {hw.CABLES['gpu12v'][2]:g}",
+           f"  slabs: strands r {hw.SLAB_STRAND_R:g}, pitch {hw.SLAB_PITCH:g}, bend {hw.SLAB_BEND:g}; ATX {hw.CABLE_SLAB['atx24']} strands, 12V-2x6 {hw.CABLE_SLAB['gpu12v']} strands (assumptions)",
+           f"  USB-C: lying plug {hw.LYING_PLUG['length']:g} x {hw.LYING_PLUG['thick']:g} mm (assumption); the card counts from n {hw.GPU_UNDERSIDE_N:g} up for this route only (assumption)",
+           f"  PSU sockets (inferred from a photo, not checked): " + ", ".join(f"{k} X {v[0]:g} Z {v[2]:g}" for k, v in hw.PSU_SOCKETS.items()) + f" on the face Y {hw.PSU_W[2]:g}",
+           "  radii and bends of every other cable: hardware.CABLES (assumptions)",
+           ""]
+    rt = routes["gpu12v"]
+    ymin = rt.ymin
+    out.append(f"12V-2x6, furthest point in front of Y {hw.ENVELOPE_Y0:g}: " + (f"{hw.ENVELOPE_Y0 - ymin:.1f} mm (surface at Y {ymin:.1f}); the arch's top is n {GPU12V_TOP_N:g}" if ymin < hw.ENVELOPE_Y0 else "none"))
+    return out
+
+
+def notes():
+    return f"""
+Numbers chosen here (all in cables.py, each with its reason there):
+  order in the gap, from low u: USB 3 {GAP_U['usb3']:g}, 12V-2x6 slab {GAP_U['gpu12v']:g} (round descent {GPU12V_ARCH_U:g}), ATX slab {GAP_U['atx24']:g}, EPS 1 {GAP_U['eps1']:g}, EPS 2 {GAP_U['eps2']:g}
+  lanes under the board at v {V_IN:g}, levels n: """ + ", ".join(f"{TITLE[k]} {v:g}" for k, v in LANE_N.items()) + f"""; each cable's diagonal takes it to v {V_GAP:g} and it rises through the gap
+  hooks (ATX, USB 3): up the gap, out over the rail (S-bend) to v {ATX_HOOK['v_up']:g} / {USB3_HOOK['v_up']:g}, up, one U-turn of R 15, down at the header's v
+  EPS: up the gap to the run over the board (n {EPS_RUN_N['eps1']:g} / {EPS_RUN_N['eps2']:g}, over the DIMMs' 45 + 3 + r 6), a diagonal to above the header at u {EPS_END_U:g}, down into it
+  USB-C: up the gap at v {USBC_RISER['v']:g} / u {USBC_RISER['u']:g}, then in the board's plane (n {USBC_N['plane']:g}) a U-turn over the rail and the plug along -v
+Not built: clips and their insert pilots, the slot in the sill's rear wall, any cut in the skeleton.
+"""
 
 
 # ---------------------------------------------------------------------------
 # Rendering
 # ---------------------------------------------------------------------------
+CLOSE_VIEWS = {   # name -> (focal point (world), camera direction, distance, view angle): the right edge, where the cables pass the gap; the parts are drawn fainter
+    "right_edge": ((130.0, 200.0, 170.0), (0.85, -1.15, 0.60), 430.0, 30.0),
+    "right_edge_side": ((130.0, 190.0, 150.0), (1.0, 0.0, 0.0), 520.0, 30.0),
+}
+
+
 def render_views(parts, hardware, routes, tag="cables"):
     import vtk
     import hose_routes
     import render_vtk
-    for view in render_vtk.VIEWS:
+    views = {k: (None, v) for k, v in render_vtk.VIEWS.items()}
+    views.update({k: (c, d) for k, (c, d, _dist, _ang) in CLOSE_VIEWS.items()})
+    for view, (close, direction) in views.items():
+        fade = close is not None
         ren = vtk.vtkRenderer()
         ren.SetBackground(1, 1, 1)
         for p in parts:
-            for a in render_vtk._actors(p.solid, (0.86, 0.86, 0.86), opacity=0.55, edge_opacity=0.35):
+            for a in render_vtk._actors(p.solid, (0.86, 0.86, 0.86), opacity=0.14 if fade else 0.55, edge_opacity=0.3 if fade else 0.35):
                 ren.AddActor(a)
         for name, solid in hardware.items():
             keep = name in hw.KEEP_OUT
-            if name in hw.HOSES:
-                op = 0.25
-            else:
-                op = 0.10 if keep else 0.25
-            for a in render_vtk._actors(solid, render_vtk.HW_RGB[name], opacity=op, edges=not keep, edge_opacity=0.15):
+            op = 0.25 if name in hw.HOSES else (0.10 if keep else 0.25)
+            for a in render_vtk._actors(solid, render_vtk.HW_RGB[name], opacity=op * (0.4 if fade else 1.0), edges=not keep, edge_opacity=0.15):
                 ren.AddActor(a)
         for name, rt in routes.items():
-            ren.AddActor(hose_routes.tube_actor(rt.pts, rt.r, RGB[name]))
+            for p, r in rt.strands:
+                ren.AddActor(hose_routes.tube_actor(p, r, RGB[name]))
         win = vtk.vtkRenderWindow()
         win.SetOffScreenRendering(1)
         win.SetSize(1500, 1150)
@@ -324,12 +588,22 @@ def render_views(parts, hardware, routes, tag="cables"):
         ren.SetMaximumNumberOfPeels(8)
         ren.UseFXAAOn()
         cam = ren.GetActiveCamera()
-        cam.SetFocalPoint(0, 0, 0)
-        cam.SetPosition(*render_vtk.VIEWS[view])
-        cam.SetViewUp(0, 0, 1)
-        if view == "left":
-            cam.ParallelProjectionOn()
-        ren.ResetCamera()
+        if close is None:
+            cam.SetFocalPoint(0, 0, 0)
+            cam.SetPosition(*direction)
+            cam.SetViewUp(0, 0, 1)
+            if view == "left":
+                cam.ParallelProjectionOn()
+            ren.ResetCamera()
+        else:
+            _c, _d, dist, ang = CLOSE_VIEWS[view]
+            u = np.array(direction, dtype=float)
+            u /= np.linalg.norm(u)
+            cam.SetFocalPoint(*close)
+            cam.SetPosition(*(np.array(close) + u * dist))
+            cam.SetViewUp(0, 0, 1)
+            cam.SetViewAngle(ang)
+            ren.ResetCameraClippingRange()
         win.Render()
         grab = vtk.vtkWindowToImageFilter()
         grab.SetInput(win)
@@ -342,71 +616,33 @@ def render_views(parts, hardware, routes, tag="cables"):
         print("->", path)
 
 
-VARIANTS = (("plan", "PLAN numbers (no way-point moved)"),
-            ("moved", "AFTER moving way-points within 15 mm of the plan (this is the build; its failures are the findings)"),
-            ("alt", "ALTERNATIVE for the two side fans, NOT the plan: over the board at n 50..55 (measured open), everything else as 'moved'"))
-
-
-NOTES = """
-Numbers the plan does not give, as chosen (all in cables.py):
-  lane: stacked by rise u, the lowest rise on top at n -45, 2 mm of air between neighbours' radii; lane v = x_to_v(132) = 254
-  rise u: the header's own u where the plan says "about" (ATX 220 for 210, USB 3 160 for 150, USB-C 110 for 100); the cable then descends
-    at the rise u and ends at the header (EPS: ends at u 297 / 301, 2 / 0 mm from the header's 299)
-  EPS: EPS2 at the plan's n 30, EPS1 at n 44 (14 mm over it); EPS2 rises 14 mm after EPS1 (the plan gives one u for both)
-  PSU legs: 45 mm along -Y from every socket, EPS1 (the left socket) 60 mm so that it passes EPS2's first leg
-  USB: start (X 60 / 70, Y 54, Z 30), down at u -6 to n -3, then to u 6 (USB 3) / 0 (USB-C) at the lane's level, across to v 254
-  JFP1, JAUD1, light line: they do not go under the board: their start and their header are on the same side of it. Start (Y 55, Z 40) and
-    X 82 / 48 / -125; JFP1 and the light line meet the header at n 14; JAUD1 runs at (n 30, u 20) and drops into its header, the light line passes
-    under that drop at (u 14, n 14)
-  pump lead: from the block's wall towards CPU_FAN1 at n 60, along v, along u, down
-  side fans, plan route: leave the fan's inner face at n -30 (right fan u 255, left fan u 130), to the lane at the header's u, up to n 35, to the header
-  side fans, alternative: right fan (v 323, u 190, n 56) straight to above SYS_FAN1 then down; left fan (v -58, u 190, n 55) to v 20, along -u to 135, down
-Moves of way-points (plan number -> used, and why):
-  USB 3 rise u 150 -> 163 (+13): beam_mid (u 126..156) has to be 3 mm from an r 4 cable
-  EPS 1 rise u 265 -> 261 (-4) and EPS 2 265 -> 275.5 (+10.5), EPS run along u 297 -> 301 (+4): the two r 6 cables need 14 mm between them,
-    beam_top (u 284.9) 3 mm and the DIMM box (u 290) 3 mm / the 420's core face (u 310) 3 mm
-  right side fan lane v 254 -> 256 (+2): so the 15 mm to the header takes two bends of 8
-  front starts: Y 50 -> 54 (USB), Y 50 -> 55 and Z 30 -> 40 (thin leads): the plan's point is 2.7 mm from the sill
-Not built: the 12V-2x6 route (socket on the card unknown), clips, the sill's cable slot.
-"""
-
-
 def main(argv):
-    only = [a for a in argv if not a.startswith("-")]
     parts, _ = frame_v0.build_frame()
     hardware = hw.build_hardware()
-    lines = ["B6 cables: routes and checks (cad_b6/cables.py)", ""]
-    results = {}
-    for variant, label in VARIANTS:
-        if only and variant not in only:
-            continue
-        routes, levels, overlaps = evaluate(variant, parts, hardware)
-        results[variant] = (routes, levels, overlaps)
-        lines.append(f"== {variant}: {label}")
-        lines += fmt_rows(routes, overlaps)
-        lines.append("lane levels n: " + ", ".join(f"{TITLE[k]} {v:.0f}" for k, v in sorted(levels.items(), key=lambda kv: -kv[1])))
-        fails = [f"{TITLE[n]}: {f}" for n, rt in routes.items() for f in rt.fail]
-        fails += [f"{TITLE[a]} x {TITLE[b]} overlap ({d:.2f} mm)" for a, b, d in overlaps if d <= 1e-6]
-        lines.append(f"failed checks ({variant}): " + (str(len(fails)) if fails else "none"))
-        lines += [f"  {f}" for f in fails]
-        lines.append("")
-        results[variant] += (fails,)
-    lines.append(NOTES.strip("\n"))
-    out = os.path.join(HERE_DIR, "report_cables.txt")
-    with open(out, "w") as fh:
+    routes = build_routes()
+    overlaps = evaluate(routes, parts, hardware)
+    fails = failures(routes, overlaps)
+    lines = ["B6 cables, second pass: routes and checks (cad_b6/cables.py)", ""]
+    lines += fmt_rows(routes, overlaps)
+    lines.append("")
+    lines.append("failed checks: " + (str(len(fails)) if fails else "none"))
+    for cls in ("owner", "skeleton", "route"):
+        sel = [t for c, t in fails if c == cls]
+        lines.append(f"  class {cls}: {len(sel)}")
+        lines += [f"    {t}" for t in sel]
+    lines += facts_section(routes)
+    lines += skeleton_section(routes)
+    lines.append(notes().rstrip("\n"))
+    with open(os.path.join(HERE_DIR, "report_cables.txt"), "w") as fh:
         fh.write("\n".join(lines) + "\n")
     print("\n".join(lines))
     if "-norender" not in argv:
-        for variant, tag in (("moved", "cables"), ("alt", "cables_alt")):
-            if variant in results:
-                render_views(parts, hardware, results[variant][0], tag)
-    final = results.get("moved")
-    if final and final[3]:
-        sys.exit(f"cables.py: {len(final[3])} check(s) failed in the build ('moved')")
+        render_views(parts, hardware, routes)
+    if fails:
+        by = {c: sum(1 for k, _ in fails if k == c) for c in ("owner", "skeleton", "route")}
+        sys.exit(f"cables.py: {len(fails)} check(s) failed: owner {by['owner']}, skeleton {by['skeleton']}, route {by['route']}")
     print("Done, all cable checks passed.")
 
-
-HERE_DIR = os.path.dirname(os.path.abspath(__file__))
 
 if __name__ == "__main__":
     main(sys.argv[1:])

@@ -307,13 +307,34 @@ PSU_SOCKETS = {
 # sheet (ATX 24-pin 610, EPS 700, 12V-2x6 700); "None" = unknown (front I/O cables of the Fractal North XL, the ARCTIC PWM lead, the light line,
 # which is still to be chosen); 400 for the two side fans is the research's TYPICAL length ("400 or more"), not measured.
 # Radii and minimum bends are ASSUMPTIONS (the cable's outer size was not found; the build is individually sleeved wires with combs).
-# gpu12v is the placeholder: the socket on the card is not known, so it is not routed. Its 35 mm straight at the plug is the plan's.
+# gpu12v: the socket on the card is known now (GPU_PWR_SOCKET below, read off MSI's render); its 35 mm straight at the plug is the plan's.
 CABLES = {
     "atx24": (610.0, 12.0, 30.0), "eps1": (700.0, 6.0, 20.0), "eps2": (700.0, 6.0, 20.0), "gpu12v": (700.0, 7.0, 35.0),
     "usb3": (None, 4.0, 15.0), "usbc": (None, 4.0, 15.0), "jfp1": (None, 2.0, 8.0), "jaud1": (None, 2.0, 8.0),
     "argb": (None, 2.0, 8.0), "cpu_fan": (None, 2.0, 8.0), "fan_right": (400.0, 2.0, 8.0), "fan_left": (400.0, 2.0, 8.0),
 }
 GPU12V_STRAIGHT = 35.0                    # straight length at the 12V-2x6 plug
+
+# Second pass of the cables (docs/plans/cables-and-organic.md, "Second pass: spec for cad_b6/cables.py").
+# The 12V-2x6 socket on the MSI RTX 5080 SUPRIM LIQUID, in board space. STANDING: read off MSI's render (refs/gpu_5080_suprim_liquid_power.png) with a
+# projective fit, NOT MEASURED: +-12 mm along v, +-3 mm along u, +-8 mm in the recess. v is 132 mm from the bracket end of the lettering face,
+# u is 7 mm below the backplate edge. The socket sits in a notch on the face that looks away from the board: the centre of its mouth is
+# `recess` below that face (n = GPU_BS[5] - recess) and the plug enters along -n, so the cable leaves along +n.
+GPU_PWR_SOCKET = dict(v=130.0, u=119.0, recess=13.0)
+GPU12V_PLUG = 13.0                        # ASSUMPTION: how far the plug's back stands out of the socket's mouth; GPU12V_STRAIGHT counts from it
+# Lying headers: the socket is on the board's edge and the plug enters along -v from outside it. STANDING: JUSBC1 is a lying socket at u 103..116,
+# v 232..244 on the board scan (refs/board_scan_overlay.png, refs/usbc_under_card.png). The plug is centred thick / 2 above the board face.
+HEADERS_LYING = ("JUSBC1",)
+LYING_PLUG = dict(length=15.0, thick=8.0)  # ASSUMPTION (a USB-C plug body with its strain relief)
+# ASSUMPTION: the card's lower edge beyond the slot is level with the slot's top, 11 mm above the board face (the model's card box reaches the
+# board, n 0). Used by the USB-C route only, to pass under the card's body.
+GPU_UNDERSIDE_N = 11.0
+# ASSUMPTION: where a bundle of sleeved wires passes the 20 mm gap at the board's edge it lies two wires thick, flat. Modelled as that many
+# round strands side by side along u: strand radius, centre pitch, minimum bend. Strands: ATX 24-pin 6, 12V-2x6 4.
+CABLE_SLAB = {"atx24": 6, "gpu12v": 4}
+SLAB_STRAND_R = 4.0
+SLAB_PITCH = 8.0
+SLAB_BEND = 15.0
 
 
 def cpu_block_solid() -> Solid:

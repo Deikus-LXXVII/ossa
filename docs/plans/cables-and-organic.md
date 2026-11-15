@@ -124,13 +124,97 @@ What does not, and why:
 
 Passage windows along the right edge, measured in the build: the gap is free of beams and the card for u 26 to 73 and u 156 to 285. Everything that goes round the right edge has to use those.
 
-### Needed from the owner before the next pass
+### Owner answers and second research round (15 Nov 2026)
 
-1. The real length of the ARCTIC hoses, pump collar to radiator fitting.
-2. Where the power socket sits on the graphics card, and how its radiator fans and pump are wired.
-3. Whether the front USB-C port is connected to the board today.
-4. When the PC is apart: the lengths of the front I/O cables.
+- **Hose length:** 450 mm, done (see above).
+- **Front I/O cable lengths:** the owner measures them when the PC is apart. Until then they stay unknown and only their routes are checked.
+- **12V-2x6 socket.** The owner supplied MSI's render (`refs/gpu_5080_suprim_liquid_power.png`): the socket sits in a notch on the card's lettering face, the face away from the board (board-space n = top of the card), and the plug enters along -n, so the cable leaves along +n, at right angles to the hoses. No drawing of the card exists: MSI publishes a data sheet only (card 280 x 148 x 51, radiator 394 x 121 x 55, tubes 450), and MSI's site and the TechPowerUp review refuse automated requests. Position read off the render with a projective fit: **centre 132 mm from the bracket end of the face (v 130), +-12 mm; 7 mm below the backplate edge (u 119), +-3 mm; mouth about 13 mm below the face, +-8 mm.** The owner can replace these with one ruler measurement.
+- **The card's radiator fans and pump** need no lead to the board: the three fans are daisy-chained and wired to the card through the hose sleeve (a review of the 5090 sister card in the same body); the pump is inside the card.
+- **Card height.** MSI's 148 mm includes the edge fingers, so the lettering face stands roughly 143 mm above the board. The model's box reaches n 150. Left as it is (conservative); gauge G7 and a ruler settle it.
+- **Board connectors, read again on the scan** (`refs/board_scan_overlay.png`, 5.758 px/mm): ATX_PWR1 is upright, u 192 to 246, v 233 to 241. JUSB3 is upright, u 150 to 173, v 235 to 241. **JUSBC1 is a lying socket at the very edge, u 103 to 116, v 232 to 244: its plug enters from outside the board edge, in the board's plane.** CPU_PWR1 and CPU_PWR2 are upright at u 292 to 303, v 181 to 198 and 201 to 219. The DIMMs cover u 146 to 291, v 185 to 219.
+- **JUSBC1 and the card.** The header lies under the card's body (`refs/usbc_under_card.png`). The model's card box reaches the board (n 0), the real card's lower edge beyond the slot is level with the slot's top, about 11 mm up, and a lying plug is about 8 mm thick. So it probably fits; asked of the owner: does the front USB-C port work in the present PC (same board, same card)?
+- **Section of the right edge**, cut from the model at X 132 and X 150: the rib's rail (X 142 to 158) spans n about -30 to 0 along the whole board. Above the board's plane the rib has only a post at u 58 to 72. So a cable that has come up through the 20 mm gap may swing outward over the rail. Beams cross under the board at n -30 to -10: beam_low u 8 to 25, beam_mid u 125 to 155, beam_top u 285 to 305.
 
-### Next pass
+### Second pass: spec for `cad_b6/cables.py`
 
-Routes redrawn with the fixes in the table, the 12V-2x6 route once its socket is known, then the parts the skeleton needs for cables: a cable slot in the sill's rear wall, nylon clips and their insert pilots.
+Rewrite the routes. One set of routes only: drop the `plan`, `moved` and `alt` variants and their constants. Keep the route machinery, the report and the previews. The first pass's findings stay in this file; the script describes the present design only.
+
+**Facts into `hardware.py`** (each with its standing in a comment):
+- `GPU_PWR_SOCKET = dict(v=130.0, u=119.0, recess=13.0)`: centre of the socket's mouth; its n is `GPU_BS[5] - recess`. Standing: read off a render, +-12 mm along v.
+- `GPU12V_PLUG = 13.0`: how far the plug's back stands out of the mouth (assumption). `GPU12V_STRAIGHT` (35) counts from the plug's back.
+- `HEADERS_LYING = ("JUSBC1",)`, `LYING_PLUG = dict(length=15.0, thick=8.0)` (assumption): a lying header's plug enters along -v from outside the board edge, centred `thick / 2` above the board face.
+- `GPU_UNDERSIDE_N = 11.0` (assumption, see above).
+- `CABLE_SLAB = {"atx24": 6, "gpu12v": 4}`, `SLAB_STRAND_R = 4.0`, `SLAB_PITCH = 8.0`, `SLAB_BEND = 15.0` (assumptions): where a bundle of sleeved wires passes the gap at the board's edge it lies two wires thick, modelled as that many round strands side by side along u.
+- Correct the comment on `CABLES`: the 12V-2x6 socket is known now.
+
+**Cross-sections.** A route is a list of sections; each section is round (the cable's radius and bend from `CABLES`) or a slab (strands side by side along u, bend `SLAB_BEND`). A slab section must stay in a plane of constant u. ATX and 12V-2x6 are slabs from just under the board's edge to their end above the board (ATX) or to the top of their descent (12V-2x6); round elsewhere. EPS, USB and the thin leads are round everywhere.
+
+**Routes.** Way-point numbers are the builder's to find; the shape of each route is fixed here. Search the numbers against the checks, the way `hoses.py` does, and keep them as named constants.
+
+| Cable | Shape |
+|---|---|
+| ATX 24-pin | PSU `mb` socket, out along -Y, under the board below the beams, turn to +v under the header, slab through the gap centred on the header (u 219), above the board's plane swing out over the rail as far as the bend needs, one U-turn, down into ATX_PWR1 from above |
+| 12V-2x6 | From the socket's mouth along +n: plug, then 35 mm straight. Then one arch in the plane through the socket and the descent point: bend, straight, bend, to come down along -n in the gap between the card (u 126.6) and the 360 (u 184), in the lane at the right edge. Slab down through the gap to under the board, then round to the PSU `gpu` socket |
+| EPS 1, EPS 2 | PSU sockets, under the board, up through the gap above the ATX slab and below beam_top, then over the board to CPU_PWR1 / CPU_PWR2 and down into them. The two must not cross; EPS lies outermost in the strip along the top edge |
+| USB 3 front | Sill start, under the board's bottom edge, the lane, up through the gap between the 12V-2x6 and the ATX slab, U-turn, down into JUSB3 from above |
+| USB-C front | Sill start, under the bottom edge, the lane, to u 110; the plug leaves JUSBC1 along +v (`LYING_PLUG`), then the cable bends down into the chamber. For this route only, the card counts from `GPU_UNDERSIDE_N` up. If the rail is in the way, do not move the rail: report the notch it would need (u range, n range, depth) |
+| Pump and 420 fans | As now, but under or beside the EPS run: in from the DIMM side |
+| Side fans | The routes the first pass called `alt`: straight from the fan to its header above the board |
+| Power switch, audio, light line | As now |
+
+Order in the gap, from low u: 12V-2x6, USB 3, ATX, EPS. Everything keeps 3 mm from the card (u 126.6) and from beam_top.
+
+**Checks**, as before, unchanged: length within the real length where known; no bend under the section's minimum; 3 mm from every skeleton part and hardware solid except the route's own ends, 5 mm from hoses; no two routes overlap. **New check:** every route stays inside the envelope (`Y >= ENVELOPE_Y0`, `|X| <= ENVELOPE_X`), measured on the cable's surface.
+
+The script still exits 1 if any check fails. Each failure is printed with one of three classes, and only these may be used:
+- `owner`: the 12V-2x6 route's envelope check, if it fails (a straight plug on a card whose face looks forward; the owner decides between accepting it and an angled plug). Report by how many millimetres.
+- `skeleton`: the two USB cables' clearance at the sill and the board's bottom edge (the sill gets a cable slot in the next pass), and the USB-C notch in the rail if it is needed.
+- `route`: everything else. A `route` failure means the pass is not done: fix the route or stop and report where and against what.
+
+**Report additions:** the socket numbers and assumptions used; the 12V-2x6 route's furthest point in front of Y 0; a section "What the skeleton has to provide" with the sill slot (where the front cables leave it and the gap they need), the rail notch if any, and a proposed list of clip points (where a cable changes direction under the board and where it enters the gap), as coordinates only. Nothing is cut in the skeleton in this pass.
+
+**Previews:** `previews/b6_cables_<view>.png` as before, plus one close view of the right edge from the front right. Remove the `b6_cables_alt_*` images.
+
+### Second pass, built (15 Nov 2026): no route errors left
+
+`cad_b6/cables.py` builds twelve routes in one set. It ends with an error because 5 checks fail: **1 for the owner to decide, 4 that wait for the sill's cable slot, 0 route errors.** Checked in the main session: the script was rerun, the check code was read for exemptions, the previews were looked at, `frame_v0.py` passes.
+
+| Cable | Route | Real | Spare | Smallest clearance, to what |
+|---|---|---|---|---|
+| ATX 24-pin | 532 | 610 | 78 | 5.5, board |
+| 12V-2x6 | 684 | 700 | 16 | 3.5, rib_A_right |
+| EPS 1 | 692 | 700 | 8 | 3.5, board |
+| EPS 2 | 683 | 700 | 17 | 3.5, board |
+| USB 3 front | 433 | unknown | | 1.93, board's bottom edge; 2.65, sill |
+| USB-C front | 295 | unknown | | the same |
+| Power switch, light line, audio | 31, 61, 175 | unknown | | 3.8 to 4.3, sill |
+| Pump and 420 fans | 140 | unknown | | 3.5, DIMMs |
+| Side fans, right and left | 157, 167 | 400 (typical) | 243, 233 | 5.6, GPU hoses; 6.4, card |
+
+Every bend is at its minimum or above. No two routes overlap; the closest pairs lie 0.4 to 0.6 mm apart in the gap.
+
+**The failures.**
+- `owner`: the 12V-2x6 cable stands **10.4 mm in front of the front plane Y 0**. The arch cannot be lower: the socket's mouth at n 137, the plug 13, the 35 mm straight and a 35 mm bend put its top at n 220, and the card's face looks forward and up. The owner decides between accepting it (as with the fan screw head) and a 90-degree plug, which would keep the cable inside. The real card's face is probably about 7 mm lower than the model's, which would take most of the 10.4 mm away; the ruler measurement settles it.
+- `skeleton`: USB 3 and USB-C pass 1.93 mm from the board's bottom edge and 2.65 mm from the sill. The gap there is 12.6 mm and an 8 mm cable wants 14. The sill's cable slot fixes this.
+
+**Where the build departs from the spec**, each for a measured reason:
+- Order in the gap from low u: USB 3 (u 163.5), 12V-2x6 (184), ATX (224.5), EPS 1 (255), EPS 2 (275). The spec put the 12V-2x6 first; JUSB3 at u 160 would then have to cross it. The window is u 158 to 282 and the cables use 112 of its 124 mm.
+- The 12V-2x6 is a slab only below n 53. Beside the 360 it has to stay round and at u 173; an S-bend then takes it to u 184.
+- USB-C needs no notch in the rail. The rail's top is at n -6, not 0, so the cable makes a U-turn in the board's plane over the rail and comes down in the gap at u 84. The cable is exactly 3.00 mm from the card's assumed underside (n 11): no margin on that assumption.
+- The lanes under the board run at X 113, inside the ribs, stacked in n, because the rib has diagonal members at X 142 to 158.
+- The right side fan's lead crosses the board's edge at u 287, beyond EPS 2. The first pass's route ran into the new ATX and EPS hooks.
+- Two checks were added: a PSU cable keeps 3 mm from the PSU after its socket leg, and the 12V-2x6 keeps 3 mm from the card after its first bend.
+
+**Margins that are inside the model's error.** EPS 1 has 8 mm to spare, the 12V-2x6 16 mm and EPS 2 17 mm. The PSU's socket positions are inferred from a photo and the 12V socket from a render, so these three are not proven. Next: read the PSU's modular face from a photo and choose the sockets nearest the right edge.
+
+What the skeleton has to provide is listed with coordinates at the end of `cad_b6/report_cables.txt`: the sill slot (USB 3 at X 60, USB-C at X 70, power switch X 82, audio X 48, light line X -125), no rail notch, and the clip points.
+
+### Still needed from the owner
+
+1. Does the front USB-C port work in the present PC?
+2. One ruler measurement on the card: from the bracket end of the lettering face to the centre of the power socket, and how deep the socket sits below that face.
+3. When the PC is apart: the lengths of the front I/O cables.
+
+### After the second pass
+
+The parts the skeleton needs for cables: the cable slot in the sill's rear wall, the rail notch if the USB-C route needs it, nylon clips and their insert pilots.
