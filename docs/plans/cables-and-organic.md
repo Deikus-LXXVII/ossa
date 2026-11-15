@@ -325,6 +325,27 @@ Checked in the main session: `frame_v0.py` passes, `test_checks.py` 124 of 124 (
 
 Also found: under the beams the bridge has to lie across the cables' direction, so the strap takes a quarter turn round the cable; `render_vtk.py` has no view that shows the bridges.
 
+### Owner's direction on cable fixing (16 Nov 2026)
+
+The owner will use hook-and-loop straps. The tie points have to **give each cable its shape**; a strap lets a cable shift a little, so the cables need not lie exactly on the drawn lines. This keeps the strap bridge and changes where the tie points go: at the places that shape a cable, not in general rows.
+
+### Tie points, second pass: spec
+
+**Rule, now a check in `cables.py`** (pass or fail), for the four PSU cables and the two front USB cables, on the part of each route below the board (n < -2):
+1. Every bend of 30 degrees or more has a tie point within `TIE_REACH` = 30 mm of some point of its arc (centre line to the middle of the bridge's slot).
+2. No stretch longer than 150 mm is without a tie point within `TIE_REACH`.
+A cable's two plugs count as fixed points. Above the board nothing is required: the hooks are short and the 12V-2x6 arch hangs between its plug and the gap.
+
+**Where the new tie points go** (measured in the last pass; the builder finds the exact places):
+- Down the inner face (X 142) of rib A's mid leg, bridges standing out along -X: the leg runs from the rail down to n about -110 and passes each of the four upper lanes (USB 3, 12V-2x6, ATX, EPS 1) at the lane's own level.
+- On the inner face of rib B's post and runner, for the EPS pair before and at its rise (EPS 1 is 13 mm from it at u 241, EPS 2 10 to 23 mm at u 252 to 275).
+- On `skid_front`'s front face or another face in reach, for the EPS pair where it passes the PSU's front right corner.
+- Wherever a face allows it, turn the bridge so the strap goes round the cable without a twist.
+
+**Tie points that shape nothing go.** Remove every existing tie point that has no cable within `TIE_REACH`, and say which.
+
+If a bend or a stretch cannot be served from any face, first move the cable's way-points (the routes are allowed to shift: every other cable check must still pass), and only if that fails propose a small hanger part and stop on that item for a decision. Do not loosen the two numbers.
+
 ### Next
 
-A tie-point row for the EPS pair on rib B's inner face. Split the organic layer into printable pieces. Rerun `strength.py` with the bridges. Rerun the organic strength check when the gaming PC is back in Linux.
+Split the organic layer into printable pieces. Rerun `strength.py` with the bridges. Rerun the organic strength check when the gaming PC is back in Linux.
