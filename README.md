@@ -106,4 +106,10 @@ A separate check keeps each contact face at 97 % of its area or more after round
 
 ## Licence
 
-No licence has been chosen yet. Until one is added, all rights are reserved.
+Ossa © 2026 Deikus-LXXVII. Licensed under [CC BY-NC-SA 4.0](LICENSE) (Creative Commons Attribution-NonCommercial-ShareAlike 4.0 International).
+
+- You may print it for yourself, study it, change it and share your version.
+- You may not use it commercially. That includes selling the files or printed cases.
+- Give credit, and share changed versions under the same licence.
+
+The licence text is the authority; this list is only a summary.
