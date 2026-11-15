@@ -264,6 +264,23 @@ Found on the way, not changed:
 - Each `sill_end` pad's rim overlaps the light channel's mouth by under 2 mm³.
 - Nothing checks the window's rounding: the sill is outside check 12.
 
+### The PSU's modular face, read from a photo (15 Nov 2026)
+
+Source: a straight-on photo in the Vortez review (`refs/psu_tx1600_modular_face.jpg`, local only), taken label side up, so fan down. The PSU stands fan up in the case, so the photo is turned half a turn. Scale: 9.73 px/mm across the 150 mm face, 6.9 px/mm over its 86 mm height (the camera looks down a little). Accuracy about +-3 mm in X and +-5 mm in Z.
+
+Seen from the front of the case, fan up, world X and Z on the face Y 165:
+
+| Field | Sockets |
+|---|---|
+| MB | A 10-pin and an 18-pin socket side by side, X -5 to 56, centre X 26, Z 28. The 24-pin cable ends in both |
+| CPU/PCIe | Nine 8-pin sockets, three columns X -19, -37, -55 by three rows Z 29, 49, 67. An EPS cable fits any of them |
+| 12V-2x6 | Two, at X 1.5, Z 49 and Z 67 |
+| Peripheral | Six, X about 10 to 55, Z 49 and 67. Not used |
+
+Against the model's old numbers: `mb` was (48, 43), now (26, 28); `eps1` and `eps2` were (-52, 30) and (-36, 30), which are two real sockets of the bottom row; `gpu` was (0, 43), the real ones are at Z 49 and 67.
+
+**Task (third cable pass, leads only):** put the field into `hardware.py` (`PSU_SOCKET_FIELD`, with its standing), let `PSU_SOCKETS` name the sockets in use, and choose them for the shortest routes that pass every check: the two EPS cables from the nine CPU/PCIe sockets, the 12V-2x6 from its two. Re-find the lead way-points of the four PSU cables. The aim is spare length: EPS 1 has 8 mm now, the 12V-2x6 16 mm, EPS 2 17 mm. Nothing else in the routes changes unless a check forces it.
+
 ### Next
 
 Read the PSU's modular face from a photo and choose the sockets nearest the right edge, then nylon clips and their insert pilots. Split the organic layer into printable pieces.

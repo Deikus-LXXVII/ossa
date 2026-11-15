@@ -11,6 +11,7 @@ The images and drawings the model was measured from are other people's work, so 
 | `gpu_5080_suprim_liquid_tubes.png` | Photo showing where the hoses leave the MSI RTX 5080 SUPRIM LIQUID | Product photo found by image search |
 | `gpu_5080_suprim_liquid_power.png` | MSI's render of the card showing the 12V-2x6 socket in a notch on the lettering face | Product render supplied by the owner |
 | `usbc_under_card.png` | Crop of the board scan with the card's footprint and the JUSBC1 header marked | Made from the board scan |
+| `psu_tx1600_modular_face.jpg` | Straight-on photo of the Seasonic PRIME TX-1600 Noctua Edition's modular face, label side up | Photo from the Vortez review of the PSU |
 | `north_io_front_measured.png` | Straight-on photo of the Fractal North front I/O with the port spacing measured | Photo of the Fractal North front panel found by image search |
 
 `SOURCES.txt` lists the sources of the earlier look-and-feel references for the B5 study.
