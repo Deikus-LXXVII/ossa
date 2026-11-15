@@ -40,7 +40,9 @@ The envelope is about 460 × 385 × 405 mm (width × depth × height). Every pri
 | `cad_b6/test_checks.py` | Damages the model on purpose to prove each check fails when it should |
 | `cad_b6/hoses.py`, `hose_routes.py` | Hose routes built from straight runs and constant-radius bends |
 | `cad_b6/strength.py` | Linear finite-element check of the skeleton, and plastic needed per infill |
-| `cad_b6/organic_frame.py` | Sketch of the organic outer layer |
+| `cad_b6/organic_frame.py`, `organic_strength.py` | The organic outer layer as one solid with its fixings, and its strength check |
+| `cad_b6/cables.py` | Cable routes and their checks |
+| `cad_b6/fit_gauges.py` | Thin test plates that check the model's numbers against the real hardware |
 | `cad_b6/render_vtk.py`, `measure.py` | Offscreen renders and distance measurements |
 | `docs/plans/b6-frame-v0.md` | The design record: every revision, with reasons and coordinates |
 | `docs/printer-and-materials.md` | Printer and filament the design is made for |
@@ -96,9 +98,9 @@ A separate check keeps each contact face at 97 % of its area or more after round
 ## Not done yet
 
 - The front I/O module is a placeholder until the real module is measured.
-- The organic layer has no fixings, no print split and no checks.
-- Cables are not planned.
-- No test prints: insert pull-out, the nylon snap fit and a bracket coupon are still to do.
+- The organic layer has fixings and checks, but no print split yet, and the insert pilots for it are not cut in the skeleton.
+- Cable routes are drawn and checked. The cable slot in the sill and the clips are not built, and the graphics card's power cable stands about 10 mm in front of the front plane.
+- No test prints yet. The fit gauges and coupons are ready to print (`docs/fit-gauges-check-sheet.ru.md`).
 
 ## Working with coding agents
 
