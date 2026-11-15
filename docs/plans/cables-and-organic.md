@@ -220,11 +220,18 @@ Every bend is at its minimum or above. No two routes overlap; the closest pairs 
 
 What the skeleton has to provide is listed with coordinates at the end of `cad_b6/report_cables.txt`: the sill slot (USB 3 at X 60, USB-C at X 70, power switch X 82, audio X 48, light line X -125), no rail notch, and the clip points.
 
-### Still needed from the owner
+### Owner decisions (15 Nov 2026, second round)
 
-1. Does the front USB-C port work in the present PC?
-2. One ruler measurement on the card: from the bracket end of the lettering face to the centre of the power socket, and how deep the socket sits below that face.
-3. When the PC is apart: the lengths of the front I/O cables.
+- **The 12V-2x6 cable in front of the front plane is accepted as a tolerance.** Measured 10.4 mm; `hardware.GPU12V_FRONT_TOL` is 11. Going past it is a route failure. Do not raise it again.
+- **The front USB-C port works in the present PC** with this board and this card. So a lying plug fits under the card. The 11 mm in `GPU_UNDERSIDE_N` is still an assumption, not a measurement.
+- The ruler measurement of the power socket and the front I/O cable lengths come when the PC is apart.
+
+`cables.py` now fails 4 checks, all of class `skeleton`: the two front USB cables at the sill.
+
+### Still needed from the owner, when the PC is apart
+
+1. On the card: from the bracket end of the lettering face to the centre of the power socket, and how deep the socket sits below that face.
+2. The lengths of the front I/O cables.
 
 ### After the second pass
 

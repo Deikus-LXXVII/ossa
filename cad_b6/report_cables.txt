@@ -17,7 +17,6 @@ Left side fan       167    400    233        8.0/8                    6.40  hw:g
 per route: every clearance under 10 mm, and every failed check
   ATX 24-pin       hw:board (route without the plug's descent) 5.5; rib_A_right 6.5
   12V-2x6          rib_A_right 3.5; hw:rad360 4.0; hw:board 5.5; hw:atx24 5.5
-                   FAIL [owner] envelope: 10.4 mm in front of Y 0 (surface at Y -10.4)
   EPS 1            hw:board (route without the plug's descent) 3.5; skid_front 3.6; hw:dimms 4.0; hw:rad420 4.0; hw:psu (route after its socket leg) 4.0; rib_A_right 4.5; rib_B_right 4.5; hw:atx24 7.1; beam_low 8.6; desk plane Z -15 7.4
   EPS 2            hw:board (route without the plug's descent) 3.5; hw:dimms 3.5; hw:psu (route after its socket leg) 3.8; beam_top 3.9; hw:rad420 4.0; rib_A_right 4.5; rib_B_right 4.5
   USB 3 front      hw:board (route without the plug's descent) 1.9; front_sill 2.6; beam_mid 3.5; rib_A_right 6.5; beam_low 8.5
@@ -34,9 +33,8 @@ per route: every clearance under 10 mm, and every failed check
   Left side fan    hw:gpu 6.4
 route x route: smallest distances EPS 1 x EPS 2 0.43, ATX 24-pin x EPS 1 0.50, 12V-2x6 x USB 3 front 0.50, ATX 24-pin x 12V-2x6 0.50, ATX 24-pin x EPS 2 0.60, ATX 24-pin x USB 3 front 0.76
 
-failed checks: 5
-  class owner: 1
-    12V-2x6: envelope: 10.4 mm in front of Y 0 (surface at Y -10.4)
+failed checks: 4
+  class owner: 0
   class skeleton: 4
     USB 3 front: 1.93 mm from hw:board (route without the plug's descent), needs 3
     USB 3 front: 2.65 mm from front_sill, needs 3
@@ -48,11 +46,11 @@ Socket numbers and assumptions used
   12V-2x6 socket on the card (read off MSI's render, +-12 mm along v, +-3 mm along u, +-8 mm recess): v 130, u 119, mouth n 137 (card face n 150 - recess 13)
   plug 13 mm out of the mouth (assumption), straight 35 mm from the plug's back; radius 7, bend 35
   slabs: strands r 4, pitch 8, bend 15; ATX 6 strands, 12V-2x6 4 strands (assumptions)
-  USB-C: lying plug 15 x 8 mm (assumption); the card counts from n 11 up for this route only (assumption)
+  USB-C: lying plug 15 x 8 mm (assumption); the card counts from n 11 up for this route only (assumption; the owner confirmed the port works under this card today)
   PSU sockets (inferred from a photo, not checked): mb X 48 Z 43, eps1 X -52 Z 30, eps2 X -36 Z 30, gpu X 0 Z 43 on the face Y 165
   radii and bends of every other cable: hardware.CABLES (assumptions)
 
-12V-2x6, furthest point in front of Y 0: 10.4 mm (surface at Y -10.4); the arch's top is n 220
+12V-2x6, furthest point in front of Y 0: 10.4 mm (surface at Y -10.4); the arch's top is n 220. Accepted by the owner on 15 Nov 2026 as a tolerance, up to 11 mm
 
 What the skeleton has to provide (coordinates only; nothing is cut in this pass)
 

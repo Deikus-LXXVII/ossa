@@ -441,4 +441,6 @@ Two items the earlier revisions left open are accepted as they are. Do not raise
 
 The owner's reason: neither will get in the way during assembly or show in the look of the case.
 
+- The graphics card's power cable may stand up to 11 mm in front of the front plane Y 0 (measured 10.4 mm). Details: `docs/plans/cables-and-organic.md`.
+
 **ARCTIC hose length: 450 mm.** ARCTIC's spec sheet says 450 mm and its product page says 500 mm. The owner decided to use the spec sheet's number. `hoses.CPU_HOSE` is 450 now (it was 500 from Revision 5 on). Measured after the change: the CPU hoses use 432 of 450 mm, every bend is 35 mm, and the run below the visor's lip sits at n 131 and 140 (it was 161 and 169). Hose a now passes 7.7 mm from the graphics card; the keep-out check allows it. `frame_v0.py` passes every check, `test_checks.py` 92 of 92, the gauges and the organic layer rebuild clean. The numbers "482 of 500" in the Revision 5 text above are history.

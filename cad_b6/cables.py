@@ -345,9 +345,8 @@ def sill_zone(rt):
 
 
 def classify(rt, text, d, zone_d, target):
-    """owner / skeleton / route, by the rules of the spec."""
-    if rt.name == "gpu12v" and text.startswith("envelope"):
-        return "owner"
+    """skeleton / route, by the rules of the spec. (The spec's class "owner" was the 12V-2x6 cable's front excursion; the owner
+    accepted it on 15 Nov 2026 as hw.GPU12V_FRONT_TOL, so going past that tolerance is a route failure now.)"""
     if rt.name in ("usb3", "usbc") and target in ("front_sill", BODY_BOARD) and zone_d is not None \
             and zone_d < CLEAR_MM - 1e-6 and zone_d <= d + 1e-3:
         return "skeleton"
@@ -396,8 +395,9 @@ def evaluate(routes, parts, hardware):
         off = rt.end_offset()
         if off is not None and off > END_TOL:
             rt.fail.append(("route", f"ends {off:.1f} mm from its header (scaled position +-5)"))
-        if rt.ymin < hw.ENVELOPE_Y0 - 1e-6:
-            text = f"envelope: {hw.ENVELOPE_Y0 - rt.ymin:.1f} mm in front of Y {hw.ENVELOPE_Y0:g} (surface at Y {rt.ymin:.1f})"
+        front_tol = hw.GPU12V_FRONT_TOL if rt.name == "gpu12v" else 0.0       # the owner's tolerance, for this cable only
+        if rt.ymin < hw.ENVELOPE_Y0 - front_tol - 1e-6:
+            text = f"envelope: {hw.ENVELOPE_Y0 - rt.ymin:.1f} mm in front of Y {hw.ENVELOPE_Y0:g} (surface at Y {rt.ymin:.1f})" + (f", accepted up to {front_tol:g}" if front_tol else "")
             rt.fail.append((classify(rt, "envelope", 0, None, "env"), text))
         if rt.xmax > hw.ENVELOPE_X + 1e-6:
             text = f"envelope: {rt.xmax - hw.ENVELOPE_X:.1f} mm outside |X| {hw.ENVELOPE_X:g} (surface at |X| {rt.xmax:.1f})"
@@ -526,13 +526,13 @@ def facts_section(routes):
            f"  12V-2x6 socket on the card (read off MSI's render, +-12 mm along v, +-3 mm along u, +-8 mm recess): v {gs['v']:g}, u {gs['u']:g}, mouth n {mouth_n:g} (card face n {hw.GPU_BS[5]:g} - recess {gs['recess']:g})",
            f"  plug {hw.GPU12V_PLUG:g} mm out of the mouth (assumption), straight {hw.GPU12V_STRAIGHT:g} mm from the plug's back; radius {hw.CABLES['gpu12v'][1]:g}, bend {hw.CABLES['gpu12v'][2]:g}",
            f"  slabs: strands r {hw.SLAB_STRAND_R:g}, pitch {hw.SLAB_PITCH:g}, bend {hw.SLAB_BEND:g}; ATX {hw.CABLE_SLAB['atx24']} strands, 12V-2x6 {hw.CABLE_SLAB['gpu12v']} strands (assumptions)",
-           f"  USB-C: lying plug {hw.LYING_PLUG['length']:g} x {hw.LYING_PLUG['thick']:g} mm (assumption); the card counts from n {hw.GPU_UNDERSIDE_N:g} up for this route only (assumption)",
+           f"  USB-C: lying plug {hw.LYING_PLUG['length']:g} x {hw.LYING_PLUG['thick']:g} mm (assumption); the card counts from n {hw.GPU_UNDERSIDE_N:g} up for this route only (assumption; the owner confirmed the port works under this card today)",
            f"  PSU sockets (inferred from a photo, not checked): " + ", ".join(f"{k} X {v[0]:g} Z {v[2]:g}" for k, v in hw.PSU_SOCKETS.items()) + f" on the face Y {hw.PSU_W[2]:g}",
            "  radii and bends of every other cable: hardware.CABLES (assumptions)",
            ""]
     rt = routes["gpu12v"]
     ymin = rt.ymin
-    out.append(f"12V-2x6, furthest point in front of Y {hw.ENVELOPE_Y0:g}: " + (f"{hw.ENVELOPE_Y0 - ymin:.1f} mm (surface at Y {ymin:.1f}); the arch's top is n {GPU12V_TOP_N:g}" if ymin < hw.ENVELOPE_Y0 else "none"))
+    out.append(f"12V-2x6, furthest point in front of Y {hw.ENVELOPE_Y0:g}: " + (f"{hw.ENVELOPE_Y0 - ymin:.1f} mm (surface at Y {ymin:.1f}); the arch's top is n {GPU12V_TOP_N:g}. Accepted by the owner on 15 Nov 2026 as a tolerance, up to {hw.GPU12V_FRONT_TOL:g} mm" if ymin < hw.ENVELOPE_Y0 else "none"))
     return out
 
 

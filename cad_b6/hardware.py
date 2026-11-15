@@ -327,8 +327,12 @@ GPU12V_PLUG = 13.0                        # ASSUMPTION: how far the plug's back 
 HEADERS_LYING = ("JUSBC1",)
 LYING_PLUG = dict(length=15.0, thick=8.0)  # ASSUMPTION (a USB-C plug body with its strain relief)
 # ASSUMPTION: the card's lower edge beyond the slot is level with the slot's top, 11 mm above the board face (the model's card box reaches the
-# board, n 0). Used by the USB-C route only, to pass under the card's body.
+# board, n 0). Used by the USB-C route only, to pass under the card's body. The owner confirmed on 15 Nov 2026 that the front USB-C port works
+# in the present PC with this board and this card, so a lying plug does fit under the card; the 11 mm itself is still not measured.
 GPU_UNDERSIDE_N = 11.0
+# OWNER DECISION, 15 Nov 2026: the 12V-2x6 cable may stand in front of the front plane (Y = ENVELOPE_Y0). The card's face looks forward and up
+# and a straight plug with its 35 mm straight cannot arch lower. Accepted as measured, 10.4 mm; the limit leaves 0.6 mm for rebuilds.
+GPU12V_FRONT_TOL = 11.0
 # ASSUMPTION: where a bundle of sleeved wires passes the 20 mm gap at the board's edge it lies two wires thick, flat. Modelled as that many
 # round strands side by side along u: strand radius, centre pitch, minimum bend. Strands: ATX 24-pin 6, 12V-2x6 4.
 CABLE_SLAB = {"atx24": 6, "gpu12v": 4}
