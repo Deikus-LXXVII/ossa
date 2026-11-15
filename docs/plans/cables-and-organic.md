@@ -233,6 +233,23 @@ What the skeleton has to provide is listed with coordinates at the end of `cad_b
 1. On the card: from the bracket end of the lettering face to the centre of the power socket, and how deep the socket sits below that face.
 2. The lengths of the front I/O cables.
 
+### Skeleton pass 1 for cables and the organic layer: spec
+
+Two changes to the skeleton. Both are small and neither waits for the owner.
+
+**A. Cable window in the sill's rear wall** (`front_sill`, `frame_v0.py`).
+- One window through the rear wall (`SILL_REAR_WALL`, 5 mm) for the front cables: X 40 to 90, Z 14 to 46. It follows the pocket: give it as offsets from `hw.FRONT_IO_W` and the sill's own numbers, not as bare coordinates, so it moves with the module when the real one is measured. A second small window for the light line's lead at the left end, X -131 to -119, Z 34 to 46, if the channel's end does not already let the lead out; say which.
+- Corners rounded as the rounding rules allow. The module's screw inserts keep their walls. The window is a placeholder like the module itself: mark it so in the code and in the report.
+- Then move the first way-points of the USB 3 and USB-C routes in `cables.py` so that they pass through the window and keep 3 mm from the board's bottom edge and from the sill. Remove the `skeleton` allowance from `classify` once nothing needs it: after this pass every failure is a `route` failure and the script must exit 0.
+
+**B. Insert pilots for the organic layer's twelve pads.**
+- `hardware.py` gains `ORGANIC_PADS`: name -> (part name, pad centre world (X, Y, Z), the outward normal's sign along X). The twelve rows are the table in `cad_b6/report_organic.txt` as it stands now.
+- `frame_v0.py` cuts an M3 insert pilot (`pilot(..., "M3")`) at each, along X into the part, and counts them in the fastener bookkeeping. Every existing check must hold, check 7 (walls) in particular. If a pilot cannot keep its wall, move the pad the least distance along the face that gives it, change the row, and say so.
+- `organic_frame.py` takes its pads from `ORGANIC_PADS` and gains a check: each pad's screw axis coincides with an M3 pilot of that part within 0.01 mm. `pad_fits` must not count a pad's own pilot as "another hole too close"; every other hole still counts.
+- Rerun `organic_strength.py` afterwards (main session, on the gaming PC).
+
+Not in this pass: cable clips. They come after the PSU's sockets are read from a photo, because that may move the lanes.
+
 ### After the second pass
 
 The parts the skeleton needs for cables: the cable slot in the sill's rear wall, the rail notch if the USB-C route needs it, nylon clips and their insert pilots.
