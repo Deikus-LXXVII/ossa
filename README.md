@@ -1,89 +1,109 @@
-# PC case B5
+# Ossa
 
+Ossa is an open, 3D-printed PC case for a liquid-cooled build, modelled as CadQuery scripts. A rigid plate skeleton holds every component. An organic outer layer of bones and thread-like films is decoration fixed to that skeleton and carries nothing.
 
-Полная передача проекта (цель, история решений, текущая геометрия, как запускать, открытые вопросы) — в [HANDOFF.md](HANDOFF.md). Этот README — краткая справка по текущему варианту B5.
+This is a design study. Nothing has been printed yet.
 
-Open, asymmetric, fully printed black-ABS case for a desk showpiece. Volume and clearance study plus organic frame v1 — not a finished case.
+| Skeleton with hardware | Organic layer (sketch) |
+|---|---|
+| ![Skeleton with hardware](previews/b6_v0_front_left_hw.png) | ![Organic layer](previews/b6_shell_organic_front_left.png) |
 
-Coordinates: X left–right, Y depth (front at 0, increasing backwards), Z up. Millimetres.
+## Layout
 
-## Hardware
+The current layout is called B6.
 
-| Part | Size (mm) | Notes |
-|------|-----------|--------|
-| MSI MAG Z890 Tomahawk WiFi | ATX 305 × 244 × 2 | Board at 45°, leaning back. Bottom edge at Y=150, Z=65. Rear I/O at the top edge (~Y 366, Z 281), 45° up and back. |
-| ARCTIC Liquid Freezer III Pro 420 | 458 × 138 × 65 (rad + fans) | Stands on its edge in the wedge behind and under the board, above the PSU. Y 353…418, Z 106…244. Tubes 500 mm. |
-| MSI RTX 5080 SUPRIM LIQUID | GPU 280 × 148 × 51; 360 rad 394 × 121 × 55 | 360 lies flat in front of the board (Y 29…150, Z 10…65). GPU in the PCIe slot, 45% up the board, 280 mm along X. Tubes 450 mm. |
-| Seasonic PRIME TX-1600 | 210 × 150 × 86 | 150 along X (centred), 210 along Y (243…453), 86 tall. Cables at the front, under the board. IEC at Y=453, behind the 420 exhaust. |
-| CPU block | ~70 × 70 × 50 | On the board, 70% up from the bottom edge. |
+- The motherboard leans back at 45°.
+- The graphics card's 360 mm radiator lies parallel to the board, above it.
+- The CPU's 420 mm radiator stands at 90° to the board, behind its top edge.
+- Neither pump is the highest point of its loop. That was the reason for the layout.
+- Radiator fans sit on the outside and blow in. Two 140 mm fans on the flanks exhaust.
+- The power supply sits under the board. A sill at the front holds the I/O module and a light line.
+- Both hose pairs run inside the envelope, so nothing sticks out to snag.
 
-The 360 and 420 were swapped versus B4 so the front is free for buttons and ports. Fan tops of the 360 are level with the board bottom (the 360 sits on a 10 mm plinth; the board stayed at Z=65 because lowering it would make the 420 hit the board).
+The envelope is about 460 × 385 × 405 mm (width × depth × height). Every printed part is 290 mm or shorter, to fit a 300 mm printer bed.
 
-The 420 does not fit in the old 360 pocket (17 mm taller, 10 mm thicker). It was moved back and up for 15 mm to the board and 20 mm to the PSU top. The case is therefore deeper (~460 mm vs ~405 mm in B4).
+| Component | Model |
+|---|---|
+| Motherboard | MSI MAG Z890 Tomahawk WiFi (ATX) |
+| Graphics card | MSI RTX 5080 SUPRIM LIQUID, 360 mm radiator |
+| CPU cooler | ARCTIC Liquid Freezer III Pro 420 |
+| Power supply | Seasonic PRIME TX-1600 Noctua Edition |
+| Front I/O | Module from a Fractal North XL (not yet measured, placeholder in the model) |
 
-## Front I/O
+## Repository map
 
-The 360 is 394 mm wide, the 420 sets the width at 458 mm, so about 32 mm is free on each side. I/O lives in those gaps, as part of the cheek, not as a separate box. Overall width stays close to 458 mm plus the frame (rails reach about ±246 mm).
+| Path | What it is |
+|---|---|
+| `cad_b6/hardware.py` | The only place hardware dimensions and mounting coordinates live |
+| `cad_b6/frame_v0.py` | The skeleton, its checks, the report and the STEP export |
+| `cad_b6/rounding.py` | Rounds the skeleton's corners where the checks allow it |
+| `cad_b6/test_checks.py` | Damages the model on purpose to prove each check fails when it should |
+| `cad_b6/hoses.py`, `hose_routes.py` | Hose routes built from straight runs and constant-radius bends |
+| `cad_b6/strength.py` | Linear finite-element check of the skeleton, and plastic needed per infill |
+| `cad_b6/organic_frame.py` | Sketch of the organic outer layer |
+| `cad_b6/render_vtk.py`, `measure.py` | Offscreen renders and distance measurements |
+| `docs/plans/b6-frame-v0.md` | The design record: every revision, with reasons and coordinates |
+| `docs/printer-and-materials.md` | Printer and filament the design is made for |
+| `cad_b5/`, `history/` | The earlier B5 layout and studies. Frozen. |
+| `refs/SOURCES.txt` | Where the reference images came from. The images are not in the repository. |
 
-- **Right of the 360:** 19 mm anti-vandal power button with an LED-ring recess, and a 12 mm reset button below it.
-- **Left of the 360:** a slim vertical strip — 2× USB-A, USB-C (Z890 Tomahawk JUSBC1, Key-A), and a 3.5 mm combo jack.
+## Run it
 
-## Checks
+The scripts need Python 3.13.
 
-All pairwise hardware intersection volumes are 0. Main gaps: board–360 contact (by design), board–420 15 mm, 420–PSU 20 mm, 360–GPU 86 mm, 420–CPU 27 mm.
+```bash
+python3 -m venv .venv
+.venv/bin/pip install -r requirements.txt
 
-Bounding box of the iron: X −229…229 (458), Y 8…453 (445), Z 0…280.7. Envelope with frame, 15 mm feet and exhaust: about X −246…246 (492), Y 0…460, Z −15…290.
+.venv/bin/python cad_b6/frame_v0.py      # build, run every check, write the report and STEP
+.venv/bin/python cad_b6/test_checks.py   # prove the checks bite
+.venv/bin/python cad_b6/render_vtk.py    # previews/b6_v0_*.png
+.venv/bin/python cad_b6/strength.py 7 2  # strength and plastic, about 7 minutes
+```
 
-### Tubes (straight-line × 1.3 slack)
+Run them from the repository root.
 
-Fittings are on the **right**. The right cheek only carries thin power / LED / reset wires, so the AIO tubes stay clear of the USB bundle on the left.
+## What the checks cover
 
-- **CPU → 420**, 500 mm: pass. Around the right board edge needs 328 mm.
-- **GPU → 360**, 450 mm: pass. Same-side, right end, needs 179 mm. The path stays in front of the board.
+`frame_v0.py` stops with an error if any of these fails:
 
-### Front-panel cables
+1. No two components overlap.
+2. No printed part overlaps a component.
+3. No two printed parts overlap.
+4. Every part is 290 mm or shorter.
+5. Every component has its holders and its full count of fasteners.
+6. Nothing reaches below the desk plane.
+7. Every hole is empty and has enough wall around it.
+8. Everything stays inside the envelope.
+9. Every part keeps 5 mm from the hoses.
+10. The hose guides hold the real hose path.
+11. The side fans keep a clear opening.
+12. Every corner left sharp has a stated reason.
 
-- **JFP1** (power / reset / LED), right cheek → bottom-right header: path 266 mm, need 346 / 500, **pass**.
-- **JAUD1** (3.5 mm), left cheek → bottom-left header: path 257 mm, need 334 / 500, **pass**.
-- **JUSB3** (2× USB-A), left cheek → right-edge header: path 493 mm, need 641 / 500, **fails** a typical 500 mm cable. Plan a **700 mm** USB 3 front-panel cable, routed along the left of the 360 then under the board.
-- **JUSBC1** (USB-C), same path: 487 mm, need 633 / 500, **fails** a typical 500 mm cable. Plan a **700 mm** USB-C (Key-A) cable.
+A separate check keeps each contact face at 97 % of its area or more after rounding.
 
-## Organic frame v1
+## Strength
 
-Asymmetric, bone-like lofted rails, not flat plates. The right rail grows into the power-button head, the left into the port strip. Split at Y=200 as a slightly swollen knuckle with M4 heat-set insert bosses. U-shaped skiff on 15 mm feet, open at the back for the 420 exhaust, intake ribs under the 360 and in the plenum under the PSU. Slotted 45° spine (to avoid a large flat ABS panel) and a wishbone under the board / over the PSU.
+`strength.py` meshes the bonded skeleton and loads it with each component's weight. Infill is modelled as a solid wall plus a weaker core. It does not cover creep near warm radiators, strength across layers, insert pull-out or slip in bolted joints. The numbers are in `cad_b6/report_strength.txt`.
 
-12 parts, every one ≤ 290 mm, every STL watertight. Black ABS. Ribs at least 5 mm. Print the rails on the split face, the base feet-down, the spine flat.
+## Materials
 
-| Part | Size (mm) | 100% ABS (g) | 4 walls / 20% infill (g) |
-|------|-----------|--------------|---------------------------|
-| rail_left/right_front | 42 × 195 × 110 | 192 each | 78 each |
-| rail_left/right_rear | 28 × 262 × 214 | 360 each | 157 each |
-| base_front_left/right | 246 × 194 × 25 | 133 each | 80 each |
-| base_rear_left/right | 246 × 256 × 25 | 117 / 115 | 72 / 71 |
-| spine_lower / upper | 228 × 104 × 104 (world AABB of a 5 mm tilted plate) | 151 each | 107 each |
-| wishbone_left/right | 233 × 13 × 99 | 61 each | 33 each |
-| **Total** | | **~2025** | **~1055** |
+- **Skeleton:** ABS. It carries every component.
+- **Organic layer:** PLA. It keeps 10 mm from the graphics card and the power supply.
+- **Light line diffuser:** translucent PLA, 10 mm from the LED strip.
+- **Hose guides and clips:** PA6 nylon.
 
-Density 1.04 g/cm³. Infill mass is an estimate from shell area + 20% of the remaining volume (4 perimeters at 0.4 mm).
+## Not done yet
 
-## Open issues
+- The front I/O module is a placeholder until the real module is measured.
+- The organic layer has no fixings, no print split and no checks.
+- Cables are not planned.
+- No test prints: insert pull-out, the nylon snap fit and a bracket coupon are still to do.
 
-- **700 mm USB 3 and USB-C cables** from the left strip to the right-side board headers, as above.
-- **PSU intake:** 20 mm above the PSU is better than the old 4 mm, but a top-mounted fan is still tight. Prefer the bottom intake through the vented 15 mm plenum, or a rear/side intake. IEC is at Y=453, below the 420 exhaust.
-- **Fittings on the right** for both AIOs.
-- **360 airflow:** down through the intake ribs, or up into the board/GPU. The ribs kiss the 360 underside (~1 cm³ of overlap per side) — trim them 1 mm before a real print.
-- Board rear I/O is at the top edge, 45° up and back, above the 420 (top Z=244).
-- Frame v1 is still a first sculpture: I/O cutouts need a flat front-face finish, joints need real insert seats and alignment pins, rails can be slimmed, and the rear rails are heavy (~360 g solid each).
-- Print on the K1 Max in 290 mm pieces. ABS: brim, glue, slow cooling; the printer is in the bedroom, so watch fumes. Watch creep under the GPU and radiator mass.
+## Working with coding agents
 
-## Files
+`CLAUDE.md` and `AGENTS.md` hold the working rules for agent sessions. `.claude/` holds a verification skill and a CAD subagent.
 
-- `layout_b5.py` / `layout_b5.png` — 2D front and side scheme
-- `cad_b5/b5_model.py` — parametric hardware and clearance model
-- `cad_b5/frame_v1.py` — organic frame, asserts, mass, previews
-- `cad_b5/preview_frame_v1.png` — iso front-left, iso rear-right, front, side
-- `cad_b5/exploded_v1.png` — exploded iso views
-- `cad_b5/parts/*.stl` — one watertight STL per part
-- `cad_b5/b5_frame_v1.step` — assembly
-- `cad_b5/report_frame_v1.txt` — numeric report
-- `cad_b5/preview_b5.png`, `b5_assembly.*`, `report.txt` — earlier block-out
+## Licence
+
+No licence has been chosen yet. Until one is added, all rights are reserved.
