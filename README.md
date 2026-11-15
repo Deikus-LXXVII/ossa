@@ -99,7 +99,7 @@ A separate check keeps each contact face at 97 % of its area or more after round
 
 - The front I/O module is a placeholder until the real module is measured.
 - The organic layer has fixings and checks, but no print split yet, and the insert pilots for it are not cut in the skeleton.
-- Cable routes are drawn and checked, and the skeleton has eleven tie points for straps. The two CPU power cables still have no tie point in reach. The graphics card's power cable stands about 10 mm in front of the front plane, which the owner accepted.
+- Cable routes are drawn and checked, and eleven tie points for hook-and-loop straps shape them. The graphics card's power cable stands about 10 mm in front of the front plane, which the owner accepted.
 - No test prints yet. The fit gauges and coupons are ready to print (`docs/fit-gauges-check-sheet.ru.md`).
 
 ## Working with coding agents

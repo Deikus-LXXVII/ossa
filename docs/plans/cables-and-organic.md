@@ -346,6 +346,29 @@ A cable's two plugs count as fixed points. Above the board nothing is required: 
 
 If a bend or a stretch cannot be served from any face, first move the cable's way-points (the routes are allowed to shift: every other cable check must still pass), and only if that fails propose a small hanger part and stop on that item for a decision. Do not loosen the two numbers.
 
+### Tie points, second pass, built (16 Nov 2026): every cable is shaped
+
+Checked in the main session: `frame_v0.py` passes, `test_checks.py` 136 of 136, `cables.py` exits 0 with the two new tie checks, `organic_frame.py` passes; the view `previews/b6_cables_under_board.png` was looked at.
+
+Eleven tie points again, but different ones. Removed, because no cable came within 30 mm: two under beam_mid (X 20, 52), one under the rail (u 72), one under beam_top (X 77). Moved: `low_2` to X 102. Added: `leg_1` and `leg_2` on the inner face of rib A's mid leg, `post_1` on the inner face of rib B's post, `skid_1` on top of `skid_front`.
+
+| Cable | Bends of 30 degrees or more below the board: distance to the nearest tie point | Longest stretch without one |
+|---|---|---|
+| ATX 24-pin | 28.0, 24.5 | 105 mm |
+| 12V-2x6 | 24.4, 25.0 | 116 mm |
+| EPS 1 | 28.8, 28.9, 28.5 | 106 mm |
+| EPS 2 | 27.7, 29.0 | 139 mm |
+| USB 3 front | 22.3, 24.1 | 73 mm |
+| USB-C front | 19.3, 22.9 | 37 mm |
+
+The limits are 30 mm and 150 mm. Each cable's first bend sits at its PSU plug, which counts as a fixed point.
+
+- One way-point moved: EPS 1's lane start, from X 113 to X 122. Its route went from 649 to 652 mm (spare 51 to 48).
+- Five bends are within 1.5 mm of the 30 mm limit. That comes from where the faces are.
+- **`skid_1` overhangs.** `skid_front`'s front face is too low for a bridge, so the bridge sits on the skid's top with 12.5 mm of its foot past the front edge. Hand check, main session: a 20 N pull on the strap gives 14 MPa in the 13 x 3 mm PA6 foot and about 50 N on the screw. That is acceptable for a strap; it is not tested.
+- The ATX and 12V-2x6 routes begin their first bend right at the PSU socket (148 and 128 degrees). A real cable wants a short straight there first; not modelled.
+- The strap takes a twist at most points: a face allows one direction for the bridge, and the cable passes at 28 to 90 degrees to it.
+
 ### Next
 
 Split the organic layer into printable pieces. Rerun `strength.py` with the bridges. Rerun the organic strength check when the gaming PC is back in Linux.

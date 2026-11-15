@@ -715,8 +715,23 @@ def main():
           n_tie >= 8 and base["mounts"]["tie_pilot"] == n_tie and base["mounts"]["tie_bridge"] == n_tie and f.EXPECTED_MOUNTS["tie_pilot"] == n_tie and f.EXPECTED_MOUNTS["tie_bridge"] == n_tie
           and listed == {"tie_pilot": n_tie, "tie_bridge": n_tie},
           (f"{n_tie} pilots and {n_tie} holes derived, {n_tie} listed each", f"derived {base['mounts']['tie_pilot']} / {base['mounts']['tie_bridge']}, listed {listed}"))
-    check("the rows are the plan's four, on the plan's four parts, all on undersides", {tp["row"]: tp["host"] for tp in tps} == {"mid": "beam_mid", "rail": "rib_A_right", "low": "beam_low", "top": "beam_top"},
-          ("rows mid, rail, low, top on beam_mid, rib_A_right, beam_low, beam_top", str({tp["row"]: tp["host"] for tp in tps})))
+    rows = {tp["row"]: tp["host"] for tp in tps}
+    check("the rows: the first pass's four on undersides (mid, rail, low, top) and the second pass's three on faces that look sideways or up (leg and post: the right ribs' inner faces, skid: the top of skid_front)",
+          rows == {"mid": "beam_mid", "rail": "rib_A_right", "low": "beam_low", "top": "beam_top", "leg": "rib_A_right", "post": "rib_B_right", "skid": "skid_front"}
+          and all(tp["normal"] == f.TIE_UNDER for tp in tps if tp["row"] in ("mid", "rail", "low", "top")) and all(tp["normal"] == (-1.0, 0.0, 0.0) for tp in tps if tp["row"] in ("leg", "post"))
+          and all(tp["normal"] == (0.0, 0.0, 1.0) for tp in tps if tp["row"] == "skid"),
+          ("seven rows on seven hosts, normals -n / -X / +Z as listed", str(rows)))
+    right_only = [tp for tp in tps if tp["host"] in ("rib_A_right", "rib_B_right")]
+    leaked, blind = [], []
+    for tp in right_only:       # a pilot of a right rib must not appear in the left twin (built right-handed and mirrored): its mirrored bore axis point is material there
+        twin = part_named(parts, tp["host"].replace("right", "left"))
+        probe = tuple(c - f.ORGANIC_PROBE_DEPTH * k for c, k in zip(tp["pt"], tp["normal"]))
+        if part_named(parts, tp["host"]).solid.isInside(cq.Vector(*probe)):      # control: the same probe in the right rib is inside its bore, which is empty
+            blind.append(f.tie_name(tp))
+        if not twin.solid.isInside(cq.Vector(-probe[0], probe[1], probe[2])) or any(h.pilot and math.dist(h.point(f.OVERSHOOT), (-tp["pt"][0], tp["pt"][1], tp["pt"][2])) < 0.5 for h in twin.holes):
+            leaked.append(f.tie_name(tp))
+    check("tie points are on the right-hand ribs only: no pilot at the mirrored place of any of them in rib_A_left or rib_B_left, which are built right-handed and mirrored", len(right_only) >= 6 and not leaked and not blind,
+          ("no left twin has a bore where a right rib has a tie pilot (and the probe does find the bore in the right rib)", f"{len(right_only)} right-rib tie points; bored in the left twin: {leaked or 'none'}; probe missed the right rib's bore: {blind or 'none'}"))
     vols = [b.blank.Volume() for b in bridges]
     check("one bridge shape: every bridge has the same volume before and after its hole, and 28 x 13 x 9 mm", max(vols) - min(vols) < 1e-6
           and max(b.solid.Volume() for b in bridges) - min(b.solid.Volume() for b in bridges) < 1e-6
@@ -741,25 +756,26 @@ def main():
     case(f"{b0.name} slid 0.5 mm along its face: still on its host, but off its pilot", f"CHECK5 tie_bridge: {n_tie - 1} positions have a hole", r["failures"], f"CHECK5 tie_bridge: {n_tie - 1} positions")
     axis_gap = max(math.dist(b.holes[0].point(f.TIE_FOOT_T + f.OVERSHOOT), f.tie_face_point(tp)) for b, tp in zip(bridges, tps))
     check("every bridge sits on its pilot: the bridge's hole axis passes through the tie point on the host's face", axis_gap < 1e-6 and all(
-          abs(sum((a - c) * k for a, c, k in zip(b.holes[0].start, f.tie_face_point(tp), f.TIE_NORMAL)) - (f.TIE_FOOT_T + f.OVERSHOOT)) < 1e-6 for b, tp in zip(bridges, tps)),
+          abs(sum((a - c) * k for a, c, k in zip(b.holes[0].start, f.tie_face_point(tp), tp["normal"])) - (f.TIE_FOOT_T + f.OVERSHOOT)) < 1e-6 for b, tp in zip(bridges, tps)),
           ("each hole starts 3.5 mm above its tie point along the normal, on the axis", f"largest offset of an axis point from its tie point {axis_gap:.1e} mm"))
-    lift = moved(b0, *(1.0 * c for c in f.TIE_NORMAL))
+    lift = moved(b0, *(1.0 * c for c in tp0["normal"]))
     r = f.run_checks(hardware, with_part(parts, b0.name, solid=lift.solid, blank=lift.blank, holes=lift.holes), MEMO)
     case(f"{b0.name} lifted 1 mm off its host", f"CHECK3 tie bridge {b0.name} touches nothing, the plan lists only its host", r["failures"], f"CHECK3 tie bridge {b0.name} touches nothing")
-    sunk = moved(b0, *(-1.0 * c for c in f.TIE_NORMAL))
+    sunk = moved(b0, *(-1.0 * c for c in tp0["normal"]))
     r = f.run_checks(hardware, with_part(parts, b0.name, solid=sunk.solid, blank=sunk.blank, holes=sunk.holes), MEMO)
     case(f"{b0.name} pressed 1 mm into its host", f"CHECK3 part x part {tp0['host']} x {b0.name}: ... mm3", r["failures"], "CHECK3 part x part", b0.name, "mm3")
-    mid = [b for b, tp in zip(bridges, tps) if tp["row"] == "mid"]
-    gap_mid = f.solid_distance(mid[0].solid, mid[1].solid)
-    mv = moved(mid[0], gap_mid * 1.0, 0.0, 0.0)
-    r = f.run_checks(hardware, with_part(parts, mid[0].name, solid=mv.solid, blank=mv.blank, holes=mv.holes), MEMO)
-    case(f"{mid[0].name} slid along the beam until it touches {mid[1].name}", f"CHECK3 tie bridge {mid[0].name} touches ['{mid[1].name}'], the plan lists only its host", r["failures"],
-         f"CHECK3 tie bridge {mid[0].name} touches", mid[1].name)
-    mv = moved(mid[0], gap_mid - 1.0, 0.0, 0.0)
-    r = f.run_checks(hardware, with_part(parts, mid[0].name, solid=mv.solid, blank=mv.blank, holes=mv.holes), MEMO)
-    case(f"{mid[0].name} 1 mm from {mid[1].name}", f"CHECK3 tie bridge {mid[0].name} is 1.00 mm from {mid[1].name}, needs {f.TIE_CLEAR:g}", r["failures"], f"CHECK3 tie bridge {mid[0].name} is 1.00 mm from {mid[1].name}")
+    rail = {tp["k"]: b for b, tp in zip(bridges, tps) if tp["row"] == "rail"}      # rail_3 and rail_4 stand 3 mm apart on the rail's underside, along u
+    gap_rail = f.solid_distance(rail[3].solid, rail[4].solid)
+    along = tuple(hw.U_DIR)
+    mv = moved(rail[3], *(gap_rail * c for c in along))
+    r = f.run_checks(hardware, with_part(parts, rail[3].name, solid=mv.solid, blank=mv.blank, holes=mv.holes), MEMO)
+    case(f"{rail[3].name} slid along the rail until it touches {rail[4].name}", f"CHECK3 tie bridge {rail[3].name} touches ['{rail[4].name}', ...], the plan lists only its host", r["failures"],
+         f"CHECK3 tie bridge {rail[3].name} touches", rail[4].name)
+    mv = moved(rail[3], *((gap_rail - 1.0) * c for c in along))
+    r = f.run_checks(hardware, with_part(parts, rail[3].name, solid=mv.solid, blank=mv.blank, holes=mv.holes), MEMO)
+    case(f"{rail[3].name} 1 mm from {rail[4].name}", f"CHECK3 tie bridge {rail[3].name} is 1.00 mm from {rail[4].name}, needs {f.TIE_CLEAR:g}", r["failures"], f"CHECK3 tie bridge {rail[3].name} is 1.00 mm from {rail[4].name}")
     import cables
-    far = mid[-1]
+    far = bridges[0]
     routes = cables.build_routes()
     mv = moved(far, 28.0, 0.0, 0.0)     # slid in X into the lane the USB 3 cable runs in under beam_mid (X 116..128, n -41)
     ov = cables.evaluate(routes, with_part(parts, far.name, solid=mv.solid, blank=mv.blank, holes=mv.holes), hardware)
@@ -767,15 +783,54 @@ def main():
     check("a bridge slid into USB 3's lane is a cable failure: cables.py keeps 3 mm from every bridge", len(bad) >= 1 and "needs 3" in bad[0], (f"'... mm from {far.name}, needs 3'", "; ".join(bad) or "no failure"))
     routes = cables.build_routes()
     ov = cables.evaluate(routes, parts, hardware)
-    slots = {f.tie_name(tp): np.array(f.tie_slot_centre(tp)) for tp in tps}
-    stats = {n: cables.tie_stats(routes[n], slots) for n in cables.TIE_ROUTES}
-    check("cables.py gives the two tie numbers for the six cables, and no cable is closer than its 3 mm to a bridge", set(stats) == {"atx24", "gpu12v", "eps1", "eps2", "usb3", "usbc"}
-          and all(math.isfinite(v[0]) and v[0] > 3.0 and v[2] >= 0.0 for v in stats.values()) and not cables.failures(routes, ov),
-          ("six cables, nearest > 3 mm, no cable failure", "; ".join(f"{n} {v[0]:.1f} mm / {v[2]:.0f} mm" for n, v in stats.items())))
-    fewer = {k: v for k, v in slots.items() if not k.startswith("tie_bridge_rail")}
-    st2 = cables.tie_stats(routes["atx24"], fewer)
-    check("the tie numbers respond: ATX 24-pin without the rail's bridges is further from its nearest tie point and has a longer unserved stretch", st2[0] > stats["atx24"][0] + 5.0 and st2[2] > stats["atx24"][2],
-          (f"nearest > {stats['atx24'][0]:.1f} + 5 mm, unserved > {stats['atx24'][2]:.0f} mm", f"{st2[0]:.1f} mm, {st2[2]:.0f} mm"))
+
+    # 10f. skeleton pass 2, the two rules of "Tie points, second pass: spec", in cables.py. tie_eval / tie_failures take the slots of the bridges that are present, so a bridge taken out
+    # of the parts list is a tie point removed.
+    def tie_failures_with(slots_):
+        out = []
+        for n in cables.TIE_ROUTES:
+            rt = routes[n]
+            saved, rt.tie = rt.tie, cables.tie_eval(rt, slots_)
+            out += [f"{cables.TITLE[n]}: {t}" for _c, t in cables.tie_failures(rt)]
+            rt.tie = saved
+        return out
+    slots = cables.tie_slots(parts)
+    check("the spec's two numbers are cables.py's: TIE_REACH 30 mm, stretches of at most 150 mm, bends of 30 deg or more", cables.TIE_REACH == 30.0 and cables.TIE_STRETCH == 150.0 and cables.TIE_BEND_DEG == 30.0,
+          ("30 / 150 / 30", f"{cables.TIE_REACH:g} / {cables.TIE_STRETCH:g} / {cables.TIE_BEND_DEG:g}"))
+    stats = {n: routes[n].tie for n in cables.TIE_ROUTES}
+    n_bends = sum(len(v["bends"]) for v in stats.values())
+    worst_d = max(b[3] for v in stats.values() for b in v["bends"])
+    worst_s = max(v["stretches"][0][0] if v["stretches"] else 0.0 for v in stats.values())
+    check("as built every bend of 30 deg or more below the board has a tie point (or a plug) within 30 mm, and no stretch below the board is over 150 mm: no tie failure, no cable failure",
+          set(stats) == {"atx24", "gpu12v", "eps1", "eps2", "usb3", "usbc"} and n_bends >= 15 and worst_d <= cables.TIE_REACH and worst_s <= cables.TIE_STRETCH and not tie_failures_with(slots) and not cables.failures(routes, ov),
+          (f"{n_bends} bends all within 30 mm, stretches within 150 mm, 0 failures", f"worst bend {worst_d:.1f} mm, longest stretch {worst_s:.0f} mm, tie failures {len(tie_failures_with(slots))}, cable failures {len(cables.failures(routes, ov))}"))
+    check("every bridge shapes a cable: the middle of its slot is within 30 mm of at least one of the six routes",
+          all(min(float(np.linalg.norm(routes[n].pts - c, axis=1).min()) for n in cables.TIE_ROUTES) <= cables.TIE_REACH for c in slots.values()) and len(slots) == n_tie,
+          (f"all {n_tie} slots within 30 mm of a route", "; ".join(f"{k} {min(float(np.linalg.norm(routes[n].pts - c, axis=1).min()) for n in cables.TIE_ROUTES):.1f}" for k, c in slots.items())))
+    none = tie_failures_with({})
+    check("the two plugs count as fixed points: with no bridge at all the bends within 30 mm of a plug are not failures and the others are",
+          not any("bend of 148 deg" in t or "bend of 128 deg" in t or "bend of 104 deg" in t or "bend of 92 deg" in t for t in none) and any("bend of 45 deg" in t for t in none),
+          ("ATX 148 deg, 12V-2x6 128 deg, EPS 1 92 deg, EPS 2 104 deg unreported; ATX 45 deg reported", f"{len(none)} failures without bridges, e.g. {none[0] if none else 'none'}"))
+    def without(*names):
+        return tie_failures_with({k: v for k, v in slots.items() if k not in names})
+    got = without("tie_bridge_leg_1")
+    case("tie_bridge_leg_1 taken out (it holds ATX's 45 deg corner and EPS 1's 38 deg corner)", "ATX 24-pin: bend of 45 deg ... has no tie point within 30 mm", got, "ATX 24-pin", "bend of 45 deg", "no tie point within 30 mm")
+    case("  same removal: EPS 1's corner", "EPS 1: bend of 38 deg ... has no tie point within 30 mm", got, "EPS 1", "bend of 38 deg", "no tie point within 30 mm")
+    case("  same removal: ATX has a stretch of over 150 mm with no tie point", "ATX 24-pin: ... mm of its length below the board have no tie point within 30 mm (limit 150)", got, "ATX 24-pin", "below the board have no tie point within 30 mm (limit 150)")
+    case("tie_bridge_skid_1 taken out (EPS 2 round the PSU's front corner)", "EPS 2: bend of 76 deg ... has no tie point within 30 mm", without("tie_bridge_skid_1"), "EPS 2", "bend of 76 deg", "no tie point within 30 mm")
+    got = without("tie_bridge_post_1")
+    case("tie_bridge_post_1 taken out (the 90 deg corners of EPS 1 and EPS 2 at the foot of the gap)", "EPS 2: bend of 90 deg ... has no tie point within 30 mm", got, "EPS 2", "bend of 90 deg", "no tie point within 30 mm")
+    case("  same removal: EPS 1's corner", "EPS 1: bend of 90 deg ... has no tie point within 30 mm", got, "EPS 1", "bend of 90 deg", "no tie point within 30 mm")
+    case("tie_bridge_low_2 taken out (USB-C's dive under the board)", "USB-C front: bend of 84 deg ... has no tie point within 30 mm", without("tie_bridge_low_2"), "USB-C front", "bend of 84 deg", "no tie point within 30 mm")
+    case("tie_bridge_leg_2 taken out (USB 3's 90 deg corner)", "USB 3 front: bend of 90 deg ... has no tie point within 30 mm", without("tie_bridge_leg_2"), "USB 3 front", "bend of 90 deg", "no tie point within 30 mm")
+    rt_x = routes["atx24"]
+    saved_tie, saved_fail = rt_x.tie, rt_x.fail
+    rt_x.tie = cables.tie_eval(rt_x, {k: v for k, v in slots.items() if k != "tie_bridge_leg_1"})
+    rt_x.fail = list(cables.tie_failures(rt_x))
+    got = [t for _c, t in cables.failures(routes, [])]
+    rt_x.tie, rt_x.fail = saved_tie, saved_fail
+    check("a tie failure is a cable failure, so cables.py ends with exit status 1: failures() carries it with the cable's name", any(t.startswith("ATX 24-pin: bend of 45 deg") for t in got),
+          ("'ATX 24-pin: bend of 45 deg ...' among the failures", got[0] if got else "no failure"))
 
     # last: the undamaged model, once more with nothing remembered
     final = f.run_checks(hardware, parts)

@@ -41,6 +41,7 @@ END_TOL = 5.0                              # a route's end may be this far from 
 # "search"; the rest are from the spec or the geometry and say so.
 V_GAP = hw.x_to_v(131.5)                   # the gap's v: the board's edge is X 122 and the rib's X 142; here 9.5 / 10.5 mm from them, so that r 6 and r 7 keep 3.5 mm from both
 V_IN = hw.x_to_v(113.0)                    # the lane under the board, inboard of the ribs (the r 12 ATX cable must stay 15 mm from X 142)
+V_IN_OF = {"eps1": hw.x_to_v(122.0)}       # tie-point pass 2: EPS 1's lane starts at X 122, not 113 (the other cables keep V_IN): its 36 deg corner then lies 26 mm from a bridge on rib A's mid leg (X 142), 32 mm before; the cable keeps 10 mm from that rib (r 6)
 LANE_N = {"usb3": -41.0, "gpu12v": -57.5, "atx24": -85.0, "eps1": -106.0, "eps2": -147.5}   # search: levels of the lanes at v 235: the cable that rises first lies on top, the next one under it by the two radii and air; USB 3 under beam_low (n -30) with r 4, EPS 2 above the desk (Z -15)
 SHIFT_DEG = {"gpu12v": 24.0, "atx24": 12.0, "eps1": 8.5, "eps2": 29.5}   # search: angle of the diagonal that moves a lane cable from v 235 to the gap (it sets where each cable crosses the others); third pass: the diagonal is also where a PSU cable leaves its straight run to the lane, so a small angle is a long gentle ramp
 
@@ -146,6 +147,8 @@ class Route:
         self.clear = []            # (target, distance, needed)
         self.stretch = None        # front USB routes: (distance to the board, to the sill) of the first stretch
         self.fail = []             # (class, text)
+        self.tie = None            # tie_eval(...) of the six cables with tie points, set by evaluate
+        self.tie_n = 0             # how many bridges that was worked out with
         self.ymin, self.xmax = min(surface_extent(p, r)[0] for p, r in self.strands), max(surface_extent(p, r)[1] for p, r in self.strands)
 
     def end_offset(self):
@@ -204,12 +207,13 @@ def shift_wps(v_from, v_to, c, n, theta_deg):
 
 def psu_lead(name, theta):
     """A PSU cable out of its socket OUT_LEG[name] mm along -Y, round the PSU's front corner through (WAY_X, WAY_Y, WAY_Z) (world) where the straight way would
-    cut the PSU, to the lane's start (v V_IN, U_IN, LANE_N), along u, and a diagonal to the gap at u = GAP_U, still at the lane level."""
+    cut the PSU, to the lane's start (v V_IN, or V_IN_OF[name], U_IN, LANE_N), along u, and a diagonal to the gap at u = GAP_U, still at the lane level."""
     sx, sy, sz = hw.PSU_SOCKETS[SOCKET_OF[name]]
     pts = [np.array([sx, sy, sz]), np.array([sx, sy - OUT_LEG[name], sz])]
     if name in WAY_X:
         pts.append(np.array([WAY_X[name], WAY_Y[name], WAY_Z[name]]))
-    pts += [B(V_IN, U_IN[name], LANE_N[name])] + shift_wps(V_IN, V_GAP, GAP_U[name], LANE_N[name], theta)
+    v_in = V_IN_OF.get(name, V_IN)
+    pts += [B(v_in, U_IN[name], LANE_N[name])] + shift_wps(v_in, V_GAP, GAP_U[name], LANE_N[name], theta)
     return pts
 
 
@@ -353,61 +357,81 @@ def front_stretch(rt, targets):
     return frame_v0.solid_distance(zone, targets["hw:board"]), frame_v0.solid_distance(zone, targets["front_sill"])
 
 
-def evaluate(routes, parts, hardware):
+def evaluate_route(rt, targets, gpu_under, slots):
+    """Build one route and run every check on it that does not involve another route (clearances, length, bends, ends, envelope, the two tie rules)."""
+    rt.build()
+    own = {f"hw:{k}" for k in OWN[rt.name]}
+    rb = frame_v0.bbox_of(rt.solid)
+    for tn, ts in targets.items():
+        if tn in own:
+            continue
+        if tn == "hw:gpu" and rt.name == "usbc":
+            ts = gpu_under                                # for this route only the card counts from GPU_UNDERSIDE_N up
+        if frame_v0.bbox_gap(rb, frame_v0.bbox_of(ts)) > 30.0:
+            continue
+        need = HOSE_CLEAR_MM if tn in ("hw:cpu_hoses", "hw:gpu_hoses") else CLEAR_MM
+        rt.clear.append((tn if tn != "hw:gpu" or rt.name != "usbc" else f"hw:gpu (from n {hw.GPU_UNDERSIDE_N:g} up)",
+                         frame_v0.solid_distance(rt.solid, ts), need, tn))
+    if rt.body is not None:
+        rt.clear.append((BODY_BOARD, frame_v0.solid_distance(rt.body, targets["hw:board"]), CLEAR_MM, BODY_BOARD))
+    if rt.psu_body is not None:
+        rt.clear.append((BODY_PSU, frame_v0.solid_distance(rt.psu_body, targets["hw:psu"]), CLEAR_MM, BODY_PSU))
+    if rt.card_body is not None:
+        rt.clear.append((BODY_CARD, frame_v0.solid_distance(rt.card_body, targets["hw:gpu"]), CLEAR_MM, BODY_CARD))
+    zmin = float(min(p[:, 2].min() - r for p, r in rt.strands))
+    rt.clear.append((f"desk plane Z {hw.DESK_Z:g}", zmin - hw.DESK_Z, 0.0, "desk"))
+    rt.clear.sort(key=lambda c: c[1] - c[2])
+    rt.stretch = front_stretch(rt, targets) if rt.name in ("usb3", "usbc") else None
+    # the checks
+    if rt.real is not None and rt.length > rt.real + 1e-6:
+        rt.fail.append(("route", f"length {rt.length:.0f} > real {rt.real:.0f}"))
+    for kind, rmin, bend in rt.bend_checks:
+        if rmin < bend - 1e-6:
+            rt.fail.append(("route", f"bend {rmin:.1f} < min {bend:g} ({kind} section)"))
+    for label, d, need, tn in rt.clear:
+        if d < need - 1e-6:
+            rt.fail.append(("route", f"{d:.2f} mm from {label}, needs {need:g}"))
+    if rt.name in TIE_ROUTES:
+        rt.tie, rt.tie_n = tie_eval(rt, slots), len(slots)
+        rt.fail += tie_failures(rt)
+    off = rt.end_offset()
+    if off is not None and off > END_TOL:
+        rt.fail.append(("route", f"ends {off:.1f} mm from its header (scaled position +-5)"))
+    front_tol = hw.GPU12V_FRONT_TOL if rt.name == "gpu12v" else 0.0       # the owner's tolerance, for this cable only
+    if rt.ymin < hw.ENVELOPE_Y0 - front_tol - 1e-6:
+        text = f"envelope: {hw.ENVELOPE_Y0 - rt.ymin:.1f} mm in front of Y {hw.ENVELOPE_Y0:g} (surface at Y {rt.ymin:.1f})" + (f", accepted up to {front_tol:g}" if front_tol else "")
+        rt.fail.append(("route", text))
+    if rt.xmax > hw.ENVELOPE_X + 1e-6:
+        text = f"envelope: {rt.xmax - hw.ENVELOPE_X:.1f} mm outside |X| {hw.ENVELOPE_X:g} (surface at |X| {rt.xmax:.1f})"
+        rt.fail.append(("route", text))
+
+
+def route_targets(parts, hardware):
     targets = {p.name: p.solid for p in parts}
     targets.update({f"hw:{k}": v for k, v in hardware.items()})
-    gpu_under = hw.bs_box(hw.GPU_BS[0], hw.GPU_BS[1], hw.GPU_BS[2], hw.GPU_BS[3], hw.GPU_UNDERSIDE_N, hw.GPU_BS[5])
-    for rt in routes.values():
-        rt.build()
-        own = {f"hw:{k}" for k in OWN[rt.name]}
-        rb = frame_v0.bbox_of(rt.solid)
-        for tn, ts in targets.items():
-            if tn in own:
+    return targets, hw.bs_box(hw.GPU_BS[0], hw.GPU_BS[1], hw.GPU_BS[2], hw.GPU_BS[3], hw.GPU_UNDERSIDE_N, hw.GPU_BS[5])
+
+
+def route_pair_distances(routes, names=None):
+    """[(a, b, distance)] between routes, nearest first (a pair whose boxes are over 30 mm apart counts as 1e9); with `names`, only the pairs that include one of them."""
+    out, order = [], list(routes)
+    for i, a in enumerate(order):
+        for b in order[i + 1:]:
+            if names is not None and a not in names and b not in names:
                 continue
-            if tn == "hw:gpu" and rt.name == "usbc":
-                ts = gpu_under                                # for this route only the card counts from GPU_UNDERSIDE_N up
-            if frame_v0.bbox_gap(rb, frame_v0.bbox_of(ts)) > 30.0:
-                continue
-            need = HOSE_CLEAR_MM if tn in ("hw:cpu_hoses", "hw:gpu_hoses") else CLEAR_MM
-            rt.clear.append((tn if tn != "hw:gpu" or rt.name != "usbc" else f"hw:gpu (from n {hw.GPU_UNDERSIDE_N:g} up)",
-                             frame_v0.solid_distance(rt.solid, ts), need, tn))
-        if rt.body is not None:
-            rt.clear.append((BODY_BOARD, frame_v0.solid_distance(rt.body, targets["hw:board"]), CLEAR_MM, BODY_BOARD))
-        if rt.psu_body is not None:
-            rt.clear.append((BODY_PSU, frame_v0.solid_distance(rt.psu_body, targets["hw:psu"]), CLEAR_MM, BODY_PSU))
-        if rt.card_body is not None:
-            rt.clear.append((BODY_CARD, frame_v0.solid_distance(rt.card_body, targets["hw:gpu"]), CLEAR_MM, BODY_CARD))
-        zmin = float(min(p[:, 2].min() - r for p, r in rt.strands))
-        rt.clear.append((f"desk plane Z {hw.DESK_Z:g}", zmin - hw.DESK_Z, 0.0, "desk"))
-        rt.clear.sort(key=lambda c: c[1] - c[2])
-        rt.stretch = front_stretch(rt, targets) if rt.name in ("usb3", "usbc") else None
-        # the checks
-        if rt.real is not None and rt.length > rt.real + 1e-6:
-            rt.fail.append(("route", f"length {rt.length:.0f} > real {rt.real:.0f}"))
-        for kind, rmin, bend in rt.bend_checks:
-            if rmin < bend - 1e-6:
-                rt.fail.append(("route", f"bend {rmin:.1f} < min {bend:g} ({kind} section)"))
-        for label, d, need, tn in rt.clear:
-            if d < need - 1e-6:
-                rt.fail.append(("route", f"{d:.2f} mm from {label}, needs {need:g}"))
-        off = rt.end_offset()
-        if off is not None and off > END_TOL:
-            rt.fail.append(("route", f"ends {off:.1f} mm from its header (scaled position +-5)"))
-        front_tol = hw.GPU12V_FRONT_TOL if rt.name == "gpu12v" else 0.0       # the owner's tolerance, for this cable only
-        if rt.ymin < hw.ENVELOPE_Y0 - front_tol - 1e-6:
-            text = f"envelope: {hw.ENVELOPE_Y0 - rt.ymin:.1f} mm in front of Y {hw.ENVELOPE_Y0:g} (surface at Y {rt.ymin:.1f})" + (f", accepted up to {front_tol:g}" if front_tol else "")
-            rt.fail.append(("route", text))
-        if rt.xmax > hw.ENVELOPE_X + 1e-6:
-            text = f"envelope: {rt.xmax - hw.ENVELOPE_X:.1f} mm outside |X| {hw.ENVELOPE_X:g} (surface at |X| {rt.xmax:.1f})"
-            rt.fail.append(("route", text))
-    overlaps, names = [], list(routes)
-    for i, a in enumerate(names):
-        for b in names[i + 1:]:
             ra, rb_ = frame_v0.bbox_of(routes[a].solid), frame_v0.bbox_of(routes[b].solid)
             d = 1e9 if frame_v0.bbox_gap(ra, rb_) > 30.0 else frame_v0.solid_distance(routes[a].solid, routes[b].solid)
-            overlaps.append((a, b, d))
-    overlaps.sort(key=lambda t: t[2])
-    return overlaps
+            out.append((a, b, d))
+    out.sort(key=lambda t: t[2])
+    return out
+
+
+def evaluate(routes, parts, hardware):
+    targets, gpu_under = route_targets(parts, hardware)
+    slots = tie_slots(parts)
+    for rt in routes.values():
+        evaluate_route(rt, targets, gpu_under, slots)
+    return route_pair_distances(routes)
 
 
 def failures(routes, overlaps):
@@ -421,7 +445,7 @@ def failures(routes, overlaps):
 # Report
 # ---------------------------------------------------------------------------
 def arcs_of(sec):
-    """[(waypoint index, turn angle deg, radius used, arc midpoint)] of a section's bends (the fillet of hoses.fillet_path, replicated)."""
+    """[(waypoint index, turn angle deg, radius used, arc midpoint, 17 points along the arc)] of a section's bends (the fillet of hoses.fillet_path, replicated)."""
     P, m = sec.wps, len(sec.wps)
     seg = [P[i + 1] - P[i] for i in range(m - 1)]
     sl = [float(np.linalg.norm(d)) for d in seg]
@@ -444,7 +468,12 @@ def arcs_of(sec):
         r = tan[i] / math.tan(th[i] / 2)
         b = un[i] - un[i - 1]
         b = b / np.linalg.norm(b)
-        out.append((i, math.degrees(th[i]), r, P[i] + b * r * (1 / math.cos(th[i] / 2) - 1)))
+        start, d1 = P[i] - un[i - 1] * tan[i], un[i - 1]
+        m1 = un[i] - (d1 @ un[i]) * d1
+        m1 /= np.linalg.norm(m1)
+        centre = start + r * m1
+        arc = np.array([centre + r * (-m1 * math.cos(phi) + d1 * math.sin(phi)) for phi in np.linspace(0, th[i], 17)])
+        out.append((i, math.degrees(th[i]), r, P[i] + b * r * (1 / math.cos(th[i] / 2) - 1), arc))
     return out
 
 
@@ -498,7 +527,7 @@ def skeleton_section(routes):
     for n, rt in routes.items():
         pts = []
         for sec in rt.secs:
-            for _i, ang, r, mid in arcs_of(sec):
+            for _i, ang, r, mid, _arc in arcs_of(sec):
                 if hoses.world_to_bs(mid)[2] < -2.0 and ang > 15.0:
                     pts.append((ang, r, mid))
         if pts:
@@ -516,44 +545,82 @@ def skeleton_section(routes):
     return out
 
 
-TIE_REACH = 60.0           # a tie point holds a cable within this distance of its strap slot (the owner's number in the plan)
+TIE_REACH = 30.0           # spec (docs/plans/cables-and-organic.md, "Tie points, second pass"): a tie point holds a cable within this distance of its strap slot's middle
+TIE_STRETCH = 150.0        # spec: no stretch of a cable below the board longer than this is without a tie point within TIE_REACH
+TIE_BEND_DEG = 30.0        # spec: a bend of at least this angle below the board needs a tie point within TIE_REACH of some point of its arc
+UNDER_N = -2.0             # below the board: n under this
 TIE_ROUTES = ("atx24", "gpu12v", "eps1", "eps2", "usb3", "usbc")      # every PSU cable and the two front USB cables
 
 
-def tie_stats(rt, slots):
-    """(distance from the route's centre line to the nearest strap slot and which bridge, longest stretch of the whole route with no slot within TIE_REACH,
-    the same for the part of the route that lies below the board (n < -2, where the skeleton's tie points are), length of that part)."""
-    pts = rt.pts
-    seg = np.linalg.norm(np.diff(pts, axis=0), axis=1)
-    cum = np.concatenate([[0.0], np.cumsum(seg)])
-    d = np.array([[float(np.linalg.norm(p - c)) for c in slots.values()] for p in pts])
-    nearest = d.min(axis=1)
-    names = list(slots)
-    i = int(np.argmin(nearest))
-    below = np.array([hoses.world_to_bs(p)[2] < -2.0 for p in pts])
+def tie_slots(parts):
+    """{bridge name: middle of its strap slot (world)} for every tie point whose bridge is among `parts`."""
+    have = {p.name for p in parts}
+    return {frame_v0.tie_name(tp): np.array(frame_v0.tie_slot_centre(tp)) for tp in frame_v0.TIE_POINTS if frame_v0.tie_name(tp) in have}
 
-    def longest(mask):
-        start = None
-        run = 0.0
-        for k in range(len(pts)):
-            if mask[k] and nearest[k] > TIE_REACH:
-                start = cum[k] if start is None else start
-                run = max(run, cum[k] - start)
-            else:
-                start = None
-        return run
-    return float(nearest[i]), names[int(np.argmin(d[i]))], longest(np.ones(len(pts), bool)), longest(below), float(cum[below][-1] - cum[below][0]) if below.any() else 0.0
+
+def tie_eval(rt, slots):
+    """The two numbers of the spec for one route, below the board (n < UNDER_N), with the cable's two plugs (the route's two ends) as fixed points like a slot.
+    Returns dict(nearest, which: the smallest distance from the route to any slot and which one; bends: [(angle, R, arc midpoint, smallest distance from the arc to a fixed point, which)]
+    for every bend of TIE_BEND_DEG or more whose midpoint is below the board; stretches: [(length, first point, last point)] of the runs below the board with no fixed point
+    within TIE_REACH, longest first; below: the length of the route below the board)."""
+    pts = rt.pts
+    cum = np.concatenate([[0.0], np.cumsum(np.linalg.norm(np.diff(pts, axis=0), axis=1))])
+    names = list(slots)
+    fixed = {**slots, "plug at the start": pts[0], "plug at the end": pts[-1]}
+    fnames, fpos = list(fixed), np.array(list(fixed.values()))
+    d_slot = np.array([[float(np.linalg.norm(p - c)) for c in slots.values()] for p in pts]) if slots else np.full((len(pts), 1), np.inf)
+    i = int(np.argmin(d_slot.min(axis=1)))
+    nearest, which = float(d_slot[i].min()), (names[int(np.argmin(d_slot[i]))] if names else "-")
+    below = np.array([hoses.world_to_bs(p)[2] < UNDER_N for p in pts])
+    covered = np.array([float(np.min(np.linalg.norm(fpos - p, axis=1))) <= TIE_REACH for p in pts])
+    stretches, a = [], None
+    for k in range(len(pts) + 1):
+        bad = k < len(pts) and below[k] and not covered[k]
+        if bad and a is None:
+            a = k
+        if not bad and a is not None:
+            stretches.append((float(cum[k - 1] - cum[a]), pts[a], pts[k - 1]))
+            a = None
+    stretches.sort(key=lambda s: -s[0])
+    bends = []
+    for sec in rt.secs:
+        for _i, ang, r, mid, arc in arcs_of(sec):
+            if ang < TIE_BEND_DEG - 1e-9 or hoses.world_to_bs(mid)[2] >= UNDER_N:
+                continue
+            d = np.linalg.norm(arc[:, None, :] - fpos[None, :, :], axis=2)
+            j = int(np.argmin(d.min(axis=0)))
+            bends.append((ang, r, mid, float(d[:, j].min()), fnames[j]))
+    return dict(nearest=nearest, which=which, bends=bends, stretches=stretches, below=float(cum[below][-1] - cum[below][0]) if below.any() else 0.0)
+
+
+def tie_failures(rt):
+    out = []
+    for ang, r, mid, d, which in rt.tie["bends"]:
+        if d > TIE_REACH + 1e-9:
+            out.append(("tie", f"bend of {ang:.0f} deg (R {r:.0f}) at {fmt(mid)} has no tie point within {TIE_REACH:g} mm of its arc (nearest fixed point {which}, {d:.1f} mm)"))
+    for length, p0, p1 in rt.tie["stretches"]:
+        if length > TIE_STRETCH + 1e-9:
+            out.append(("tie", f"{length:.0f} mm of its length below the board have no tie point within {TIE_REACH:g} mm (limit {TIE_STRETCH:g}), from {fmt(p0)} to {fmt(p1)}"))
+    return out
 
 
 def tie_section(routes):
-    slots = {frame_v0.tie_name(tp): np.array(frame_v0.tie_slot_centre(tp)) for tp in frame_v0.TIE_POINTS}
-    out = ["", f"Cable tie points (frame_v0.TIE_POINTS, {len(slots)} bridges; from the route's centre line to the middle of a bridge's strap slot; no pass or fail)",
-           f"  nearest      = the smallest distance from the route to any tie point",
-           f"  unserved     = the longest stretch of route with no tie point within {TIE_REACH:g} mm, over the whole route and over its part below the board (n < -2) alone",
-           f"  {'cable':16} {'nearest':>10}  {'which':18} {'unserved, whole':>16} {'unserved, below':>16} {'below the board':>16}"]
+    n_slots = routes[TIE_ROUTES[0]].tie_n
+    out = ["", f"Cable tie points (frame_v0.TIE_POINTS, {n_slots} bridges; distances from the route's centre line to the middle of a bridge's strap slot; a PASS or FAIL for the two numbers of the spec)",
+           f"  rule 1: every bend of {TIE_BEND_DEG:g} deg or more below the board (n < {UNDER_N:g}, arc midpoint) has a tie point within {TIE_REACH:g} mm of some point of its arc",
+           f"  rule 2: no stretch of route below the board longer than {TIE_STRETCH:g} mm has no tie point within {TIE_REACH:g} mm",
+           "  the cable's two plugs (the route's ends) count as fixed points, like a tie point",
+           f"  {'cable':16} {'nearest':>10}  {'which':20} {'longest unserved stretch':>25} {'below the board':>16}  bends served / bends"]
     for n in TIE_ROUTES:
-        near, which, whole, under, below_len = tie_stats(routes[n], slots)
-        out.append(f"  {TITLE[n]:16} {near:7.1f} mm  {which:18} {whole:13.0f} mm {under:13.0f} mm {below_len:13.0f} mm")
+        t = routes[n].tie
+        worst = t["stretches"][0][0] if t["stretches"] else 0.0
+        ok = sum(1 for b in t["bends"] if b[3] <= TIE_REACH + 1e-9)
+        out.append(f"  {TITLE[n]:16} {t['nearest']:7.1f} mm  {t['which']:20} {worst:22.0f} mm {t['below']:13.0f} mm  {ok} / {len(t['bends'])}"
+                   + ("   PASS" if not tie_failures(routes[n]) else "   FAIL"))
+    out.append("  every bend of 30 deg or more below the board: distance from its arc to the nearest fixed point (a bridge's slot, or a plug)")
+    for n in TIE_ROUTES:
+        for ang, r, mid, d, which in routes[n].tie["bends"]:
+            out.append(f"    {TITLE[n]:16} {ang:4.0f} deg R {r:4.1f} at {fmt(mid)}: {d:5.1f} mm to {which}" + ("" if d <= TIE_REACH + 1e-9 else "   FAIL"))
     return out
 
 
@@ -579,11 +646,11 @@ def notes():
     return f"""
 Numbers chosen here (all in cables.py, each with its reason there):
   order in the gap, from low u: USB 3 {GAP_U['usb3']:g}, 12V-2x6 slab {GAP_U['gpu12v']:g} (round descent {GPU12V_ARCH_U:g}), ATX slab {GAP_U['atx24']:g}, EPS 1 {GAP_U['eps1']:g}, EPS 2 {GAP_U['eps2']:g}
-  lanes under the board at v {V_IN:g}, levels n: """ + ", ".join(f"{TITLE[k]} {v:g}" for k, v in LANE_N.items()) + f"""; each cable's diagonal takes it to v {V_GAP:g} and it rises through the gap
+  lanes under the board at v {V_IN:g} (EPS 1: v {V_IN_OF['eps1']:g}, X {V_IN_OF['eps1'] + hw.ORIGIN[0]:g}, so that its 36 deg corner is within the reach of a bridge on rib A's mid leg), levels n: """ + ", ".join(f"{TITLE[k]} {v:g}" for k, v in LANE_N.items()) + f"""; each cable's diagonal takes it to v {V_GAP:g} and it rises through the gap
   hooks (ATX, USB 3): up the gap, out over the rail (S-bend) to v {ATX_HOOK['v_up']:g} / {USB3_HOOK['v_up']:g}, up, one U-turn of R 15, down at the header's v
   EPS: up the gap to the run over the board (n {EPS_RUN_N['eps1']:g} / {EPS_RUN_N['eps2']:g}, over the DIMMs' 45 + 3 + r 6), a diagonal to above the header at u {EPS_END_U:g}, down into it
   USB-C: up the gap at v {USBC_RISER['v']:g} / u {USBC_RISER['u']:g}, then in the board's plane (n {USBC_N['plane']:g}) a U-turn over the rail and the plug along -v
-Not built: nylon clips for single cables, any cut in the skeleton beyond the sill's window. The tie points (frame_v0.TIE_POINTS) are built; their distances are in the section above.
+Not built: nylon clips for single cables, any cut in the skeleton beyond the sill's window. The tie points (frame_v0.TIE_POINTS) are built; the two rules for them (TIE_REACH {TIE_REACH:g} mm, stretches of {TIE_STRETCH:g} mm, bends of {TIE_BEND_DEG:g} deg) are checks in this script, and their numbers are in the section above.
 """
 
 
@@ -593,7 +660,14 @@ Not built: nylon clips for single cables, any cut in the skeleton beyond the sil
 CLOSE_VIEWS = {   # name -> (focal point (world), camera direction, distance, view angle): the right edge, where the cables pass the gap; the parts are drawn fainter
     "right_edge": ((130.0, 200.0, 170.0), (0.85, -1.15, 0.60), 430.0, 30.0),
     "right_edge_side": ((130.0, 190.0, 150.0), (1.0, 0.0, 0.0), 520.0, 30.0),
+    "under_board": ((100.0, 215.0, 70.0), (-0.30, 0.68, -0.68), 600.0, 30.0),      # tie points: looking up at the board's underside (front of the case at the top of the picture, X to the right), tilted a little to the left so that the bridges on the ribs' inner faces show their sides; the bridges (solid, named) and the six cables they hold
+    "tie_inner": ((120.0, 215.0, 70.0), (-1.0, 0.0, 0.0), 700.0, 30.0),     # tie points: from the left, level, at the right rib's inner face (the board and the left ribs are left out): the bridges on the leg, the post and the skid, and the cables in front of them
 }
+VIEW_UP = {"under_board": tuple(-c for c in hw.U_DIR)}      # the picture's up; default Z
+TIE_RGB = (0.0, 0.40, 0.45)       # the bridges are drawn solid in this colour in every view
+# views in which each bridge carries its name; they draw only the right-hand skeleton (what the bridges stand on), the board and the PSU, so that nothing hides a bridge
+_RIGHT_SKELETON = ("rib_A_right", "rib_B_right", "beam_low", "beam_mid", "beam_top", "skid_front", "skid_rear", "beam_front", "psu_bulkhead")
+LABELLED_VIEWS = {"under_board": dict(parts=_RIGHT_SKELETON, hardware=("board", "psu")), "tie_inner": dict(parts=_RIGHT_SKELETON, hardware=("psu",))}
 
 
 def render_views(parts, hardware, routes, tag="cables"):
@@ -606,10 +680,19 @@ def render_views(parts, hardware, routes, tag="cables"):
         fade = close is not None
         ren = vtk.vtkRenderer()
         ren.SetBackground(1, 1, 1)
+        only = LABELLED_VIEWS.get(view)
         for p in parts:
+            if p.name.startswith("tie_bridge"):
+                for a in render_vtk._actors(p.solid, TIE_RGB, opacity=1.0, edge_opacity=0.9):
+                    ren.AddActor(a)
+                continue
+            if only and p.name not in only["parts"]:
+                continue
             for a in render_vtk._actors(p.solid, (0.86, 0.86, 0.86), opacity=0.14 if fade else 0.55, edge_opacity=0.3 if fade else 0.35):
                 ren.AddActor(a)
         for name, solid in hardware.items():
+            if only and name not in only["hardware"]:
+                continue
             keep = name in hw.KEEP_OUT
             op = 0.25 if name in hw.HOSES else (0.10 if keep else 0.25)
             for a in render_vtk._actors(solid, render_vtk.HW_RGB[name], opacity=op * (0.4 if fade else 1.0), edges=not keep, edge_opacity=0.15):
@@ -640,9 +723,26 @@ def render_views(parts, hardware, routes, tag="cables"):
             u /= np.linalg.norm(u)
             cam.SetFocalPoint(*close)
             cam.SetPosition(*(np.array(close) + u * dist))
-            cam.SetViewUp(0, 0, 1)
+            cam.SetViewUp(*VIEW_UP.get(view, (0, 0, 1)))
             cam.SetViewAngle(ang)
             ren.ResetCameraClippingRange()
+        if view in LABELLED_VIEWS:        # each bridge's name, drawn flat on top of the picture at the place where its slot is seen
+            win.Render()
+            for p in parts:
+                if p.name.startswith("tie_bridge"):
+                    tp = next(t for t in frame_v0.TIE_POINTS if frame_v0.tie_name(t) == p.name)
+                    ren.SetWorldPoint(*frame_v0.tie_slot_centre(tp), 1.0)
+                    ren.WorldToDisplay()
+                    x, y, _z = ren.GetDisplayPoint()
+                    lab = vtk.vtkTextActor()
+                    lab.SetInput(p.name.replace("tie_bridge_", ""))
+                    lab.SetPosition(x + 6, y + 6)
+                    lab.GetTextProperty().SetFontSize(26)
+                    lab.GetTextProperty().SetBold(True)
+                    lab.GetTextProperty().SetColor(0.0, 0.0, 0.0)
+                    lab.GetTextProperty().SetBackgroundColor(1.0, 1.0, 1.0)
+                    lab.GetTextProperty().SetBackgroundOpacity(0.7)
+                    ren.AddViewProp(lab)
         win.Render()
         grab = vtk.vtkWindowToImageFilter()
         grab.SetInput(win)

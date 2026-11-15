@@ -734,6 +734,8 @@ def build_rib_b(side=1):
     for (y, z) in NECK_BOLTS:     # neck pad, along X into the post's outer face
         holes.append(pilot((X_OUT, y, z), (-1, 0, 0), "M4"))
     holes += organic_pilots(name, mirrored=side < 0)      # the organic layer's pads, on the outer face
+    if side > 0:                  # right rib only, like the rail's: the cable tie points on the inner face (the PSU's cables run on the right)
+        holes += tie_pilots("rib_B_right")
     cuts = lap_cut_boxes("B", side > 0)
     # revision 8a: the ends of the cradle surface are rounded like any other outside corner (the pad is not a listed contact)
     s = rounded_like(s, (1, 0, 0), name, sides=(1,) if side > 0 else (-1,), own=(name,),
@@ -827,25 +829,42 @@ TIE_W = 13.0                  # across the foot, which is how far the strap runs
 TIE_ARCH_END = TIE_ARCH_START + 2 * TIE_POST + TIE_SLOT_W
 TIE_H = TIE_FOOT_T + TIE_SLOT_H + TIE_BAR_T
 TIE_FACE_N = {"beam_low": BEAM_N0, "beam_mid": BEAM_N0, "beam_top": BEAM_N0, "rib_A_right": -34.0}      # n of the underside a bridge stands on; the rail's is the diagonal's axis n -20 less half its 28 width
-TIE_NORMAL = tuple(-c for c in hw.N_DIR)                                                              # every tie point is on an underside: the bridge goes out along -n
+TIE_UNDER = tuple(-c for c in hw.N_DIR)                                                               # on an underside the bridge goes out along -n
 _TIE_LOCAL: dict = {}
 
 
+def tie_point(row, k, host, pt, normal, direction, face):
+    """One tie point: `pt` is the world point of the hole's axis on the host's face, `normal` the unit vector out of that face (the bridge stands out along it, the pilot goes in
+    along its opposite), `direction` the unit vector in the face from the hole to the arch (the foot's long side), `face` says which face in words."""
+    assert abs(sum(a * b for a, b in zip(normal, direction))) < 1e-9, "a bridge's direction lies in its face"
+    return dict(row=row, k=k, host=host, pt=tuple(float(c) for c in pt), normal=tuple(normal), dir=tuple(direction), face=face)
+
+
 def _tie_points():
-    """The tie points: dict(row, k, host, X, u, dir). X (world) and u (board) place the hole's axis on the host's underside; dir is the direction from the hole to the arch.
-    Rows (the plan's four): under beam_mid, under the right rib's rail, under beam_low, under beam_top. A bridge is 28 long, so the plan's pitch of 25 does not fit; the
-    places below are the ones that keep 3 mm from every cable and 2 mm from everything else (found by distance queries on the built solids, the reasons are in the report)."""
+    """The tie points, in the order of their rows. Each has the world point of the hole's axis on its host's face, the face's outward normal and the direction to the arch.
+    First pass (undersides: X, and u or the beam's middle): rows mid, rail (the right rib's rail), low, top. Second pass (docs/plans/cables-and-organic.md, "Tie points, second pass"):
+    a tie point stays only if a cable (one of the six in cables.TIE_ROUTES) comes within cables.TIE_REACH of its strap slot, and new ones stand where a bend of 30 deg or
+    more or a stretch of 150 mm needs one: rows leg (the inner face X 142 of rib A's mid leg), post (the inner face of rib B's post) and skid (the top of skid_front,
+    a bridge that stands on the face and overhangs its front edge). The places were found by distance queries against the built solids and the routes (cables.py reports
+    what each one serves); k is the first pass's number where the bridge is the same one, so the names stay."""
     centre = {b: BEAM_ROW[b] + sum(BEAM_SPAN[b]) / 2 for b in BEAM_ROW}         # u of the middle of each beam's flat underside (beam_top's section is not centred on its row)
     plus_x, minus_x, plus_u, minus_u = (1.0, 0.0, 0.0), (-1.0, 0.0, 0.0), tuple(hw.U_DIR), tuple(-c for c in hw.U_DIR)
-    rows = [("mid", "beam_mid", centre["beam_mid"], [(20.0, plus_x), (52.0, plus_x), (84.0, plus_x)]),
-            ("rail", "rib_A_right", None, [(149.0, minus_u, 72.0), (149.0, minus_u, 103.0), (149.0, plus_u, 185.0), (149.0, plus_u, 216.0)]),
-            ("low", "beam_low", centre["beam_low"], [(60.0, minus_x), (90.0, plus_x)]),
-            ("top", "beam_top", centre["beam_top"], [(77.0, plus_x), (109.0, plus_x)])]
+    rows = [("mid", "beam_mid", centre["beam_mid"], [(3, 84.0, plus_x)]),      # first pass's X 20 and 52 are gone: no cable within 30 mm of them
+            ("rail", "rib_A_right", None, [(2, 149.0, minus_u, 103.0), (3, 149.0, plus_u, 185.0), (4, 149.0, plus_u, 216.0)]),   # first pass's u 72 is gone: the nearest cable is 33 mm away
+            ("low", "beam_low", centre["beam_low"], [(1, 60.0, minus_x), (2, 102.0, minus_x)]),     # low_2 moved from X 90 (arch towards +X) to X 102 (towards -X): USB-C's dive is then 21 mm away, not 31
+            ("top", "beam_top", centre["beam_top"], [(2, 109.0, plus_x)])]        # first pass's X 77 is gone: the nearest cable is 45 mm away
     out = []
     for name, host, u, pts in rows:
-        for k, pt in enumerate(pts, 1):
-            x, d = pt[0], pt[1]
-            out.append(dict(row=name, k=k, host=host, X=x, u=pt[2] if u is None else u, dir=d))
+        for pt in pts:
+            k, x, d = pt[0], pt[1], pt[2]
+            out.append(tie_point(name, k, host, hw.bp(hw.x_to_v(x), pt[3] if u is None else u, TIE_FACE_N[host]), TIE_UNDER, d,
+                                 "underside of the rail" if host == "rib_A_right" else "underside of the beam"))
+    up = (0.0, 0.0, 1.0)
+    inner = (-1.0, 0.0, 0.0)             # the inner faces of the right ribs, X 142, look towards -X
+    out += [tie_point("leg", 1, "rib_A_right", (X_IN, 196.0, 36.0), inner, up, "inner face, mid leg"),        # ATX's 45 deg corner and EPS 1's 36 deg corner
+            tie_point("leg", 2, "rib_A_right", (X_IN, 194.0, 72.0), inner, up, "inner face, mid leg"),        # USB 3's 90 deg corner at the foot of the gap
+            tie_point("post", 1, "rib_B_right", (X_IN, 336.0, 104.0), inner, (0.0, -1.0, 0.0), "inner face, post"),      # the 90 deg corners of EPS 1 and EPS 2 at the foot of the gap
+            tie_point("skid", 1, "skid_front", (102.0, 195.0, 0.0), (0.0, 0.0, 1.0), (0.0, -1.0, 0.0), "top face")]   # EPS 2 round the PSU's front corner: the foot overhangs the front edge (Y 185)
     return out
 
 
@@ -857,16 +876,15 @@ def tie_name(tp):
 
 
 def tie_face_point(tp):
-    """World point of the tie point's axis on the host's underside."""
-    return hw.bp(hw.x_to_v(tp["X"]), tp["u"], TIE_FACE_N[tp["host"]])
+    """World point of the tie point's axis on the host's face."""
+    return tp["pt"]
 
 
 def tie_slot_centre(tp):
     """World point in the middle of a bridge's strap slot: where a strap or tie holds a cable, which cables.py measures its tie distances to."""
-    pt = tie_face_point(tp)
     x = TIE_ARCH_START + TIE_POST + TIE_SLOT_W / 2
     z = TIE_FOOT_T + TIE_SLOT_H / 2
-    return tuple(p + x * a + z * n for p, a, n in zip(pt, tp["dir"], TIE_NORMAL))
+    return tuple(p + x * a + z * n for p, a, n in zip(tp["pt"], tp["dir"], tp["normal"]))
 
 
 def tie_bridge_local():
@@ -883,18 +901,18 @@ def tie_bridge_local():
 
 def build_tie_bridge(tp):
     """tie_bridge placed at tie point `tp`: (solid with the hole, [Hole], blank)."""
-    pt = tie_face_point(tp)
-    plane = cq.Plane(origin=Vector(*pt), xDir=Vector(*tp["dir"]), normal=Vector(*TIE_NORMAL))
+    pt, normal = tie_face_point(tp), tp["normal"]
+    plane = cq.Plane(origin=Vector(*pt), xDir=Vector(*tp["dir"]), normal=Vector(*normal))
     blank = tie_bridge_local().moved(cq.Location(plane))
-    start = tuple(p + (TIE_FOOT_T + OVERSHOOT) * c for p, c in zip(pt, TIE_NORMAL))
-    hole = clear_hole("M3c", start, tuple(-c for c in TIE_NORMAL), TIE_FOOT_T + 2 * OVERSHOOT)
+    start = tuple(p + (TIE_FOOT_T + OVERSHOOT) * c for p, c in zip(pt, normal))
+    hole = clear_hole("M3c", start, tuple(-c for c in normal), TIE_FOOT_T + 2 * OVERSHOOT)
     return drill(blank, [hole])
 
 
 def tie_pilot_wall(host, tp):
     """The wall left round the tie point's pilot in part `host`: the thickest ring round the bore that is all material (to the surface or to the next hole), up to 8 mm."""
     pt = tie_face_point(tp)
-    h = next(h for h in host.holes if h.pilot and h.kind == "M3" and math.dist(h.point(OVERSHOOT), pt) < 0.01 and abs(h.d[1] - hw.N_DIR[1]) < 1e-6)
+    h = next(h for h in host.holes if h.pilot and h.kind == "M3" and math.dist(h.point(OVERSHOOT), pt) < 0.01 and max(abs(a + b) for a, b in zip(h.d, tp["normal"])) < 1e-6)
     spans = material_spans(host.blank, h)
     lo, hi = 0.0, 8.0
     for _ in range(9):
@@ -908,7 +926,7 @@ def tie_pilot_wall(host, tp):
 
 def tie_pilots(host):
     """The M3 insert pilots of the tie points on `host`, along n into the part from its underside."""
-    return [pilot(tie_face_point(tp), tuple(-c for c in TIE_NORMAL), "M3") for tp in TIE_POINTS if tp["host"] == host]
+    return [pilot(tie_face_point(tp), tuple(-c for c in tp["normal"]), "M3") for tp in TIE_POINTS if tp["host"] == host]
 
 
 def sill_holes():
@@ -992,7 +1010,7 @@ def build_beam(name):
 
 
 def build_skid(name, y0, y1):
-    holes = end_pilot_holes(name)
+    holes = end_pilot_holes(name) + tie_pilots(name)      # the cable tie points on the skid's top face (only skid_front has any)
     lo, hi = (-X_IN, y0, -10.0), (X_IN, y1, 0.0)
     s = hw.wbox(lo[0], hi[0], lo[1], hi[1], lo[2], hi[2])
     top = "the top face carries the PSU: rounding its edges would take contact area"
@@ -1422,7 +1440,7 @@ def _build_frame():
 
     for tp in TIE_POINTS:
         add(tie_name(tp), build_tie_bridge(tp),
-            f"cable tie bridge {tp['row']} {tp['k']}: foot on {tp['host']}'s underside at X {tp['X']:g}, u {tp['u']:.1f}, 1 x M3 into its insert, a 12.5 x 3.5 slot for a strap or a tie", material="PA6")
+            f"cable tie bridge {tp['row']} {tp['k']}: foot on {tp['host']}'s {tp['face']} at world ({tp['pt'][0]:.1f}, {tp['pt'][1]:.1f}, {tp['pt'][2]:.1f}), 1 x M3 into its insert, a 12.5 x 3.5 slot for a strap or a tie", material="PA6")
 
     # --- fastener registry: what the plan lists per hardware item. The counts below are written down by
     # hand; run_checks derives the real ones from the solids (derive_mounts) and fails if they differ.
@@ -1461,8 +1479,8 @@ def _build_frame():
     fastener("gpu_post", "gpu_post -> beam_mid", "M4 insert", 2, "along n")
     fastener("front_sill", "front_sill -> beam_front", "M4 insert", len(SILL_BOLTS),
              "2 per end block along Z: clearance through beam_front from below, pilot in the sill's bottom face; heads under the beam")
-    fastener("tie_pilot", "beam_low/beam_mid/beam_top, rib_A_right", "M3 insert", len(TIE_POINTS),
-             "the cable tie points (TIE_POINTS): one pilot each along n into the part's underside; rows: " + ", ".join(
+    fastener("tie_pilot", "/".join(dict.fromkeys(t["host"] for t in TIE_POINTS)), "M3 insert", len(TIE_POINTS),
+             "the cable tie points (TIE_POINTS): one pilot each, into the part's face along the face's inward normal (along n into an underside, along X into a rib's inner face, along Z into the skid's top); rows: " + ", ".join(
                  f"{r} {sum(1 for t in TIE_POINTS if t['row'] == r)}" for r in dict.fromkeys(t["row"] for t in TIE_POINTS)))
     fastener("tie_bridge", "tie_bridge_* -> the tie points", "M3 screw", len(TIE_POINTS),
              "one M3 x 10 through the bridge's foot (4 mm clearance hole) into the insert; the bridge is PA6, the same part at every point")
@@ -1789,8 +1807,8 @@ def mount_points():
         out.append(("organic", holder, (x - sgn * ORGANIC_PROBE_DEPTH, y, z), hw.M3_PILOT_D / 2, None))
     for tp in TIE_POINTS:      # the cable tie points: an empty M3 pilot bore in the host (axis point 3 mm in from the underside) and an empty clearance bore in the bridge's foot, on the same axis
         pt = tie_face_point(tp)
-        out.append(("tie_pilot", tp["host"], tuple(c + ORGANIC_PROBE_DEPTH * k for c, k in zip(pt, hw.N_DIR)), hw.M3_PILOT_D / 2, None))
-        out.append(("tie_bridge", tie_name(tp), tuple(c + TIE_FOOT_T / 2 * k for c, k in zip(pt, TIE_NORMAL)), hw.M3_CLEAR_D / 2, None))
+        out.append(("tie_pilot", tp["host"], tuple(c - ORGANIC_PROBE_DEPTH * k for c, k in zip(pt, tp["normal"])), hw.M3_PILOT_D / 2, None))
+        out.append(("tie_bridge", tie_name(tp), tuple(c + TIE_FOOT_T / 2 * k for c, k in zip(pt, tp["normal"])), hw.M3_CLEAR_D / 2, None))
     for fan, holder in FAN_HOLDER.items():
         x = hw.FAN_SIDE_INNER_X[fan] + hw.FAN_SIDE_IN[fan] * FAN_PROBE_DEPTH
         x_out = hw.FAN_SIDE_X[fan][0 if hw.FAN_SIDE_IN[fan] > 0 else 1]
@@ -2891,11 +2909,11 @@ def format_report(hardware, parts, res, memo=None):
           f"(это зазоры кармана и канала по плану, не контакты); beam_front x front_io 0.00 мм: низ модуля стоит на верхней грани балки (контакт по плану: Z 10 у обоих).")
         w("")
     if TIE_POINTS:
-        w(f"Кабельные точки крепления (проход 2 скелета, docs/plans/cables-and-organic.md, «Cable fixing»): {len(TIE_POINTS)} штифтов M3 в нижних гранях beam_low, beam_mid, beam_top и правого рельса (rib_A_right), "
+        w(f"Кабельные точки крепления (проход 2 скелета, docs/plans/cables-and-organic.md, «Cable fixing»): {len(TIE_POINTS)} штифтов M3: в нижних гранях beam_low, beam_mid, beam_top и правого рельса (rib_A_right), во внутренних гранях правых рёбер (средняя нога rib_A_right, пост rib_B_right) и в верхней грани skid_front, "
           f"на каждом мостик tie_bridge (PA6, одна форма). Мостик {TIE_ARCH_END + TIE_HOLE_END:g} x {TIE_W:g} x {TIE_H:g} мм: лапа {TIE_FOOT_T:g} мм с проходным отверстием M3 Ø{hw.M3_CLEAR_D:g} "
           f"и арка рядом, в арке щель {TIE_SLOT_W:g} x {TIE_SLOT_H:g} мм под липучку 12 мм или стяжку (вдоль стороны {TIE_W:g} мм). Печать лапой вниз: потолок щели - мостик {TIE_SLOT_W:g} мм на высоте {TIE_FOOT_T:g} мм, "
           f"других нависаний нет. Винт M3 x 10 с головкой на лапе. Мостик держит {TIE_CLEAR:g} мм от всех деталей, кроме своей, и от железа; 3 мм до кабелей проверяет cables.py.")
-        w(f"  {'мостик':18} {'деталь':12} {'X':>5} {'u':>6}   {'мир (X, Y, Z) оси отверстия на грани':38} {'стенка штифта':>14} {'ближайшая другая деталь':>34}")
+        w(f"  {'мостик':18} {'деталь':12} {'грань':22} {'мир (X, Y, Z) оси отверстия на грани':38} {'стенка штифта':>14} {'ближайшая другая деталь':>34}")
         byname_ = {q.name: q for q in parts}
         near = {r[0]: (r[2], r[3]) for r in res.get("tie", [])}
         for tp in TIE_POINTS:
@@ -2903,7 +2921,7 @@ def format_report(hardware, parts, res, memo=None):
             nm = tie_name(tp)
             wall = tie_pilot_wall(byname_[tp["host"]], tp)
             who, d = near.get(nm, ("-", float("nan")))
-            w(f"  {nm:18} {tp['host']:12} {tp['X']:5.0f} {tp['u']:6.1f}   ({pt[0]:7.1f}, {pt[1]:7.1f}, {pt[2]:7.1f}){'':8} {('>= 8' if wall > 7.9 else format(wall, '.2f')):>11} мм {who + ' ' + format(d, '.1f') + ' мм':>34}")
+            w(f"  {nm:18} {tp['host']:12} {tp['face']:22} ({pt[0]:7.1f}, {pt[1]:7.1f}, {pt[2]:7.1f}){'':8} {('>= 8' if wall > 7.9 else format(wall, '.2f')):>11} мм {(who + ' ' + format(d, '.1f') + ' мм') if who else 'ничего ближе ' + format(TIE_CLEAR + 4.0, 'g') + ' мм':>34}")
         w("")
     w("Положение болтов (Y, Z):")
     for label, ok, _ in BOLT_CHECKS:
@@ -3234,7 +3252,7 @@ DEVIATIONS: list[str] = [
     "pad_fits не считает свой пилот и считает любое другое отверстие.",
     # --- проход 2: кабельные точки крепления
     "Проход 2 скелета, кабельные точки (план: docs/plans/cables-and-organic.md, «Cable fixing»): 11 штифтов M3 и 11 мостиков tie_bridge (PA6, одна форма 28 x 13 x 9 мм, лапа 3 мм, щель 12.5 x 3.5 мм) вместо "
-    "13 по плану (4 + 5 + 2 + 2). Ряды: mid 3 (beam_mid), rail 4 (рельс rib_A_right), low 2 (beam_low), top 2 (beam_top). Места найдены запросами расстояний на построенных телах: 3 мм до кабелей (cables.py), "
+    "13 по плану (4 + 5 + 2 + 2). Ряды первого прохода (второй заход ниже убрал четыре точки и добавил четыре): mid 3 (beam_mid), rail 4 (рельс rib_A_right), low 2 (beam_low), top 2 (beam_top). Места найдены запросами расстояний на построенных телах: 3 мм до кабелей (cables.py), "
     "2 мм до остального (проверка 3b), стенка штифта по проверке 7, скругление ребра не тронуто (прибавка объёма от скруглений rib_A_right та же, +1.75 см³).",
     "Проход 2, почему не 13: мостик длиннее шага плана. Шаг плана 25 мм (X 60, 85, 110, 135), мостик 28 мм вдоль X, так что в ряду под beam_mid вмещается три мостика с зазором 4 мм, а не четыре; "
     "и X 110 и 135 заняты линией USB 3 (X 116..128, n -41, верх кабеля на n -37, низ мостика на n -37.5): мостик там ближе к кабелю 3 мм не держит, поэтому ряд сдвинут влево, X 20, 52, 84. "
@@ -3249,6 +3267,16 @@ DEVIATIONS: list[str] = [
     "Проверка 5 считает два набора из тел: пилоты M3 в деталях и проходные отверстия в мостиках (по 11). test_checks.py: список деталей из PA6 теперь шланговые направляющие и мостики.",
     "Проход 2, новые числа в cables.py: от трассы до ближайшей точки крепления и самый длинный участок без точки в 60 мм, по всей трассе и под платой. Расстояние считается до середины щели мостика. "
     "Проходов и отказов по ним нет, показаны для того, чтобы видно было, где ряды не там: линии EPS 1 и EPS 2 лежат на n -106 и -147.5, то есть на 80 и 120 мм ниже балок, и мостик высотой 9 мм до них не достаёт.",
+    "Проход 2, второй заход, кабельные точки (16.11.2026, docs/plans/cables-and-organic.md, «Tie points, second pass: spec»): два числа плана стали проверкой в cables.py (TIE_REACH 30 мм до середины щели, участок без точки не длиннее 150 мм, "
+    "изгиб от 30° под платой; две вилки кабеля считаются закреплёнными точками). Убраны точки, у которых нет кабеля ближе 30 мм: mid X 20 (80.6 мм до ближайшего кабеля), mid X 52 (48.5), rail u 72 (32.6), top X 77 (45.4). "
+    "low_2 перенесён с X 90 (арка к +X) на X 102 (арка к -X): излом USB-C под передним краем платы был в 30.8 мм, стал 19.3. Добавлены leg_1 (Y 196, Z 36) и leg_2 (Y 194, Z 72) на внутренней грани X 142 средней ноги rib_A_right (арка вверх; мостик стоит вдоль -X), "
+    "post_1 (Y 336, Z 104) на внутренней грани поста rib_B_right (арка к -Y) и skid_1 (X 102, Y 195) на верхней грани skid_front (арка к -Y). Итого 11 точек. Пилоты левых рёбер не дублируются: tie_pilots ставит их только в rib_A_right "
+    "(внутри if with_rest, как пилоты рельса) и rib_B_right (side > 0); левые рёбра строятся правыми и зеркалятся, зеркалить пилоты специально не нужно (test_checks проверяет, что в левых рёбрах на зеркальных местах отверстий нет).",
+    "Проход 2, второй заход, skid_1: лапа мостика стоит на верхней грани skid_front и выступает за её передний край (Y 185) на 12.5 мм, опираясь примерно на 55 % площади (мостик 28 мм, ось отверстия на 10 мм за краем, стенка штифта >= 8 мм). Это единственное место в 30 мм "
+    "от излома EPS 2 у переднего правого угла БП (излом на 76°, мир (78, 149, 3)): стоя вдоль ±X на той же грани мостик в 34.7 мм от дуги, передняя грань skid_front (10 мм) мостик 13 мм не принимает, а переднюю дугу кабель на 4 мм от БП не сдвинуть "
+    "(путевые точки EPS 2 сдвигались: WAY на 10-14 мм вперёд даёт 22-26 мм до мостика, но тогда кабель в 2.7-2.9 мм от БП или пересекает ATX; сетка из 9 x 8 x 4 положений WAY дала два допустимых, оба с 31.5 мм). Консоль: от винта до середины щели 13.75 мм, нагрузка кабеля мала, но печатью это не проверено.",
+    "Проход 2, второй заход, путевые точки: сдвинута одна, начало дорожки EPS 1 под платой с X 113 на X 122 (cables.V_IN_OF; остальные кабели остаются на X 113). Излом EPS 1 в 36° у начала дорожки был в 32.5 мм от лучшей точки на ноге rib_A_right, "
+    "стал в 28.9 мм (угол 38°). Длина трассы 649 -> 652 мм при заводской 700 (запас 51 -> 48 мм), зазор до rib_A_right 4.5 -> 4.5 мм, остальные проверки кабелей зелёные, 12V-2x6 к допуску впереди не тронут.",
 ]
 OPEN_ITEMS: list[str] = [
     "ПРАВЫЙ боковой вентилятор: три винта из четырёх (A, C с внутренней грани в штифты M4S, D с внешней через лапку Ø4.5; ревизия 7a), угол B без винта: на внутренней грани "

@@ -3,11 +3,11 @@ B6 «Шатёр»: структурный каркас v0
 Оси: X вправо (вид спереди), Y вглубь (перед = 0), Z вверх. Стол Z = -15.
 
 Детали (AABB мм, материал, объём, масса: ABS 1.04 и PA6 1.14 г/см³; 100 % и 4 стенки/20 % заполнения, формула v1)
-  rib_A_right        ABS X   142.0..  158.0  Y     0.0..  286.1  Z   -15.0..  227.8  |   223.4 см³   232.4 г /  116.1 г
+  rib_A_right        ABS X   142.0..  158.0  Y     0.0..  286.1  Z   -15.0..  227.8  |   223.3 см³   232.3 г /  116.2 г
       right rib, front + diagonal + mid leg + gpu_rest finger
   rib_A_left         ABS X  -158.0.. -142.0  Y     0.0..  286.1  Z   -15.0..  227.8  |   193.9 см³   201.6 г /   99.5 г
       left rib, front + diagonal + mid leg
-  rib_B_right        ABS X   142.0..  158.0  Y   190.0..  382.0  Z   -15.0..  274.7  |   317.1 см³   329.7 г /  148.8 г
+  rib_B_right        ABS X   142.0..  158.0  Y   190.0..  382.0  Z   -15.0..  274.7  |   317.0 см³   329.7 г /  148.9 г
       right rib, rear post: runner, post, nose, tail post
   rib_B_left         ABS X  -158.0.. -142.0  Y   190.0..  382.0  Z   -15.0..  274.7  |   317.1 см³   329.7 г /  148.8 г
       left rib, rear post
@@ -21,11 +21,11 @@ B6 «Шатёр»: структурный каркас v0
       left side fan bracket: C-plate on the fan's inner face (corners A, B, C), leg to rib_A_left's outer face, 2 x M4
   beam_low           ABS X  -142.0..  142.0  Y    69.6..   98.9  Z    14.5..   43.8  |   112.5 см³   117.0 г /   55.2 г
       ATX tray beam, row u = 16.51, 3 standoff bosses
-  beam_mid           ABS X  -142.0..  142.0  Y   155.0..  190.4  Z    98.9..  134.4  |   171.1 см³   177.9 г /   76.6 г
+  beam_mid           ABS X  -142.0..  142.0  Y   155.0..  190.4  Z    98.9..  134.4  |   171.3 см³   178.1 г /   76.4 г
       ATX tray beam, row u = 140.97, 3 standoff bosses
-  beam_top           ABS X  -142.0..  142.0  Y   267.4..  295.8  Z   211.3..  243.2  |   112.7 см³   117.2 г /   55.3 г
+  beam_top           ABS X  -142.0..  142.0  Y   267.4..  295.8  Z   211.3..  243.2  |   112.7 см³   117.3 г /   55.2 г
       ATX tray beam, row u = 298.45, 3 standoff bosses
-  skid_front         ABS X  -142.0..  142.0  Y   185.0..  205.0  Z   -10.0..    0.0  |    55.3 см³    57.5 г /   34.2 г
+  skid_front         ABS X  -142.0..  142.0  Y   185.0..  205.0  Z   -10.0..    0.0  |    55.2 см³    57.4 г /   34.3 г
       PSU skid, front
   skid_rear          ABS X  -142.0..  142.0  Y   325.0..  345.0  Z   -10.0..    0.0  |    54.8 см³    57.0 г /   34.5 г
       PSU skid, rear
@@ -49,28 +49,28 @@ B6 «Шатёр»: структурный каркас v0
       CPU hose guide: foot on the left neck, two channels open to -X, 1 x M4S
   hose_guide_gpu     PA6 X   158.0..  208.8  Y   181.6..  246.1  Z    87.2..  151.6  |    19.6 см³    22.3 г /   14.9 г
       GPU hose guide: plate on rib_A_right's outer face, two channels open to +X, 1 x M4
-  tie_bridge_mid_1   PA6 X    14.5..   42.5  Y   175.2..  190.8  Z    98.6..  114.1  |     1.9 см³     2.1 г /    2.1 г
-      cable tie bridge mid 1: foot on beam_mid's underside at X 20, u 141.0, 1 x M3 into its insert, a 12.5 x 3.5 slot for a strap or a tie
-  tie_bridge_mid_2   PA6 X    46.5..   74.5  Y   175.2..  190.8  Z    98.6..  114.1  |     1.9 см³     2.1 г /    2.1 г
-      cable tie bridge mid 2: foot on beam_mid's underside at X 52, u 141.0, 1 x M3 into its insert, a 12.5 x 3.5 slot for a strap or a tie
   tie_bridge_mid_3   PA6 X    78.5..  106.5  Y   175.2..  190.8  Z    98.6..  114.1  |     1.9 см³     2.1 г /    2.1 г
-      cable tie bridge mid 3: foot on beam_mid's underside at X 84, u 141.0, 1 x M3 into its insert, a 12.5 x 3.5 slot for a strap or a tie
-  tie_bridge_rail_1  PA6 X   142.5..  155.5  Y   119.0..  141.0  Z    34.6..   60.8  |     1.9 см³     2.1 г /    2.1 г
-      cable tie bridge rail 1: foot on rib_A_right's underside at X 149, u 72.0, 1 x M3 into its insert, a 12.5 x 3.5 slot for a strap or a tie
+      cable tie bridge mid 3: foot on beam_mid's underside of the beam at world (84.0, 179.8, 109.5), 1 x M3 into its insert, a 12.5 x 3.5 slot for a strap or a tie
   tie_bridge_rail_2  PA6 X   142.5..  155.5  Y   141.0..  162.9  Z    56.5..   82.7  |     1.9 см³     2.1 г /    2.1 г
-      cable tie bridge rail 2: foot on rib_A_right's underside at X 149, u 103.0, 1 x M3 into its insert, a 12.5 x 3.5 slot for a strap or a tie
+      cable tie bridge rail 2: foot on rib_A_right's underside of the rail at world (149.0, 156.9, 78.8), 1 x M3 into its insert, a 12.5 x 3.5 slot for a strap or a tie
   tie_bridge_rail_3  PA6 X   142.5..  155.5  Y   211.0..  237.1  Z   130.8..  152.7  |     1.9 см³     2.1 г /    2.1 г
-      cable tie bridge rail 3: foot on rib_A_right's underside at X 149, u 185.0, 1 x M3 into its insert, a 12.5 x 3.5 slot for a strap or a tie
+      cable tie bridge rail 3: foot on rib_A_right's underside of the rail at world (149.0, 214.9, 136.8), 1 x M3 into its insert, a 12.5 x 3.5 slot for a strap or a tie
   tie_bridge_rail_4  PA6 X   142.5..  155.5  Y   232.9..  259.1  Z   152.7..  174.6  |     1.9 см³     2.1 г /    2.1 г
-      cable tie bridge rail 4: foot on rib_A_right's underside at X 149, u 216.0, 1 x M3 into its insert, a 12.5 x 3.5 slot for a strap or a tie
+      cable tie bridge rail 4: foot on rib_A_right's underside of the rail at world (149.0, 236.8, 158.7), 1 x M3 into its insert, a 12.5 x 3.5 slot for a strap or a tie
   tie_bridge_low_1   PA6 X    37.5..   65.5  Y    87.2..  102.8  Z    10.6..   26.1  |     1.9 см³     2.1 г /    2.1 г
-      cable tie bridge low 1: foot on beam_low's underside at X 60, u 16.5, 1 x M3 into its insert, a 12.5 x 3.5 slot for a strap or a tie
-  tie_bridge_low_2   PA6 X    84.5..  112.5  Y    87.2..  102.8  Z    10.6..   26.1  |     1.9 см³     2.1 г /    2.1 г
-      cable tie bridge low 2: foot on beam_low's underside at X 90, u 16.5, 1 x M3 into its insert, a 12.5 x 3.5 slot for a strap or a tie
-  tie_bridge_top_1   PA6 X    71.5..   99.5  Y   284.1..  299.7  Z   207.4..  223.0  |     1.9 см³     2.1 г /    2.1 г
-      cable tie bridge top 1: foot on beam_top's underside at X 77, u 294.9, 1 x M3 into its insert, a 12.5 x 3.5 slot for a strap or a tie
+      cable tie bridge low 1: foot on beam_low's underside of the beam at world (60.0, 91.8, 21.5), 1 x M3 into its insert, a 12.5 x 3.5 slot for a strap or a tie
+  tie_bridge_low_2   PA6 X    79.5..  107.5  Y    87.2..  102.8  Z    10.6..   26.1  |     1.9 см³     2.1 г /    2.1 г
+      cable tie bridge low 2: foot on beam_low's underside of the beam at world (102.0, 91.8, 21.5), 1 x M3 into its insert, a 12.5 x 3.5 slot for a strap or a tie
   tie_bridge_top_2   PA6 X   103.5..  131.5  Y   284.1..  299.7  Z   207.4..  223.0  |     1.9 см³     2.1 г /    2.1 г
-      cable tie bridge top 2: foot on beam_top's underside at X 109, u 294.9, 1 x M3 into its insert, a 12.5 x 3.5 slot for a strap or a tie
+      cable tie bridge top 2: foot on beam_top's underside of the beam at world (109.0, 288.7, 218.4), 1 x M3 into its insert, a 12.5 x 3.5 slot for a strap or a tie
+  tie_bridge_leg_1   PA6 X   133.0..  142.0  Y   189.5..  202.5  Z    30.5..   58.5  |     1.9 см³     2.1 г /    2.1 г
+      cable tie bridge leg 1: foot on rib_A_right's inner face, mid leg at world (142.0, 196.0, 36.0), 1 x M3 into its insert, a 12.5 x 3.5 slot for a strap or a tie
+  tie_bridge_leg_2   PA6 X   133.0..  142.0  Y   187.5..  200.5  Z    66.5..   94.5  |     1.9 см³     2.1 г /    2.1 г
+      cable tie bridge leg 2: foot on rib_A_right's inner face, mid leg at world (142.0, 194.0, 72.0), 1 x M3 into its insert, a 12.5 x 3.5 slot for a strap or a tie
+  tie_bridge_post_1  PA6 X   133.0..  142.0  Y   313.5..  341.5  Z    97.5..  110.5  |     1.9 см³     2.1 г /    2.1 г
+      cable tie bridge post 1: foot on rib_B_right's inner face, post at world (142.0, 336.0, 104.0), 1 x M3 into its insert, a 12.5 x 3.5 slot for a strap or a tie
+  tie_bridge_skid_1  PA6 X    95.5..  108.5  Y   172.5..  200.5  Z     0.0..    9.0  |     1.9 см³     2.1 г /    2.1 г
+      cable tie bridge skid 1: foot on skid_front's top face at world (102.0, 195.0, 0.0), 1 x M3 into its insert, a 12.5 x 3.5 slot for a strap or a tie
   ИТОГО 34 деталей: 2969 см³   100 % 3094 г   4 стенки/20 % ~ 1528 г
 Масса по материалам (слой PLA оболочки и диффузор света - не в этом файле):
   ABS  21 деталей:  2910.5 см³   100 %  3026.9 г   4 стенки/20 % ~  1475.1 г
@@ -102,7 +102,7 @@ B6 «Шатёр»: структурный каркас v0
   hose_guide_gpu         hose_guide_gpu -> rib_A_right                    M4 insert     x1  1 along X into the right rib's outer face
   gpu_post               gpu_post -> beam_mid                             M4 insert     x2  along n
   front_sill             front_sill -> beam_front                         M4 insert     x4  2 per end block along Z: clearance through beam_front from below, pilot in the sill's bottom face; heads under the beam
-  tie_pilot              beam_low/beam_mid/beam_top, rib_A_right          M3 insert     x11 the cable tie points (TIE_POINTS): one pilot each along n into the part's underside; rows: mid 3, rail 4, low 2, top 2
+  tie_pilot              beam_mid/rib_A_right/beam_low/beam_top/rib_B_right/skid_front M3 insert     x11 the cable tie points (TIE_POINTS): one pilot each, into the part's face along the face's inward normal (along n into an underside, along X into a rib's inner face, along Z into the skid's top); rows: mid 1, rail 3, low 2, top 1, leg 2, post 1, skid 1
   tie_bridge             tie_bridge_* -> the tie points                   M3 screw      x11 one M3 x 10 through the bridge's foot (4 mm clearance hole) into the insert; the bridge is PA6, the same part at every point
   organic                rib_A_L/R, rib_B_L/R, neck_L/R, front_sill       M3 insert     x12 the PLA layer's pads (hw.ORGANIC_PADS): 6 a side, one pilot each along X into the outer face; the screw and the pad are in organic_frame.py
 
@@ -129,10 +129,7 @@ B6 «Шатёр»: структурный каркас v0
   beam_low         x tie_bridge_low_1
   beam_low         x tie_bridge_low_2
   beam_mid         x gpu_post
-  beam_mid         x tie_bridge_mid_1
-  beam_mid         x tie_bridge_mid_2
   beam_mid         x tie_bridge_mid_3
-  beam_top         x tie_bridge_top_1
   beam_top         x tie_bridge_top_2
   neck_left        x hose_guide_cpu
   neck_left        x visor_arm_left
@@ -153,7 +150,8 @@ B6 «Шатёр»: структурный каркас v0
   rib_A_right      x hose_guide_gpu
   rib_A_right      x rib_B_right
   rib_A_right      x skid_front
-  rib_A_right      x tie_bridge_rail_1
+  rib_A_right      x tie_bridge_leg_1
+  rib_A_right      x tie_bridge_leg_2
   rib_A_right      x tie_bridge_rail_2
   rib_A_right      x tie_bridge_rail_3
   rib_A_right      x tie_bridge_rail_4
@@ -167,6 +165,8 @@ B6 «Шатёр»: структурный каркас v0
   rib_B_right      x neck_right
   rib_B_right      x psu_bulkhead
   rib_B_right      x skid_rear
+  rib_B_right      x tie_bridge_post_1
+  skid_front       x tie_bridge_skid_1
 
 Зазоры < 5 мм, деталь x железо (минимум по паре):
   front_sill       x light_strip  0.30 мм
@@ -209,8 +209,8 @@ B6 «Шатёр»: структурный каркас v0
 
 Проверки
   1. железо x железо: 153 пар, пересечений 0                    PASS
-  2. деталь x железо: 84 близких пар, объём < 1 мм³ у каждой   PASS
-  3. деталь x деталь: 64 пар с пересекающимися габаритами, объём < 1 мм³ у каждой; каждый из 11 мостиков кабельных точек касается только своей детали и держит 2 мм от остального   PASS
+  2. деталь x железо: 81 близких пар, объём < 1 мм³ у каждой   PASS
+  3. деталь x деталь: 65 пар с пересекающимися габаритами, объём < 1 мм³ у каждой; каждый из 11 мостиков кабельных точек касается только своей детали и держит 2 мм от остального   PASS
   4. размеры <= 290 мм: максимум 289.7 мм             PASS
   5. держатели и крепёж, считаются по телам (отверстие на оси в держателе): board 9, rad420 6, rad360 4, psu 4, side fans 3 (L) + 3 (R) of 4 corners, gpu post 2 + rest 1, front_io 2 (PLACEHOLDER-винты модуля в front_sill), органическая оболочка 12 пилотов M3 под площадки (hw.ORGANIC_PADS), кабельные точки 11 пилотов M3 в деталях + 11 отверстий в мостиках (TIE_POINTS)   PASS
   6. нижняя точка >= -15: минимум -15.00                      PASS
@@ -235,18 +235,18 @@ B6 «Шатёр»: структурный каркас v0
 
 Скругление (ревизии 8 и 8a)
   Масса до и после скругления (материалы по деталям): объём 2979 -> 2969 см³ (-9.9), 100 % 3104 -> 3094 г (-10.3), 4 стенки/20 % 1545 -> 1528 г (-17.4)
-      rib_A_right           221.7 ->    223.4 см³ (+1.75)
+      rib_A_right           221.6 ->    223.3 см³ (+1.75)
       rib_A_left            192.5 ->    193.9 см³ (+1.41)
-      rib_B_right           316.1 ->    317.1 см³ (+0.92)
+      rib_B_right           316.1 ->    317.0 см³ (+0.92)
       rib_B_left            316.1 ->    317.1 см³ (+0.92)
       beam_front            225.0 ->    224.0 см³ (-1.07)
       front_sill            467.8 ->    463.1 см³ (-4.75)
       fan_bracket_right      40.5 ->     40.2 см³ (-0.28)
       fan_bracket_left       24.8 ->     25.0 см³ (+0.26)
       beam_low              114.6 ->    112.5 см³ (-2.13)
-      beam_mid              171.5 ->    171.1 см³ (-0.45)
-      beam_top              114.6 ->    112.7 см³ (-1.97)
-      skid_front             56.4 ->     55.3 см³ (-1.07)
+      beam_mid              171.7 ->    171.3 см³ (-0.45)
+      beam_top              114.7 ->    112.7 см³ (-1.97)
+      skid_front             56.3 ->     55.2 см³ (-1.07)
       skid_rear              55.9 ->     54.8 см³ (-1.07)
       psu_bulkhead          159.9 ->    159.1 см³ (-0.79)
       antler_right           71.4 ->     71.1 см³ (-0.29)
@@ -377,19 +377,19 @@ B6 «Шатёр»: структурный каркас v0
   Крепления органической оболочки: 2 пилота M3 в торцевых гранях (X +-140), см. hw.ORGANIC_PADS.
   Зазоры: до front_io 0.40 мм, до light_strip 0.30 мм (это зазоры кармана и канала по плану, не контакты); beam_front x front_io 0.00 мм: низ модуля стоит на верхней грани балки (контакт по плану: Z 10 у обоих).
 
-Кабельные точки крепления (проход 2 скелета, docs/plans/cables-and-organic.md, «Cable fixing»): 11 штифтов M3 в нижних гранях beam_low, beam_mid, beam_top и правого рельса (rib_A_right), на каждом мостик tie_bridge (PA6, одна форма). Мостик 28 x 13 x 9 мм: лапа 3 мм с проходным отверстием M3 Ø4 и арка рядом, в арке щель 12.5 x 3.5 мм под липучку 12 мм или стяжку (вдоль стороны 13 мм). Печать лапой вниз: потолок щели - мостик 12.5 мм на высоте 3 мм, других нависаний нет. Винт M3 x 10 с головкой на лапе. Мостик держит 2 мм от всех деталей, кроме своей, и от железа; 3 мм до кабелей проверяет cables.py.
-  мостик             деталь           X      u   мир (X, Y, Z) оси отверстия на грани    стенка штифта            ближайшая другая деталь
-  tie_bridge_mid_1   beam_mid        20  141.0   (   20.0,   179.8,   109.5)                >= 8 мм            tie_bridge_mid_2 4.0 мм
-  tie_bridge_mid_2   beam_mid        52  141.0   (   52.0,   179.8,   109.5)                >= 8 мм            tie_bridge_mid_1 4.0 мм
-  tie_bridge_mid_3   beam_mid        84  141.0   (   84.0,   179.8,   109.5)                >= 8 мм            tie_bridge_mid_2 4.0 мм
-  tie_bridge_rail_1  rib_A_right    149   72.0   (  149.0,   135.0,    56.9)                5.05 мм           tie_bridge_rail_2 3.0 мм
-  tie_bridge_rail_2  rib_A_right    149  103.0   (  149.0,   156.9,    78.8)                5.05 мм           tie_bridge_rail_1 3.0 мм
-  tie_bridge_rail_3  rib_A_right    149  185.0   (  149.0,   214.9,   136.8)                5.05 мм              hose_guide_gpu 2.9 мм
-  tie_bridge_rail_4  rib_A_right    149  216.0   (  149.0,   236.8,   158.7)                5.05 мм           tie_bridge_rail_3 3.0 мм
-  tie_bridge_low_1   beam_low        60   16.5   (   60.0,    91.8,    21.5)                6.27 мм                      board 26.5 мм
-  tie_bridge_low_2   beam_low        90   16.5   (   90.0,    91.8,    21.5)                6.27 мм                      board 26.5 мм
-  tie_bridge_top_1   beam_top        77  294.9   (   77.0,   288.7,   218.4)                6.27 мм            tie_bridge_top_2 4.0 мм
-  tie_bridge_top_2   beam_top       109  294.9   (  109.0,   288.7,   218.4)                6.27 мм            tie_bridge_top_1 4.0 мм
+Кабельные точки крепления (проход 2 скелета, docs/plans/cables-and-organic.md, «Cable fixing»): 11 штифтов M3: в нижних гранях beam_low, beam_mid, beam_top и правого рельса (rib_A_right), во внутренних гранях правых рёбер (средняя нога rib_A_right, пост rib_B_right) и в верхней грани skid_front, на каждом мостик tie_bridge (PA6, одна форма). Мостик 28 x 13 x 9 мм: лапа 3 мм с проходным отверстием M3 Ø4 и арка рядом, в арке щель 12.5 x 3.5 мм под липучку 12 мм или стяжку (вдоль стороны 13 мм). Печать лапой вниз: потолок щели - мостик 12.5 мм на высоте 3 мм, других нависаний нет. Винт M3 x 10 с головкой на лапе. Мостик держит 2 мм от всех деталей, кроме своей, и от железа; 3 мм до кабелей проверяет cables.py.
+  мостик             деталь       грань                  мир (X, Y, Z) оси отверстия на грани    стенка штифта            ближайшая другая деталь
+  tie_bridge_mid_3   beam_mid     underside of the beam  (   84.0,   179.8,   109.5)                >= 8 мм                      board 26.5 мм
+  tie_bridge_rail_2  rib_A_right  underside of the rail  (  149.0,   156.9,    78.8)                5.05 мм           fan_bracket_right 8.1 мм
+  tie_bridge_rail_3  rib_A_right  underside of the rail  (  149.0,   214.9,   136.8)                5.05 мм              hose_guide_gpu 2.9 мм
+  tie_bridge_rail_4  rib_A_right  underside of the rail  (  149.0,   236.8,   158.7)                5.05 мм           tie_bridge_rail_3 3.0 мм
+  tie_bridge_low_1   beam_low     underside of the beam  (   60.0,    91.8,    21.5)                6.27 мм                      board 26.5 мм
+  tie_bridge_low_2   beam_low     underside of the beam  (  102.0,    91.8,    21.5)                6.27 мм                      board 26.5 мм
+  tie_bridge_top_2   beam_top     underside of the beam  (  109.0,   288.7,   218.4)                6.27 мм                  ничего ближе 6 мм
+  tie_bridge_leg_1   rib_A_right  inner face, mid leg    (  142.0,   196.0,    36.0)                >= 8 мм                rib_B_right 26.7 мм
+  tie_bridge_leg_2   rib_A_right  inner face, mid leg    (  142.0,   194.0,    72.0)                >= 8 мм                   beam_mid 16.0 мм
+  tie_bridge_post_1  rib_B_right  inner face, post       (  142.0,   336.0,   104.0)                >= 8 мм                  ничего ближе 6 мм
+  tie_bridge_skid_1  skid_front   top face               (  102.0,   195.0,     0.0)                >= 8 мм                  ничего ближе 6 мм
 
 Положение болтов (Y, Z):
   ok  beam_front end bolt (10.0,0.0) in rib A
@@ -525,12 +525,15 @@ ASSERTS: все проверки пройдены.
   - Ревизия 11 (скелет, проход 1), окно для кабелей: одно окно X 40..90, Z 14..46 насквозь через заднюю стенку порога (SILL_REAR_WALL 5 мм), задано смещениями от hw.FRONT_IO_W (правый конец модуля минус 5, ширина 50, низ на 4 мм выше низа модуля, верх по верху модуля), так что двигается вместе с модулем; PLACEHOLDER, как и сам модуль. Углы R 8 (внутренний угол стенки). Верх окна на 0.4 мм ниже потолка кармана (SILL_POCKET_PLAY): ступенька 0.4 мм, не осколок. Винты модуля (X -70.4 и 95.4, Y 21) и их стенки окна не касаются. Второго окна для кабеля светлой линии нет: канал light_strip открыт через оба торца порога (X -141..141), кабель выходит через торец. Кабели USB 3 и USB-C в cables.py теперь стартуют на задней грани модуля и проходят через окно; с окном, заделанным обратно, оба упираются в порог (0.00 мм), так что окно несёт нагрузку в проверке.
   - Ревизия 11, пилоты под площадки органической оболочки: hw.ORGANIC_PADS (12 строк) - единственный источник, organic_frame.py берёт площадки оттуда. На каждой площадке пилот M3 вдоль X в деталь (rib_A_L/R, rib_B_L/R x3, neck_L/R, front_sill x2), левые детали строятся правыми и зеркалятся, пилоты считаются в их координатах (organic_pilots, mirrored). Ни одна площадка не сдвинута: стенка вокруг пилота по проверке 7 не меньше 4.3 мм (нужно 1.6). Проверка 5 считает пилоты по телам (organic 12, список крепежа сверяется). Отверстий в проверке 7 стало 157 (было 145).
   - Ревизия 11, test_checks.py: 92 -> 108 случаев. Новые: окно (есть, стенка под ним цела, следует за модулем, без него оба USB упираются в порог, с ним проверки кабелей проходят); пилоты (счёт из тел 12, заделанный пилот правой и левой детали, сдвиг площадки в таблице); organic_frame: ось винта на пилоте, пилот сдвинут на 0.5 мм, площадка сдвинута на 0.5 мм, площадка утоплена на 1 мм, pad_fits не считает свой пилот и считает любое другое отверстие.
-  - Проход 2 скелета, кабельные точки (план: docs/plans/cables-and-organic.md, «Cable fixing»): 11 штифтов M3 и 11 мостиков tie_bridge (PA6, одна форма 28 x 13 x 9 мм, лапа 3 мм, щель 12.5 x 3.5 мм) вместо 13 по плану (4 + 5 + 2 + 2). Ряды: mid 3 (beam_mid), rail 4 (рельс rib_A_right), low 2 (beam_low), top 2 (beam_top). Места найдены запросами расстояний на построенных телах: 3 мм до кабелей (cables.py), 2 мм до остального (проверка 3b), стенка штифта по проверке 7, скругление ребра не тронуто (прибавка объёма от скруглений rib_A_right та же, +1.75 см³).
+  - Проход 2 скелета, кабельные точки (план: docs/plans/cables-and-organic.md, «Cable fixing»): 11 штифтов M3 и 11 мостиков tie_bridge (PA6, одна форма 28 x 13 x 9 мм, лапа 3 мм, щель 12.5 x 3.5 мм) вместо 13 по плану (4 + 5 + 2 + 2). Ряды первого прохода (второй заход ниже убрал четыре точки и добавил четыре): mid 3 (beam_mid), rail 4 (рельс rib_A_right), low 2 (beam_low), top 2 (beam_top). Места найдены запросами расстояний на построенных телах: 3 мм до кабелей (cables.py), 2 мм до остального (проверка 3b), стенка штифта по проверке 7, скругление ребра не тронуто (прибавка объёма от скруглений rib_A_right та же, +1.75 см³).
   - Проход 2, почему не 13: мостик длиннее шага плана. Шаг плана 25 мм (X 60, 85, 110, 135), мостик 28 мм вдоль X, так что в ряду под beam_mid вмещается три мостика с зазором 4 мм, а не четыре; и X 110 и 135 заняты линией USB 3 (X 116..128, n -41, верх кабеля на n -37, низ мостика на n -37.5): мостик там ближе к кабелю 3 мм не держит, поэтому ряд сдвинут влево, X 20, 52, 84. Под beam_low X 60 (рука арки к -X) и 90 (к +X): USB 3 лежит на X 65..72, USB-C на X 77..89, оба на 4.5..5.5 мм от ближайшего мостика. Под beam_top X 77 и 109 (EPS 2 в 11 мм при X 109).
   - Проход 2, рельс: под рельсом (низ диагонали rib_A_right, n -34) на u 141..172 стоит средняя нога ребра (Y 184..206), а внутренний угол в 45° с ней по скруглению R 8 занимает ещё около 19 мм перед ногой, поэтому свободны u < 121 и u > 179, и точка на u 128 уменьшала радиус скругления с 8 до 3 (проверено, убрано). Нижняя грань рельса за u 250 лежит под ребром B (нахлёст). Точки рельса: u 72 и 103 (арка к -u), u 185 и 216 (арка к +u), X 149 (мостик 13 мм вмещается в рельс 16 мм и держит 2.5 мм до пластины hose_guide_gpu на X 158). Над EPS 1 (u 255) и EPS 2 (u 275) нижняя грань рельса занята ребром B, точек там нет.
   - Проход 2, ориентация: на балках мостик лежит длинной стороной вдоль X (полка плоской нижней грани beam_low и beam_top 14 мм, под 28 мм вдоль u места нет), липучка идёт вдоль u. Кабели под балками идут вдоль u, то есть параллельно щели: стяжку приходится закручивать на четверть оборота вокруг кабеля. На рельсе мостик лежит длинной стороной вдоль u, липучка идёт поперёк рельса (вдоль X).
   - Проход 2, проверка 3b (новая): мостик касается только своей детали (контакт лапы с гранью, это единственный намеренный: его держит винт) и ни с каким железом, и держит 2 мм (TIE_CLEAR) от всех остальных деталей и железа. Проверка 5 считает два набора из тел: пилоты M3 в деталях и проходные отверстия в мостиках (по 11). test_checks.py: список деталей из PA6 теперь шланговые направляющие и мостики.
   - Проход 2, новые числа в cables.py: от трассы до ближайшей точки крепления и самый длинный участок без точки в 60 мм, по всей трассе и под платой. Расстояние считается до середины щели мостика. Проходов и отказов по ним нет, показаны для того, чтобы видно было, где ряды не там: линии EPS 1 и EPS 2 лежат на n -106 и -147.5, то есть на 80 и 120 мм ниже балок, и мостик высотой 9 мм до них не достаёт.
+  - Проход 2, второй заход, кабельные точки (16.11.2026, docs/plans/cables-and-organic.md, «Tie points, second pass: spec»): два числа плана стали проверкой в cables.py (TIE_REACH 30 мм до середины щели, участок без точки не длиннее 150 мм, изгиб от 30° под платой; две вилки кабеля считаются закреплёнными точками). Убраны точки, у которых нет кабеля ближе 30 мм: mid X 20 (80.6 мм до ближайшего кабеля), mid X 52 (48.5), rail u 72 (32.6), top X 77 (45.4). low_2 перенесён с X 90 (арка к +X) на X 102 (арка к -X): излом USB-C под передним краем платы был в 30.8 мм, стал 19.3. Добавлены leg_1 (Y 196, Z 36) и leg_2 (Y 194, Z 72) на внутренней грани X 142 средней ноги rib_A_right (арка вверх; мостик стоит вдоль -X), post_1 (Y 336, Z 104) на внутренней грани поста rib_B_right (арка к -Y) и skid_1 (X 102, Y 195) на верхней грани skid_front (арка к -Y). Итого 11 точек. Пилоты левых рёбер не дублируются: tie_pilots ставит их только в rib_A_right (внутри if with_rest, как пилоты рельса) и rib_B_right (side > 0); левые рёбра строятся правыми и зеркалятся, зеркалить пилоты специально не нужно (test_checks проверяет, что в левых рёбрах на зеркальных местах отверстий нет).
+  - Проход 2, второй заход, skid_1: лапа мостика стоит на верхней грани skid_front и выступает за её передний край (Y 185) на 12.5 мм, опираясь примерно на 55 % площади (мостик 28 мм, ось отверстия на 10 мм за краем, стенка штифта >= 8 мм). Это единственное место в 30 мм от излома EPS 2 у переднего правого угла БП (излом на 76°, мир (78, 149, 3)): стоя вдоль ±X на той же грани мостик в 34.7 мм от дуги, передняя грань skid_front (10 мм) мостик 13 мм не принимает, а переднюю дугу кабель на 4 мм от БП не сдвинуть (путевые точки EPS 2 сдвигались: WAY на 10-14 мм вперёд даёт 22-26 мм до мостика, но тогда кабель в 2.7-2.9 мм от БП или пересекает ATX; сетка из 9 x 8 x 4 положений WAY дала два допустимых, оба с 31.5 мм). Консоль: от винта до середины щели 13.75 мм, нагрузка кабеля мала, но печатью это не проверено.
+  - Проход 2, второй заход, путевые точки: сдвинута одна, начало дорожки EPS 1 под платой с X 113 на X 122 (cables.V_IN_OF; остальные кабели остаются на X 113). Излом EPS 1 в 36° у начала дорожки был в 32.5 мм от лучшей точки на ноге rib_A_right, стал в 28.9 мм (угол 38°). Длина трассы 649 -> 652 мм при заводской 700 (запас 51 -> 48 мм), зазор до rib_A_right 4.5 -> 4.5 мм, остальные проверки кабелей зелёные, 12V-2x6 к допуску впереди не тронут.
 
 Открытые вопросы
   - ПРАВЫЙ боковой вентилятор: три винта из четырёх (A, C с внутренней грани в штифты M4S, D с внешней через лапку Ø4.5; ревизия 7a), угол B без винта: на внутренней грани он в 4.10 мм от шланга GPU (нужно 5), с внешней планка до него не достаёт. Винт лапки идёт снаружи, головка выйдет за |X| = 229 на 2-3 мм: владелец принял это как допуск 15.11.2026 (потайная головка не нужна, лапка 2.5 мм для неё тонка). Планка в 1.00 мм от бокса rad360_ports (воротники с запасом): если запас нужен больше, RAIL_INSET (1.0) можно увеличить: планка станет тоньше по X и уйдёт дальше от rad360_ports.
