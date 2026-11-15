@@ -1,0 +1,218 @@
+B6 cables: routes and checks (cad_b6/cables.py)
+
+== plan: PLAN numbers (no way-point moved)
+cable             route   real  spare      bend    r    smallest clearance  to
+ATX 24-pin          402    610    208   7.5/30    12                  0.00  rib_A_right
+EPS 1               685    700     15  16.0/20     6                  1.00  hw:dimms
+EPS 2               591    700    109   9.0/20     6                  0.00  beam_top
+12V-2x6            OPEN    700                     7  socket on the card unknown, 35 mm straight at the plug, not routed
+USB 3 front         389    n/a    n/a   7.5/15     4                  0.03  beam_mid
+USB-C front         314    n/a    n/a   7.5/15     4                  0.00  hw:gpu
+Power switch         31    n/a    n/a   -  /8      2                  4.24  front_sill
+Audio               175    n/a    n/a   8.0/8      2                  3.78  front_sill
+Light line           61    n/a    n/a   8.0/8      2                  4.27  front_sill
+Pump / 420 fans     150    n/a    n/a   8.0/8      2                  7.85  hw:dimms
+Right side fan      164    400    236   7.5/8      2                  0.00  hw:gpu_hoses
+Left side fan       156    400    244   8.0/8      2                  0.00  rib_A_left
+
+per route: every clearance under 10 mm, and every failed check
+  ATX 24-pin       rib_A_right 0.0; hw:board (route without the plug's descent) 0.0; hw:dimms 6.0
+                   FAIL bend 7.5 < min 30
+                   FAIL 0.00 mm from rib_A_right, needs 3
+                   FAIL 0.00 mm from hw:board (route without the plug's descent), needs 3
+  EPS 1            hw:dimms 1.0; rib_A_right 4.0; rib_B_right 4.0; hw:board (route without the plug's descent) 4.0; hw:rad420 7.0; beam_low 7.9; desk plane Z -15 7.9
+                   FAIL bend 16.0 < min 20
+                   FAIL 1.00 mm from hw:dimms, needs 3
+  EPS 2            beam_top 0.0; hw:dimms 1.0; rib_A_right 4.0; rib_B_right 4.0; hw:board (route without the plug's descent) 4.0; hw:rad420 7.0
+                   FAIL bend 9.0 < min 20
+                   FAIL 0.00 mm from beam_top, needs 3
+                   FAIL 1.00 mm from hw:dimms, needs 3
+  USB 3 front      beam_mid 0.0; hw:board (route without the plug's descent) 1.1; beam_low 3.1; front_sill 3.2; rib_A_right 6.0; desk plane Z -15 6.4
+                   FAIL bend 7.5 < min 15
+                   FAIL 0.03 mm from beam_mid, needs 3
+                   FAIL 1.12 mm from hw:board (route without the plug's descent), needs 3
+  USB-C front      hw:gpu 0.0; hw:board (route without the plug's descent) 1.1; front_sill 3.2; beam_low 5.2; rib_A_right 6.0; desk plane Z -15 9.2
+                   FAIL bend 7.5 < min 15
+                   FAIL 0.00 mm from hw:gpu, needs 3
+                   FAIL 1.12 mm from hw:board (route without the plug's descent), needs 3
+  Power switch     front_sill 4.2
+  Light line       front_sill 4.3; hw:front_io 9.7
+  Audio            front_sill 3.8; hw:board (route without the plug's descent) 8.7
+  Pump / 420 fans  hw:dimms 7.8; hw:rad420 9.0
+  Right side fan   hw:gpu_hoses 0.0; rib_A_right 0.0; rib_B_right 0.0; hw:board (route without the plug's descent) 8.0
+                   FAIL bend 7.5 < min 8
+                   FAIL 0.00 mm from hw:gpu_hoses, needs 5
+                   FAIL 0.00 mm from rib_A_right, needs 3
+                   FAIL 0.00 mm from rib_B_right, needs 3
+  Left side fan    rib_A_left 0.0; fan_bracket_left 0.0; beam_mid 0.0; gpu_post 0.0; hw:gpu 6.4; hw:board (route without the plug's descent) 8.0
+                   FAIL 0.00 mm from rib_A_left, needs 3
+                   FAIL 0.00 mm from fan_bracket_left, needs 3
+                   FAIL 0.00 mm from beam_mid, needs 3
+                   FAIL 0.00 mm from gpu_post, needs 3
+route x route: smallest distances EPS 1 x Pump / 420 fans 0.00, EPS 1 x Right side fan 0.00, EPS 2 x Pump / 420 fans 0.00, ATX 24-pin x USB 3 front 0.27, ATX 24-pin x EPS 2 0.96, EPS 2 x Right side fan 1.00
+lane levels n: USB-C front -45, USB 3 front -55, ATX 24-pin -73, EPS 1 -93, EPS 2 -107
+failed checks (plan): 25
+  ATX 24-pin: bend 7.5 < min 30
+  ATX 24-pin: 0.00 mm from rib_A_right, needs 3
+  ATX 24-pin: 0.00 mm from hw:board (route without the plug's descent), needs 3
+  EPS 1: bend 16.0 < min 20
+  EPS 1: 1.00 mm from hw:dimms, needs 3
+  EPS 2: bend 9.0 < min 20
+  EPS 2: 0.00 mm from beam_top, needs 3
+  EPS 2: 1.00 mm from hw:dimms, needs 3
+  USB 3 front: bend 7.5 < min 15
+  USB 3 front: 0.03 mm from beam_mid, needs 3
+  USB 3 front: 1.12 mm from hw:board (route without the plug's descent), needs 3
+  USB-C front: bend 7.5 < min 15
+  USB-C front: 0.00 mm from hw:gpu, needs 3
+  USB-C front: 1.12 mm from hw:board (route without the plug's descent), needs 3
+  Right side fan: bend 7.5 < min 8
+  Right side fan: 0.00 mm from hw:gpu_hoses, needs 5
+  Right side fan: 0.00 mm from rib_A_right, needs 3
+  Right side fan: 0.00 mm from rib_B_right, needs 3
+  Left side fan: 0.00 mm from rib_A_left, needs 3
+  Left side fan: 0.00 mm from fan_bracket_left, needs 3
+  Left side fan: 0.00 mm from beam_mid, needs 3
+  Left side fan: 0.00 mm from gpu_post, needs 3
+  EPS 1 x Pump / 420 fans overlap (0.00 mm)
+  EPS 1 x Right side fan overlap (0.00 mm)
+  EPS 2 x Pump / 420 fans overlap (0.00 mm)
+
+== moved: AFTER moving way-points within 15 mm of the plan (this is the build; its failures are the findings)
+cable             route   real  spare      bend    r    smallest clearance  to
+ATX 24-pin          402    610    208   7.5/30    12                  0.00  rib_A_right
+EPS 1               686    700     14  20.0/20     6                  3.00  hw:rad420
+EPS 2               592    700    108  12.8/20     6                  3.00  hw:rad420
+12V-2x6            OPEN    700                     7  socket on the card unknown, 35 mm straight at the plug, not routed
+USB 3 front         392    n/a    n/a   7.5/15     4                  1.12  hw:board (route without the plug's descent)
+USB-C front         314    n/a    n/a   7.5/15     4                  0.00  hw:gpu
+Power switch         31    n/a    n/a   -  /8      2                  4.24  front_sill
+Audio               175    n/a    n/a   8.0/8      2                  3.78  front_sill
+Light line           61    n/a    n/a   8.0/8      2                  4.27  front_sill
+Pump / 420 fans     150    n/a    n/a   8.0/8      2                  7.85  hw:dimms
+Right side fan      163    400    237   8.0/8      2                  0.00  hw:gpu_hoses
+Left side fan       156    400    244   8.0/8      2                  0.00  rib_A_left
+
+per route: every clearance under 10 mm, and every failed check
+  ATX 24-pin       rib_A_right 0.0; hw:board (route without the plug's descent) 0.0; hw:dimms 6.0
+                   FAIL bend 7.5 < min 30
+                   FAIL 0.00 mm from rib_A_right, needs 3
+                   FAIL 0.00 mm from hw:board (route without the plug's descent), needs 3
+  EPS 1            hw:rad420 3.0; rib_A_right 4.0; rib_B_right 4.0; hw:board (route without the plug's descent) 4.0; hw:dimms 5.0; beam_low 7.9; desk plane Z -15 7.9
+  EPS 2            hw:rad420 3.0; beam_top 3.4; rib_A_right 4.0; rib_B_right 4.0; hw:board (route without the plug's descent) 4.0; hw:dimms 5.0
+                   FAIL bend 12.8 < min 20
+  USB 3 front      hw:board (route without the plug's descent) 1.1; beam_mid 3.0; beam_low 3.1; front_sill 3.2; rib_A_right 6.0; desk plane Z -15 6.4
+                   FAIL bend 7.5 < min 15
+                   FAIL 1.12 mm from hw:board (route without the plug's descent), needs 3
+  USB-C front      hw:gpu 0.0; hw:board (route without the plug's descent) 1.1; front_sill 3.2; beam_low 5.2; rib_A_right 6.0; desk plane Z -15 9.2
+                   FAIL bend 7.5 < min 15
+                   FAIL 0.00 mm from hw:gpu, needs 3
+                   FAIL 1.12 mm from hw:board (route without the plug's descent), needs 3
+  Power switch     front_sill 4.2
+  Light line       front_sill 4.3; hw:front_io 9.7
+  Audio            front_sill 3.8; hw:board (route without the plug's descent) 8.7
+  Pump / 420 fans  hw:dimms 7.8; hw:rad420 9.0
+  Right side fan   hw:gpu_hoses 0.0; rib_A_right 0.0; rib_B_right 0.0
+                   FAIL 0.00 mm from hw:gpu_hoses, needs 5
+                   FAIL 0.00 mm from rib_A_right, needs 3
+                   FAIL 0.00 mm from rib_B_right, needs 3
+  Left side fan    rib_A_left 0.0; fan_bracket_left 0.0; beam_mid 0.0; gpu_post 0.0; hw:gpu 6.4; hw:board (route without the plug's descent) 8.0
+                   FAIL 0.00 mm from rib_A_left, needs 3
+                   FAIL 0.00 mm from fan_bracket_left, needs 3
+                   FAIL 0.00 mm from beam_mid, needs 3
+                   FAIL 0.00 mm from gpu_post, needs 3
+route x route: smallest distances EPS 1 x Pump / 420 fans 0.00, EPS 1 x Right side fan 0.00, EPS 2 x Pump / 420 fans 0.00, EPS 2 x Right side fan 0.00, ATX 24-pin x USB 3 front 0.27, ATX 24-pin x EPS 2 0.96
+lane levels n: USB-C front -45, USB 3 front -55, ATX 24-pin -73, EPS 1 -93, EPS 2 -107
+failed checks (moved): 20
+  ATX 24-pin: bend 7.5 < min 30
+  ATX 24-pin: 0.00 mm from rib_A_right, needs 3
+  ATX 24-pin: 0.00 mm from hw:board (route without the plug's descent), needs 3
+  EPS 2: bend 12.8 < min 20
+  USB 3 front: bend 7.5 < min 15
+  USB 3 front: 1.12 mm from hw:board (route without the plug's descent), needs 3
+  USB-C front: bend 7.5 < min 15
+  USB-C front: 0.00 mm from hw:gpu, needs 3
+  USB-C front: 1.12 mm from hw:board (route without the plug's descent), needs 3
+  Right side fan: 0.00 mm from hw:gpu_hoses, needs 5
+  Right side fan: 0.00 mm from rib_A_right, needs 3
+  Right side fan: 0.00 mm from rib_B_right, needs 3
+  Left side fan: 0.00 mm from rib_A_left, needs 3
+  Left side fan: 0.00 mm from fan_bracket_left, needs 3
+  Left side fan: 0.00 mm from beam_mid, needs 3
+  Left side fan: 0.00 mm from gpu_post, needs 3
+  EPS 1 x Pump / 420 fans overlap (0.00 mm)
+  EPS 1 x Right side fan overlap (0.00 mm)
+  EPS 2 x Pump / 420 fans overlap (0.00 mm)
+  EPS 2 x Right side fan overlap (0.00 mm)
+
+== alt: ALTERNATIVE for the two side fans, NOT the plan: over the board at n 50..55 (measured open), everything else as 'moved'
+cable             route   real  spare      bend    r    smallest clearance  to
+ATX 24-pin          402    610    208   7.5/30    12                  0.00  rib_A_right
+EPS 1               686    700     14  20.0/20     6                  3.00  hw:rad420
+EPS 2               592    700    108  12.8/20     6                  3.00  hw:rad420
+12V-2x6            OPEN    700                     7  socket on the card unknown, 35 mm straight at the plug, not routed
+USB 3 front         392    n/a    n/a   7.5/15     4                  1.12  hw:board (route without the plug's descent)
+USB-C front         314    n/a    n/a   7.5/15     4                  0.00  hw:gpu
+Power switch         31    n/a    n/a   -  /8      2                  4.24  front_sill
+Audio               175    n/a    n/a   8.0/8      2                  3.78  front_sill
+Light line           61    n/a    n/a   8.0/8      2                  4.27  front_sill
+Pump / 420 fans     150    n/a    n/a   8.0/8      2                  7.85  hw:dimms
+Right side fan      157    400    243   8.0/8      2                 12.42  hw:gpu_hoses
+Left side fan       169    400    231   8.0/8      2                  6.40  hw:gpu
+
+per route: every clearance under 10 mm, and every failed check
+  ATX 24-pin       rib_A_right 0.0; hw:board (route without the plug's descent) 0.0; hw:dimms 6.0
+                   FAIL bend 7.5 < min 30
+                   FAIL 0.00 mm from rib_A_right, needs 3
+                   FAIL 0.00 mm from hw:board (route without the plug's descent), needs 3
+  EPS 1            hw:rad420 3.0; rib_A_right 4.0; rib_B_right 4.0; hw:board (route without the plug's descent) 4.0; hw:dimms 5.0; beam_low 7.9; desk plane Z -15 7.9
+  EPS 2            hw:rad420 3.0; beam_top 3.4; rib_A_right 4.0; rib_B_right 4.0; hw:board (route without the plug's descent) 4.0; hw:dimms 5.0
+                   FAIL bend 12.8 < min 20
+  USB 3 front      hw:board (route without the plug's descent) 1.1; beam_mid 3.0; beam_low 3.1; front_sill 3.2; rib_A_right 6.0; desk plane Z -15 6.4
+                   FAIL bend 7.5 < min 15
+                   FAIL 1.12 mm from hw:board (route without the plug's descent), needs 3
+  USB-C front      hw:gpu 0.0; hw:board (route without the plug's descent) 1.1; front_sill 3.2; beam_low 5.2; rib_A_right 6.0; desk plane Z -15 9.2
+                   FAIL bend 7.5 < min 15
+                   FAIL 0.00 mm from hw:gpu, needs 3
+                   FAIL 1.12 mm from hw:board (route without the plug's descent), needs 3
+  Power switch     front_sill 4.2
+  Light line       front_sill 4.3; hw:front_io 9.7
+  Audio            front_sill 3.8; hw:board (route without the plug's descent) 8.7
+  Pump / 420 fans  hw:dimms 7.8; hw:rad420 9.0
+  Right side fan   nothing under 10 mm
+  Left side fan    hw:gpu 6.4
+route x route: smallest distances EPS 1 x Pump / 420 fans 0.00, EPS 2 x Pump / 420 fans 0.00, ATX 24-pin x USB 3 front 0.27, ATX 24-pin x EPS 2 0.96, EPS 1 x EPS 2 1.07, Light line x Audio 1.27
+lane levels n: USB-C front -45, USB 3 front -55, ATX 24-pin -73, EPS 1 -93, EPS 2 -107
+failed checks (alt): 11
+  ATX 24-pin: bend 7.5 < min 30
+  ATX 24-pin: 0.00 mm from rib_A_right, needs 3
+  ATX 24-pin: 0.00 mm from hw:board (route without the plug's descent), needs 3
+  EPS 2: bend 12.8 < min 20
+  USB 3 front: bend 7.5 < min 15
+  USB 3 front: 1.12 mm from hw:board (route without the plug's descent), needs 3
+  USB-C front: bend 7.5 < min 15
+  USB-C front: 0.00 mm from hw:gpu, needs 3
+  USB-C front: 1.12 mm from hw:board (route without the plug's descent), needs 3
+  EPS 1 x Pump / 420 fans overlap (0.00 mm)
+  EPS 2 x Pump / 420 fans overlap (0.00 mm)
+
+Numbers the plan does not give, as chosen (all in cables.py):
+  lane: stacked by rise u, the lowest rise on top at n -45, 2 mm of air between neighbours' radii; lane v = x_to_v(132) = 254
+  rise u: the header's own u where the plan says "about" (ATX 220 for 210, USB 3 160 for 150, USB-C 110 for 100); the cable then descends
+    at the rise u and ends at the header (EPS: ends at u 297 / 301, 2 / 0 mm from the header's 299)
+  EPS: EPS2 at the plan's n 30, EPS1 at n 44 (14 mm over it); EPS2 rises 14 mm after EPS1 (the plan gives one u for both)
+  PSU legs: 45 mm along -Y from every socket, EPS1 (the left socket) 60 mm so that it passes EPS2's first leg
+  USB: start (X 60 / 70, Y 54, Z 30), down at u -6 to n -3, then to u 6 (USB 3) / 0 (USB-C) at the lane's level, across to v 254
+  JFP1, JAUD1, light line: they do not go under the board: their start and their header are on the same side of it. Start (Y 55, Z 40) and
+    X 82 / 48 / -125; JFP1 and the light line meet the header at n 14; JAUD1 runs at (n 30, u 20) and drops into its header, the light line passes
+    under that drop at (u 14, n 14)
+  pump lead: from the block's wall towards CPU_FAN1 at n 60, along v, along u, down
+  side fans, plan route: leave the fan's inner face at n -30 (right fan u 255, left fan u 130), to the lane at the header's u, up to n 35, to the header
+  side fans, alternative: right fan (v 323, u 190, n 56) straight to above SYS_FAN1 then down; left fan (v -58, u 190, n 55) to v 20, along -u to 135, down
+Moves of way-points (plan number -> used, and why):
+  USB 3 rise u 150 -> 163 (+13): beam_mid (u 126..156) has to be 3 mm from an r 4 cable
+  EPS 1 rise u 265 -> 261 (-4) and EPS 2 265 -> 275.5 (+10.5), EPS run along u 297 -> 301 (+4): the two r 6 cables need 14 mm between them,
+    beam_top (u 284.9) 3 mm and the DIMM box (u 290) 3 mm / the 420's core face (u 310) 3 mm
+  right side fan lane v 254 -> 256 (+2): so the 15 mm to the header takes two bends of 8
+  front starts: Y 50 -> 54 (USB), Y 50 -> 55 and Z 30 -> 40 (thin leads): the plan's point is 2.7 mm from the sill
+Not built: the 12V-2x6 route (socket on the card unknown), clips, the sill's cable slot.

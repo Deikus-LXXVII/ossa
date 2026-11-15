@@ -283,6 +283,38 @@ RAD360_PORTS_BS = (298, 323, 220, 269, 100, 122)
 KEEP_OUT = ("io_zone", "dimms", "atx24", "eps", "rad420_ports", "rad360_ports", "cpu_hoses", "gpu_hoses", "light_strip")
 HOSES = ("cpu_hoses", "gpu_hoses")
 
+# ---------------------------------------------------------------------------
+# Cables (research of 15 Nov 2026, docs/plans/cables-and-organic.md, "## Cables"). The routes are in cables.py.
+# ---------------------------------------------------------------------------
+# Board headers, (v, u) on the board. STANDING: positions scaled off the manual's drawing, about +-5 mm; ATX_PWR1 and the
+# two EPS headers agree with the keep-outs measured on the board scan (ATX24_BS, EPS_BS). A header's top is HEADER_TOP_N above the board face.
+HEADERS = {
+    "ATX_PWR1": (239.0, 220.0), "CPU_PWR1": (190.0, 299.0), "CPU_PWR2": (205.0, 299.0), "JFP1": (235.0, 5.0),
+    "JUSB3": (239.0, 160.0), "JUSBC1": (239.0, 110.0), "JAUD1": (20.0, 5.0), "CPU_FAN1": (225.0, 299.0),
+    "PUMP_SYS1": (239.0, 290.0), "SYS_FAN1": (239.0, 270.0), "SYS_FAN2": (45.0, 299.0), "SYS_FAN3": (20.0, 135.0),
+    "JARGB_V2_1": (55.0, 5.0),
+}
+HEADER_TOP_N = 12.0                       # ASSUMPTION: a header stands 12 mm proud of the board (plan)
+
+# Sockets on the PSU's modular face (Y = PSU_W[2]), world (X, Y, Z). STANDING: INFERRED from a photo taken fan down, NOT CHECKED. Seen from
+# the front with the fan up: the CPU/PCIe field on the left (-X), the two 12V-2x6 in the centre, the motherboard pair on the right (+X).
+# The positions are the plan's, only the side is read off the photo.
+PSU_SOCKETS = {
+    "mb": (48.0, PSU_W[2], 43.0), "eps1": (-52.0, PSU_W[2], 30.0), "eps2": (-36.0, PSU_W[2], 30.0), "gpu": (0.0, PSU_W[2], 43.0),
+}
+
+# Cables: name -> (real length in mm or None, radius, minimum bend radius). STANDING: lengths of the PSU's own cables are Seasonic's spec
+# sheet (ATX 24-pin 610, EPS 700, 12V-2x6 700); "None" = unknown (front I/O cables of the Fractal North XL, the ARCTIC PWM lead, the light line,
+# which is still to be chosen); 400 for the two side fans is the research's TYPICAL length ("400 or more"), not measured.
+# Radii and minimum bends are ASSUMPTIONS (the cable's outer size was not found; the build is individually sleeved wires with combs).
+# gpu12v is the placeholder: the socket on the card is not known, so it is not routed. Its 35 mm straight at the plug is the plan's.
+CABLES = {
+    "atx24": (610.0, 12.0, 30.0), "eps1": (700.0, 6.0, 20.0), "eps2": (700.0, 6.0, 20.0), "gpu12v": (700.0, 7.0, 35.0),
+    "usb3": (None, 4.0, 15.0), "usbc": (None, 4.0, 15.0), "jfp1": (None, 2.0, 8.0), "jaud1": (None, 2.0, 8.0),
+    "argb": (None, 2.0, 8.0), "cpu_fan": (None, 2.0, 8.0), "fan_right": (400.0, 2.0, 8.0), "fan_left": (400.0, 2.0, 8.0),
+}
+GPU12V_STRAIGHT = 35.0                    # straight length at the 12V-2x6 plug
+
 
 def cpu_block_solid() -> Solid:
     """Round body plus the lug that carries the two collars, fused. Board space, n out of the board."""
