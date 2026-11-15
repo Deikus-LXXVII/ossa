@@ -431,3 +431,12 @@ Built as planned, with one deviation: the buttress ends on the bar's centre line
 The aim of 3.5 MPa is met. The most loaded places are now the feet (2.7 to 2.9 MPa), where the model fixes the skids to the desk; that is a boundary of the model more than a load in the part.
 
 `strength.py` changes made along the way: the stiffness matrix is assembled once for a unit modulus and scaled per infill (assembly was 71 s of every case), and MKL Pardiso is used where `pypardiso` is installed. Same numbers, 519 s -> 144 s on a 20-core x86 machine. On the Mac the solver stays SuperLU and the single assembly still applies.
+
+## Owner decisions (15 Nov 2026)
+
+Two items the earlier revisions left open are accepted as they are. Do not raise them again.
+
+- The 15 outline corners kept sharp by the rule "4 mm of flat contact around every screw" stay sharp (fan bracket ears, neck-to-arm bolts).
+- The head of the outer screw on the right fan bracket's tab stands 2 to 3 mm past |X| = 229. That is accepted as a tolerance; no countersink.
+
+The owner's reason: neither will get in the way during assembly or show in the look of the case.
