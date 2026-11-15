@@ -56,6 +56,7 @@ SCREW_R, HEAD_R, HEAD_REACH = 1.75, 3.6, 45.0   # M3 clearance through the pad; 
 KNOT_R = 10.0                              # a knot of material round every pad, so the driver channel leaves walls even where a bone lies on the pad
 DRIVER_FREE = 11.0                         # beyond the knot no bone's centre line may come this close to the screw axis (the channel would cut it)
 STUB = (6.5, 5.5, 6.5)                     # stub from pad to bone: radius at pad, mid, bone
+RING_TIE = (6.5, 5.5, 6.5)                 # the left ring's tie to the front sweep: radius at the ring, mid, the sweep
 GAP_SKEL = 2.0                             # the layer keeps this far from every skeleton part, except at the pads
 GAP_KEEP = 3.0                             # and from the board's keep-out boxes
 GAP_HW = 4.0                               # and from hardware and hoses
@@ -77,6 +78,7 @@ CARD_N = hw.GPU_BS[5]                      # the card's outer edge
 PLA_GAP = 10.0                             # PLA keeps this far from the graphics card and the PSU
 CARD_BONE_U, CARD_BONE_N = 118.0, CARD_N + PLA_GAP + 8.0   # a bone over the card's top edge, clear of it
 SWEEP_X = 170.0                            # the flank sweeps pass this far out, clear of the card's ends
+TOP_FILM_L_U0 = 186.0                      # left fan, film from the ring's top to the side bone: first thread past the CPU hoses (hose b at u 170 + 6.2 + GAP_HW + a thread's radius)
 SILL = frame_v0.sill_geometry()            # the skeleton's front sill: section (Y, Z), the light slit's cutter
 SILL_RIDGE = SILL["pts"][2]                # (Y, Z) of its upper edge, above the light line
 SILL_GAP = 2.5                             # the organic layer keeps this far from the sill
@@ -175,6 +177,18 @@ def bone_members():
         add("base_" + tag, BASE[s], BONE_R["base"])
         for p, r in ((front_sweep(s)[0], 13), (rear_sweep(s)[-1], 13), (bp(LIP_U, FACE_N, 190 * s), 10)):
             out.append(("ball", p, r, K))
+    # Left ring: its upper front corner hangs from the end of the front sweep. The CPU hoses cross between the ring's top and the
+    # side bone at u 141 to 170, so no film thread can hold the ring there; this tie passes in front of them, at u 114 to 118.
+    (u0, _u1), (_n0, n1) = hw.FAN_SIDE_U, hw.FAN_SIDE_N
+    corner = bp(u0 - RING_OFF + 4, n1 + RING_OFF - 5, RING_X[-1])
+    end = np.array(front_sweep(-1)[-1], dtype=float)
+    mid = (np.array(corner, dtype=float) + end) / 2
+    add("ring_tie_L", [corner, tuple(mid), tuple(end)], bone(*RING_TIE))
+    # Its upper far corner, next to the ring's open end, hangs from the lower end of the side bone: the span from the first tie to the
+    # first film thread (u 186) is 72 mm and a push on the open end bent the ring's top there.
+    far = np.array(bp(_u1 + RING_OFF - 14, n1 + RING_OFF, RING_X[-1]), dtype=float)
+    end2 = np.array(side_bone(-1)[-1], dtype=float)
+    add("ring_tie_L2", [tuple(far), tuple((far + end2) / 2), tuple(end2)], bone(*RING_TIE))
     return out, lines
 
 
@@ -211,10 +225,11 @@ def film_list():
     lip_l = [bp(LIP_U, FACE_N, -190), bp(LIP_U - 1, FACE_N + 1, -60), bp(LIP_U - 1, FACE_N + 1, 28)]
     lip_r = [bp(LIP_U - 1, FACE_N + 1, 44), bp(LIP_U - 1, FACE_N + 1, 110), bp(LIP_U, FACE_N, 190)]
     # The gap between the card's outer edge and the 360's lower edge, at the level the fans set.
-    # On the left the CPU hoses lie in that same surface, so the threads dip underneath them.
+    # On the left the CPU hoses (450 mm) run below that surface, at n 131 and 140: the threads pass over them, as on the right.
+    # (With the 500 mm hoses the run lay in the surface and the threads dipped 20 mm underneath it.)
     cu, cn = CARD_BONE_U, CARD_BONE_N
     out.append(film_members([bp(cu, cn, -SWEEP_X), bp(cu + 1, cn + 1, -60), bp(cu + 1, cn + 1, 28)], lip_l,
-                            8, seed=3, r_a=6.0, r_b=6.0, sag=(0.0, 0.707, -0.707), sag_mm=20, links=3))
+                            8, seed=3, r_a=6.0, r_b=6.0, sag=(0.0, 0.707, -0.707), sag_mm=4, links=3))
     out.append(film_members([bp(cu + 1, cn + 1, 44), bp(cu + 1, cn + 1, 100), bp(cu, cn, SWEEP_X)], lip_r,
                             9, seed=8, r_a=6.0, r_b=6.0, sag=(0.0, 0.707, -0.707), sag_mm=4, links=4))
     # a sparse veil across the open front, from the sill's upper edge (behind the light line) up to the brow, well below the card
@@ -234,7 +249,9 @@ def film_list():
         if s < 0:                                           # under the right fan the hoses run where this film would hang
             out.append(film_members([bp(u0 + 12, c, x), bp(190, c - 1, x), bp(u1 - 12, c, x)], BASE[s][:4],
                                     8 if dense else 5, seed=60 + s, r_a=5.0, r_b=6.5, sag=(0.4 * s, 0.0, 0.0), sag_mm=10))
-        out.append(film_members([bp(u0 + 12, top, x), bp(190, top + 1, x), bp(u1 - 12, top, x)],
+        # Left: the CPU hoses cross between the ring's top and the side bone at u 141 to 170, so the threads start beyond them.
+        ua = u0 + 12 if s > 0 else TOP_FILM_L_U0
+        out.append(film_members([bp(ua, top, x), bp((ua + u1 - 12) / 2, top + 1, x), bp(u1 - 12, top, x)],
                                 side_bone(s)[:3], 6 if dense else 4, seed=70 + s, r_a=5.0, r_b=5.5,
                                 sag=(0.5 * s, 0.0, 0.0), sag_mm=6, links=2))
         # the rear window over the PSU's side

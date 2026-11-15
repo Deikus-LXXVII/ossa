@@ -35,6 +35,17 @@ State now: median stress under a push 1.3 MPa, median movement 0.17 mm. Own weig
 
 The price: the layer is 1795 cm³, 2.2 kg if printed solid. Printed with walls and sparse infill it will be well under that; the number to trust comes from slicing.
 
+### After the hoses moved (450 mm, 15 Nov 2026)
+
+The CPU hoses now run 30 mm lower, at n 131 and 140. The layer still passed its own checks, but the strength run did not: 5 of 320 pushes were over the allowable. Two causes, both found by building the layer with the old hoses and comparing the fields:
+
+- The hoses now cross between the left fan ring's top and the side bone, at u 141 to 170. They cut two threads of that film (3.7 cm³ lost), and the ring's upper front corner went from 11 to 20 MPa.
+- The threads between the card bone and the lip dipped 20 mm to pass under the old hose run. The hoses now lie below that surface and notched the dipped threads (24 MPa).
+
+Changes in `organic_frame.py`: the left card-to-lip film passes over the hoses (sag 4 mm, as on the right); the left ring-to-side-bone film starts at u 186, past the hoses (`TOP_FILM_L_U0`); two ties hold the left ring (`ring_tie_L` from its upper front corner to the end of the front sweep, `ring_tie_L2` from its upper far corner to the lower end of the side bone).
+
+Result: 1 push of 320 over the allowable, the same right rear window thread as before (17.6 MPa at X 178, Y 284, Z 146). The left ring's worst case is now 6.9 MPa. Volume 1843 cm³ (2.3 kg solid PLA), one piece, 12 pads, all checks pass. Lesson for later hose or hardware changes: rerun `organic_strength.py`, the layer's own checks do not see a notched thread.
+
 ## Open, organic layer
 
 - The insert pilots in the skeleton are not cut. That is a `frame_v0.py` change for the CAD subagent: twelve M3 pilots at the pad centres in `cad_b6/report_organic.txt`, along X into the named parts, with the skeleton's own hole checks.
