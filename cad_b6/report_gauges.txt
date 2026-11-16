@@ -3,7 +3,7 @@ Plastic: volume x density at 100 % fill (PLA 1.24, ABS 1.04, PA6 1.14 g/cm3). Pr
 
 item                  mat  bbox x y z (mm)               vol cm3      g   min  checks
 -------------------------------------------------------------------------------------
-G1_rad420_ports_end   PLA  157.3 x 138.0 x 2.0             10.18   12.6    14  PASS (5)
+G1_rad420_ports_end   PLA  157.5 x 138.0 x 2.0             10.19   12.6    14  PASS (5)
 G2_rad360_ports_end   PLA  135.5 x 121.0 x 2.0              8.73   10.8    12  PASS (5)
 G3_psu_rear           PLA  150.0 x 86.0 x 2.0              10.04   12.5    14  PASS (4)
 G4a_atx_holes_low     PLA  147.0 x 243.5 x 2.0             25.61   31.8    36  PASS (4)
@@ -17,15 +17,15 @@ C3_hose_clip          PA6  18.0 x 20.0 x 35.1               7.36    8.4    10  P
 
 G1_rad420_ports_end  (PLA)
   note: port slots from the last points of the CPU hoses: x = 8.40 (RAD420_PORT_INSET 8.4), y = 57.10 and 80.90, 23.80 apart (2 x RAD420_PORT_HALF_SPACING = 23.80); slot radius 11
-  note: holes: end edge to first hole column 26.75 mm, first column to second 124.50 mm, rows 6.75 and 131.25 from the long edge
+  note: holes: end edge to first hole column 26.50 mm, first column to second 125.00 mm, rows 6.50 and 131.50 from the long edge
   engraved: 'G1 rad420_ports_end' size 4.5 mm, 23.8 mm3 engraved, 43.2 mm long
   engraved: arrow at (62.0, 132.0) towards 180 deg, 24 mm
-  ok   3 of 4 gauge holes coincide with a hole of antler_left (by part {'antler_left': 3}; largest offset 2.1e-14 mm, expected 3); no skeleton hole at (151.25, 131.25) = world (-77.750, 197.002, 331.404), nearest antler_left hole axis 124.5 mm away
+  ok   4 of 4 gauge holes coincide with a hole of antler_left (by part {'antler_left': 4}; largest offset 4.1e-14 mm, expected 4)
   ok   placed on hw:rad420: overlap 0.00 mm3, distance 0.000 mm
   ok   port slots against hardware.py: inset differs by +0.000 mm, spacing by -0.000 mm from 2 x RAD420_PORT_HALF_SPACING
-  ok   fits the bed: 157.3 x 138.0 mm (limit 290)
-  ok   STL watertight True, mesh volume 10177.8 vs 10177.5 mm3
-  STL watertight True, mesh volume 10177.8 vs 10177.5 mm3
+  ok   fits the bed: 157.5 x 138.0 mm (limit 290)
+  ok   STL watertight True, mesh volume 10189.8 vs 10189.5 mm3
+  STL watertight True, mesh volume 10189.8 vs 10189.5 mm3
 
 G2_rad360_ports_end  (PLA)
   note: port slots from the last points of the GPU hoses: x = 8.40 (RAD360_PORT_INSET 8.4), y = 48.50 and 72.50, 24.00 apart (hoses.GPU_PORT_PITCH x 2 = 24.00; the 420's 2 x RAD420_PORT_HALF_SPACING = 23.80); slot radius 11

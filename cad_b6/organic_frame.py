@@ -526,7 +526,7 @@ def build(parts, hware, vox=VOX):
     for m in members:
         F.add(m)
     # carve back from everything that is not the layer
-    for b in (hw.RAD360_BS, hw.RAD420_BS, hw.BOARD_BS):
+    for b in (hw.RAD360_BS, hw.RAD420_ENV_BS, hw.BOARD_BS):
         F.carve_bs_box(b, GAP_HW)
     F.carve_bs_box(hw.GPU_BS, PLA_GAP)
     F.carve_world_box(hw.PSU_W, PLA_GAP)

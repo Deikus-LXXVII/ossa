@@ -111,7 +111,7 @@ def keep_clear(G, d):
     """Carve the shell back from the hardware and the hoses."""
     Gb = to_bs(G)
     hot = CLEAR if HOT_CLEAR is None else HOT_CLEAR
-    for b in (hw.RAD360_BS, hw.RAD420_BS, hw.BOARD_BS):
+    for b in (hw.RAD360_BS, hw.RAD420_ENV_BS, hw.BOARD_BS):
         d = np.maximum(d, CLEAR - box_world(Gb, b))
     d = np.maximum(d, hot - box_world(Gb, hw.GPU_BS))
     d = np.maximum(d, hot - box_world(G, hw.PSU_W))

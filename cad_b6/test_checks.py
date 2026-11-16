@@ -225,13 +225,14 @@ def main():
     case("beam_front moved 3 mm in front of Y = 0", "CHECK8 beam_front reaches Y = -3.00, in front of 0",
          r["failures"], "CHECK8 beam_front reaches Y", "in front of 0")
 
-    # 2e. check 8, top: a part raised above the 420's top face (antler_right up by 10 mm in Z is 7.07 mm in n: 121 -> 128.07)
+    # 2e. check 8, top: a part raised above the 420's top face (antler_right up by 10 mm in Z is 7.07 mm in n: 124 -> 131.07; revision 11, second pass: the fans are 140 wide, the top face
+    # is n 124, the plate reaches it; first pass 123, before it 121)
     ant = part_named(parts, "antler_right")
     mv = moved(ant, 0, 0, 10)
     r = f.run_checks(hardware, with_part(parts, "antler_right", solid=mv.solid, blank=mv.blank, holes=mv.holes), MEMO)
-    case("antler_right raised 10 mm", "CHECK8 antler_right rises above the 420's top face: n = 128.07, limit 123",
-         r["failures"], "CHECK8 antler_right rises above", "limit 123")
-    check("  the undamaged frame stays below the 420's top face", base["envelope"]["top"][2] <= hw.ENVELOPE_N,
+    case("antler_right raised 10 mm", "CHECK8 antler_right rises above the 420's top face: n = 131.07, limit 124",
+         r["failures"], "CHECK8 antler_right rises above", "limit 124")
+    check("  the undamaged frame stays below the 420's top face", base["envelope"]["top"][2] <= hw.ENVELOPE_N + 1e-6,      # check 8's own tolerance: the plate's top edge is the limit itself since revision 11, the arithmetic leaves 1e-9
           (f"highest n of the frame <= {hw.ENVELOPE_N:g}", f"{base['envelope']['top'][2]:.2f} ({base['envelope']['top'][3]})"))
     wide = part_named(parts, "visor_arm_right")
     mv = moved(wide, 0, 0, 3)
@@ -365,14 +366,15 @@ def main():
            f"board count {r['mounts']['board']}; {first_match(r['failures'], 'CHECK5 board')}"))
     case("  same damage, the failure line", "CHECK5 board: 8 positions", r["failures"], "CHECK5 board: 8 positions")
 
+    # revision 11: a column of the 420's table holds two screws (both rows), so a column shifted loses two positions (it lost one when the antler had three screws)
     old_x = hw.RAD420_HOLES_X
-    hw.RAD420_HOLES_X = tuple(x + 5.0 if abs(x - 77.75) < 1e-9 else x for x in old_x)
+    hw.RAD420_HOLES_X = tuple(x + 5.0 if abs(x - 77.5) < 1e-9 else x for x in old_x)
     try:
         r = f.run_checks(hardware, parts, MEMO)
     finally:
         hw.RAD420_HOLES_X = old_x
-    check("rad420 hole x = 77.75 shifted 5 mm in hardware.py", r["mounts"]["rad420"] == base["mounts"]["rad420"] - 1,
-          (f"rad420 count {base['mounts']['rad420']} -> {base['mounts']['rad420'] - 1}",
+    check("rad420 hole column x = 77.5 shifted 5 mm in hardware.py", r["mounts"]["rad420"] == base["mounts"]["rad420"] - 2,
+          (f"rad420 count {base['mounts']['rad420']} -> {base['mounts']['rad420'] - 2}",
            f"rad420 count {r['mounts']['rad420']}; {first_match(r['failures'], 'CHECK5 rad420')}"))
 
     # the left fan's corner A shifted 5 mm along u in hardware.py: its screw count must drop from 3 to 2, which is below the minimum
@@ -468,10 +470,10 @@ def main():
         src = fh.read()
     # the 420's holes moved from world Z (252.75, 377.25) to board-space n (-8.25, 116.25) in revision 5: the first two
     # are no longer hardware.py values, 116.25 is, and the scanner ignores values below 10
-    old_antler = "holes = [(77.75, -8.25), (202.25, -8.25), (202.25, 116.25)]\nx = hw.x_to_v(172.5)\n"
+    old_antler = "holes = [(77.5, -8.5), (202.5, -8.5), (202.5, 116.5)]\nx = hw.x_to_v(172.5)\n"      # revision 11: the table is the 125 mm pattern (was 77.75, 202.25, 116.25)
     seeded = hardware_literals(old_antler)
     check("literal scanner finds retyped antler / arm literals", len(seeded) == 5,
-          ("5 hits: 77.75, 202.25 twice, 116.25 and 172.5 (the -8.25 are below the scanner's threshold of 10)",
+          ("5 hits: 77.5, 202.5 twice, 116.5 and 172.5 (the -8.5 are below the scanner's threshold of 10)",
            ", ".join(str(v) for _, v in seeded)))
     real = hardware_literals(src)
     check("no hardware.py hole value is retyped in frame_v0.py", not real,
@@ -513,23 +515,27 @@ def main():
           and all(x[3] >= f.rd.CONTACT_FLOOR * x[2] for x in rows) and len(lost) > 0,
           ("no CONTACT failure over all listed pairs, and 8a really took area from some",
            f"{len(rows)} pairs, {len(lost)} lost area, {len(r['failures'])} failures; lowest share {min(100 * x[3] / x[2] for x in rows):.2f} %"))
+    # revision 11: these three cases measured the old antler's 10 mm plate on the fans' face (contact 4640 mm2; bites near the bar's inner screw, 77.75). They now
+    # bite the 3 mm plate between core and fans (contact with the core and the fans, about 25000 mm2 in all) near its inner screw at X 77.5, n -8.5
     ant = part_named(parts, "antler_right")
     face_u = (f.ANTLER_U[0] - 1.0, f.ANTLER_U[1] + 1.0)
-    n_lo = hw.RAD420_HOLES_N[0] + f.ANTLER_BAR_HALF
-    small = ant.solid.cut(f.bsx(67.0, 71.0, *face_u, n_lo - 4.0, n_lo + 1.0))          # a 4 x 4 mm corner, 7 mm from the nearest screw: 0.3 % of the contact, which 8a allows
+    cols = sorted(x for x in hw.RAD420_HOLES_X if x > 0)
+    n_lo, n_top = hw.RAD420_HOLES_N[0], f.ANTLER_N[1]
+    a0 = next(x[2] for x in rows if x[0] == "antler_right" and x[1] == "rad420")
+    small = ant.solid.cut(f.bsx(f.ANTLER_PLATE_X0, f.ANTLER_PLATE_X0 + 4.0, *face_u, n_top - 4.0, n_top + 1.0))          # a 4 x 4 mm corner at the plate's far end, far from every screw: well under 3 %
     r = dict(base, failures=[])
     f.check_contact_areas(with_part(parts, "antler_right", solid=small), hardware, r)
-    check("antler_right with a 4 x 4 mm corner off its contact face is no CONTACT failure (revision 8a allows 3 %)", not first_match(r["failures"], "CONTACT antler_right x rad420"),
-          ("no failure: 0.3 % of 4640 mm2", "; ".join(r["failures"][:2]) or "none"))
-    near = ant.solid.cut(f.bsx(67.0, 74.0, *face_u, n_lo - 6.0, n_lo + 1.0))          # a 7 x 7 mm corner: 1.1 % of the contact, but it reaches to within 4 mm of the screw's pilot
+    check("antler_right with a 4 x 4 mm corner off its contact faces is no CONTACT failure (revision 8a allows 3 %)", not first_match(r["failures"], "CONTACT antler_right x rad420"),
+          (f"no failure: under 0.2 % of {a0:.0f} mm2", "; ".join(r["failures"][:2]) or "none"))
+    near = ant.solid.cut(f.bsx(cols[1] - 10.5, cols[1] - 3.5, *face_u, f.ANTLER_N[0], n_lo + 1.5))          # a 7 x 6.5 mm bite at the plate's lower edge, under 0.5 % of the contact, but it reaches to within 4 mm of the screw's pilot
     r = dict(base, failures=[])
     f.check_contact_areas(with_part(parts, "antler_right", solid=near), hardware, r)
-    case("antler_right with a 7 x 7 mm corner off its contact face, 1.1 % of it but within 4 mm of a screw", "CONTACT antler_right x rad420: the flat contact within 4 mm of the screw hole ... fell",
+    case("antler_right with a 7 x 6.5 mm bite off its contact faces, under 0.5 % of them but within 4 mm of a screw", "CONTACT antler_right x rad420: the flat contact within 4 mm of the screw hole ... fell",
          r["failures"], "CONTACT antler_right x rad420", "flat contact within 4 mm of the screw hole")
-    big = ant.solid.cut(f.bsx(67.0, 87.0, *face_u, n_lo - 10.0, n_lo + 1.0))            # 20 x 10 mm off the face: 4.3 % of the contact
+    big = ant.solid.cut(f.bsx(cols[0] - 20.0, cols[1] + 20.0, *face_u, f.ANTLER_N[0], n_lo + 20.0))            # 60 x 26 mm off the faces, well over 3 % of the contact
     r = dict(base, failures=[])
     f.check_contact_areas(with_part(parts, "antler_right", solid=big), hardware, r)
-    case("antler_right with 20 x 10 mm cut off its contact face (4.3 %)", "CONTACT antler_right x rad420: the contact area fell from 4640.050 to ..., 95.x % of the unrounded area (floor 97 %)",
+    case("antler_right with 60 x 26 mm cut off its contact faces (over 3 %)", f"CONTACT antler_right x rad420: the contact area fell from {a0:.3f} to ..., under 97 % of the unrounded area (floor 97 %)",
          r["failures"], "CONTACT antler_right x rad420", "the contact area fell", "floor 97 %")
     ring = part_named(parts, "visor_arm_right")
     sc = next(h for h in ring.holes if h.kind == "M3c")                 # the arm's radiator screw along n, 4 mm of flat contact round it on the 360's face
@@ -952,6 +958,77 @@ def main():
     og2 = da.organic_gap(near_field, hardware, parts, "left")
     got = da.gap_failures(og2, "left")
     case("drive_access: a lump of the organic layer 5..8 mm from the left drive is reported (PLA keeps 10 mm)", "DRIVE_ACCESS left bay: the organic layer is ... mm from drive_left, PLA keeps 10", got, "DRIVE_ACCESS left bay", "drive_left", "PLA keeps 10")
+
+    # 15. revision 11: the 420 is core + fans with a 3 mm gap, the hole table is the 125 mm pattern, and check 14 (the plates stay out of the fans' openings and keep the wall round every fan screw)
+    solids = hardware["rad420"].Solids()
+    gap = solids[0].distance(solids[1]) if len(solids) == 2 else float("nan")
+    check("hardware: rad420 is two solids, the core and the fans, 3 mm apart (the plate's place)", len(solids) == 2 and abs(gap - (hw.RAD420_PLATE_U[1] - hw.RAD420_PLATE_U[0])) < 1e-6,
+          ("2 solids, distance 3.000 mm", f"{len(solids)} solids, distance {gap:.3f} mm"))
+    pitch = hw.FAN_P14["pitch"]
+    want = sorted(c + k * pitch / 2 for c in hw.RAD420_FAN_X for k in (-1, 1))
+    check("hardware: the 420's hole table is the fans' pattern (125.00 about each centre, rows 125.00 apart about the middle of the width)",
+          len(hw.RAD420_HOLES_X) == 6 and all(abs(a - b) < 1e-9 for a, b in zip(sorted(hw.RAD420_HOLES_X), want)) and abs(hw.RAD420_HOLES_N[1] - hw.RAD420_HOLES_N[0] - pitch) < 1e-9
+          and abs(sum(hw.RAD420_HOLES_N) / 2 - hw.RAD420_MID_N) < 1e-9 and pitch == 125.0,
+          ("columns -202.5 -77.5 -62.5 62.5 77.5 202.5, rows -8.5 and 116.5", f"{list(hw.RAD420_HOLES_X)}, {list(hw.RAD420_HOLES_N)}"))
+    op = hw.rad420_fan_opening(1, *hw.RAD420_PLATE_U)
+    ob = op.BoundingBox()
+    bb_op = hw.to_board(op).BoundingBox()
+    check("hardware: a fan opening is a circle of 140 cut to 136 across the flats on both axes, about the fan's centre",
+          abs((bb_op.xmax - bb_op.xmin) - 136.0) < 1e-6 and abs((bb_op.zmax - bb_op.zmin) - 136.0) < 1e-6 and abs(op.Volume() / (hw.RAD420_PLATE_U[1] - hw.RAD420_PLATE_U[0]) - 15216.0) < 1.0,
+          ("136 x 136 box, area about 15216 mm2 (a 140 circle less four 2 mm segments)", f"{bb_op.xmax - bb_op.xmin:.3f} x {bb_op.zmax - bb_op.zmin:.3f}, area {op.Volume() / 3.0:.0f} mm2"))
+    p4 = base["plates420"]
+    check("  the undamaged antlers have no material in the fans' openings and 12 of 12 fan screws keep their wall", not [x for x in base["failures"] if x.startswith("CHECK14")]
+          and all(v < f.VOL_EPS for _, _, v, _ in p4["openings"]) and len(p4["openings"]) == 6 and sum(1 for _, _, ok in p4["screws"] if ok) == len(p4["screws"]) == 12,
+          ("6 antler x opening pairs with overlap < 1 mm3, 12 screws with their wall", f"{len(p4['openings'])} pairs, largest overlap {max(v for _, _, v, _ in p4['openings']):.3f} mm3; {sum(1 for _, _, ok in p4['screws'] if ok)} of {len(p4['screws'])} screws"))
+    ant = part_named(parts, "antler_right")
+    u0, u1 = f.ANTLER_U
+    web = f.bsx(60.0, 80.0, u0, u1, hw.RAD420_MID_N - 5.0, hw.RAD420_MID_N + 5.0)         # a bar across the vertical web between the middle fan and the next one: 8 mm into each opening
+    r = f.run_checks(hardware, with_part(parts, "antler_right", solid=ant.solid.fuse(web).clean(), blank=ant.blank.fuse(web).clean()), MEMO)
+    case("antler_right with a bar across the web between two fans, into both openings", "CHECK14 antler_right has ... mm3 inside the opening of the 420's fan 1 (and fan 2)",
+         r["failures"], "CHECK14 antler_right has", "inside the opening of the 420's fan 1")
+    case("  same damage, the second opening", "CHECK14 antler_right has ... mm3 inside the opening of the 420's fan 2", r["failures"], "CHECK14 antler_right has", "opening of the 420's fan 2")
+    h0 = next(h for h in ant.holes if abs(abs(float(np.dot(h.d, hw.U_DIR))) - 1.0) < 1e-6)       # a fan screw's hole, along u
+    h2 = h0.moved(5.0, 0.0, 0.0)                                                               # a second hole 5 mm from it: 1.0 mm of wall between them (the wall rule is 1.6)
+    damaged = with_part(parts, "antler_right", solid=ant.solid.cut(h2.solid), holes=ant.holes + [h2])
+    r = f.run_checks(hardware, damaged, MEMO)
+    case("antler_right: a second fan-screw hole 5 mm from the first, 1.0 mm of wall", "CHECK14 antler_right: the fan screw at (...) has no wall of 1.6 mm of plate round it",
+         r["failures"], "CHECK14 antler_right: the fan screw", "no wall of 1.6 mm")
+    case("  same damage, the hole check of check 7 says it too", "CHECK7 antler_right ... has wall 0.9x mm < 1.6 mm", r["failures"], "CHECK7 antler_right", "has wall", "< 1.6 mm")
+    left = part_named(parts, "antler_left")
+    refill = refilled(left, left.holes[0])           # one fan screw's hole of the left antler filled back in: check 5 and check 7 see it (check 14 measures the wall, not the bore)
+    r = f.run_checks(hardware, with_part(parts, "antler_left", solid=refill), MEMO)
+    case("antler_left with one fan-screw hole filled back in, check 5 counts 11 of 12", "CHECK5 rad420: 11 positions have a hole in the solids, the plan needs 12", r["failures"], "CHECK5 rad420: 11 positions")
+    case("  same damage, check 7", "CHECK7 antler_left ... is not drilled", r["failures"], "CHECK7 antler_left", "is not drilled")
+    web_l = f.mirror_x(web)                          # the same bar across the left web, between the middle fan and the left one
+    r = f.run_checks(hardware, with_part(parts, "antler_left", solid=left.solid.fuse(web_l).clean(), blank=left.blank.fuse(web_l).clean()), MEMO)
+    case("antler_left with a bar across the web between two fans, into both openings", "CHECK14 antler_left has ... mm3 inside the opening of the 420's fan 1 (and fan 0)",
+         r["failures"], "CHECK14 antler_left has", "inside the opening of the 420's fan 1")
+    case("  same damage, the outer fan's opening", "CHECK14 antler_left has ... mm3 inside the opening of the 420's fan 0", r["failures"], "CHECK14 antler_left has", "opening of the 420's fan 0")
+
+    # 16. revision 11, second pass: the fans are 140 mm wide (the core 138), nothing of an antler is narrower than 2 mm, the chord keeps clear of the fans' underside
+    core_s, fans_s = sorted(hardware["rad420"].Solids(), key=lambda s_: hw.to_board(s_).BoundingBox().ymin)      # the core (u 310..348), then the fans (u 351..378)
+    fb, cb = hw.to_board(fans_s).BoundingBox(), hw.to_board(core_s).BoundingBox()
+    check("hardware: the 420's fans are 140 mm wide in n (-16..124), 1 mm more than the core (-15..123) on each long side, and ENVELOPE_N is the fans' top",
+          abs(fb.zmin + 16.0) < 1e-6 and abs(fb.zmax - 124.0) < 1e-6 and abs(cb.zmin + 15.0) < 1e-6 and abs(cb.zmax - 123.0) < 1e-6 and hw.ENVELOPE_N == 124.0,
+          ("fans n -16..124, core n -15..123, ENVELOPE_N 124", f"fans n {fb.zmin:.2f}..{fb.zmax:.2f}, core n {cb.zmin:.2f}..{cb.zmax:.2f}, ENVELOPE_N {hw.ENVELOPE_N:g}"))
+    check("  the undamaged antlers have no web narrower than 2 mm, nothing within 1 mm below the fans' underside",
+          all(w >= f.MIN_WEB - 0.1 for _, w, _, _ in base["plates420"]["webs"]) and len(base["plates420"]["webs"]) == 2
+          and all(v < f.VOL_EPS for _, v in base["plates420"]["underside"]) and len(base["plates420"]["underside"]) == 2,
+          ("2 antlers, narrowest web >= 1.9 mm, 2 antlers clear below the fans",
+           f"webs {[round(w, 2) for _, w, _, _ in base['plates420']['webs']]}, underside {[round(v, 2) for _, v in base['plates420']['underside']]}"))
+    ant = part_named(parts, "antler_right")
+    cut1, cut2 = f.bsx(212.0, 217.0, u0 - 1.0, u1 + 1.0, 40.0, 80.0), f.bsx(218.0, 224.0, u0 - 1.0, u1 + 1.0, 40.0, 80.0)      # two slots in the end bar that leave a 1 mm web between them
+    r = f.run_checks(hardware, with_part(parts, "antler_right", solid=ant.solid.cut(cut1).cut(cut2), blank=ant.blank.cut(cut1).cut(cut2)), MEMO)
+    case("antler_right with two slots in its end bar that leave a 1 mm web", "CHECK14 antler_right has a web 1.0x mm wide at |X| 217..218, n 40..80: nothing of the plate may be narrower than 2 mm",
+         r["failures"], "CHECK14 antler_right has a web", "nothing of the plate may be narrower than 2 mm")
+    ml = part_named(parts, "antler_left")
+    cut1l, cut2l = f.mirror_x(cut1), f.mirror_x(cut2)
+    r = f.run_checks(hardware, with_part(parts, "antler_left", solid=ml.solid.cut(cut1l).cut(cut2l), blank=ml.blank.cut(cut1l).cut(cut2l)), MEMO)
+    case("antler_left with the same two slots", "CHECK14 antler_left has a web 1.0x mm wide", r["failures"], "CHECK14 antler_left has a web", "nothing of the plate may be narrower than 2 mm")
+    ridge = f.bsx(180.0, 200.0, 352.0, 376.0, f.ANTLER_N[0], hw.RAD420_FAN_N[0] - 0.5)          # a block on the chord that reaches to 0.5 mm below the fans' underside: 0.5 mm of clearance left, the gap is 1
+    r = f.run_checks(hardware, with_part(parts, "antler_right", solid=ant.solid.fuse(ridge).clean(), blank=ant.blank.fuse(ridge).clean()), MEMO)
+    case("antler_right with a block on the chord standing right up to the fans' underside", "CHECK14 antler_right has ... mm3 within 1 mm below the underside of the 420's fans (n -16)",
+         r["failures"], "CHECK14 antler_right has", "below the underside of the 420's fans")
 
     # last: the undamaged model, once more with nothing remembered
     final = f.run_checks(hardware, parts)

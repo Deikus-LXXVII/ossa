@@ -36,7 +36,7 @@ import numpy as np
 from matplotlib.collections import PolyCollection
 from matplotlib.colors import to_rgb
 from matplotlib.patches import Patch
-from cadquery import Solid, Vector, Vertex
+from cadquery import Compound, Solid, Vector, Vertex
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.dirname(HERE)
@@ -1113,17 +1113,30 @@ def build_psu_bulkhead():
     return drill(s, holes, [window])
 
 
-ANTLER_T = 10.0
-ANTLER_U = (float(hw.RAD420_BS[3]), hw.RAD420_BS[3] + ANTLER_T)       # a plate on the fan face, 10 thick
-ANTLER_BAR_HALF = 10.0                                                  # bar half-width in n about the lower screw row
-ANTLER_FINGER_N1 = hw.RAD420_BS[5] - 2.0                                # finger ends 2 mm below the radiator's top face (n 121): it no longer stands above it
-TONGUE_X = (X_OUT, X_OUT + ANTLER_T)                                    # laps onto the rib's outer face
-TONGUE_U = (338.0, ANTLER_U[1])
-TONGUE_N = (-56.0, hw.RAD420_BS[4] - 5.0)
-TONGUE_LINK_N1 = hw.RAD420_HOLES_N[0] + ANTLER_BAR_HALF                 # the part of the tongue behind the fan face reaches up to the bar's top face
-ANTLER_BUTTRESS_DEPTH = 14.0                                            # revision 10: the buttress stands this far behind the plate (u)
-ANTLER_BUTTRESS_N0 = -44.0                                              # and starts on the plate's rear face at this n, below the bar
-ANTLER_BUTTRESS_N1 = hw.RAD420_HOLES_N[0]                               # and ends on it at the bar's centre line: a rounded foot needs flat rear face above it (the bar's top is 10 mm higher)
+# Revision 11: the 420's bracket is a plate clamped between the fans and the core, in the 3 mm gap hardware.py keeps there (RAD420_PLATE_U), one half
+# on each side of X 0. It takes the six fan screws of its half and leaves the three fan openings clear (hardware.rad420_fan_opening). Below the
+# fans' underside (n -16, the fans are 140 mm wide, 1 mm wider than the core) a chord, as wide in u as the foot, runs from rib_B's outer face to the radiator's
+# end and joins the foot on rib_B's outer face: the tongue with its two M4 bolts. The old 10 mm plate on the fans' outer face, its bar and its finger are gone.
+# Second pass: the chord is out of |X| < CHORD_X0, where the drive bay's sled passes (drive_access.py), and keeps CHORD_FAN_GAP clear of the fans.
+ANTLER_U = hw.RAD420_PLATE_U                                            # the plate: between core and fans, 3 thick
+ANTLER_T = ANTLER_U[1] - ANTLER_U[0]
+ANTLER_X1 = hw.ENVELOPE_X - 1.0                                         # the plate and the chord end 1 mm inside the radiator's end
+ANTLER_PLATE_X0 = 40.0                                                  # the plate starts here: nearer X 0 the web over the middle fan's opening is only the 2 mm of the fans' frame (up to X 16.6) and the end edge is too short to round
+CHORD_FAN_GAP = 1.0                                                     # the plate's lower edge and the chord's top face stand this far below the fans' underside (n -16)
+ANTLER_N = (hw.RAD420_FAN_N[0] - CHORD_FAN_GAP, hw.ENVELOPE_N)          # the plate: from the chord's top to the fans' top face (no part rises above the 420)
+CHORD_U = (338.0, 388.0)                                                # the chord: as wide as the foot, so a load on the plate reaches the tongue over the foot's full width
+CHORD_H = 5.0                                                           # and this tall, below the plate's lower edge
+CHORD_N = (ANTLER_N[0] - CHORD_H, ANTLER_N[0])
+CHORD_X0 = X_OUT                                                        # the chord starts at rib_B's outer face: over the rib's cradle (X 142..158) the 2 mm between the fans (n -16) and the cradle (n -18) leave no room for it
+CHORD_ROUND = 2.4                                                       # the chord's outline corners: two of them share a 5 mm end, so each takes under half of it
+RIB_X = (ANTLER_X1 - 6.0, ANTLER_X1)                                    # the end rib: stiffens the plate's end bar, beyond the fans' end (X 210), where the plate is only 3 mm thick and 18 mm wide
+RIB_U = (ANTLER_U[1], float(hw.RAD420_FAN_U[1]))                        # and stands on its back face as far as the fans' outer face: nothing sticks out behind the 420
+RIB_N = (ANTLER_N[0], ANTLER_N[1])                                      # the plate's whole height, from the chord to the top face
+RIB_ROUND = 2.9                                                         # the rib's top corners: the two share its 6 mm end, so each takes under half of it
+TONGUE_T = 10.0
+TONGUE_X = (X_OUT, X_OUT + TONGUE_T)                                    # laps onto the rib's outer face
+TONGUE_U = CHORD_U
+TONGUE_N = (-56.0, CHORD_N[0])
 
 
 def bsx(x0, x1, u0, u1, n0, n1):
@@ -1136,40 +1149,58 @@ TONGUE_OUTLINE = Poly([hw.bp_yz(u, n) for u, n in ((TONGUE_U[0], TONGUE_N[0]), (
 
 
 def antler_holes_xn(side=1):
-    """(x, n) of the three radiator-420 screws an antler uses, read from hardware.py's table: the bar's two
-    inner ones and the finger's. side = +1 right, -1 left."""
+    """(x, n) of the six fan screws an antler takes, read from hardware.py's table: the four of the outer fan and the two nearer ones of the
+    middle fan, that is the three columns on this side of the centre line, in both rows. side = +1 right, -1 left."""
     xs = sorted(x * side for x in hw.RAD420_HOLES_X if x * side > 0)       # distance from the centre line
-    n_lo, n_hi = hw.RAD420_HOLES_N
-    return [(side * xs[1], n_lo), (side * xs[2], n_lo), (side * xs[2], n_hi)]
+    return [(side * x, n) for x in xs for n in hw.RAD420_HOLES_N]
+
+
+def antler_openings(u0, u1):
+    """The fan openings the right-hand plate has to leave clear: the middle fan's (it runs through the plate's end) and the outer fan's (inside the plate)."""
+    return [hw.rad420_fan_opening(k, u0, u1) for k, cx in enumerate(hw.RAD420_FAN_X) if cx >= 0]
+
+
+def antler_plate_blank():
+    """The plate before rounding: a box over the half's length with the middle fan's opening cut out (it runs through the end, so it is part of the outline
+    that is rounded). The outer fan's opening is inside the plate and is cut after the rounding (rounding.round_face works on the outer wire)."""
+    u0, u1 = ANTLER_U
+    return bsx(ANTLER_PLATE_X0, ANTLER_X1, u0, u1, *ANTLER_N).cut(antler_openings(u0 - 1.0, u1 + 1.0)[0])
+
+
+def antler_chord_blank():
+    """The chord: a box under the plate's lower edge, from rib_B's outer face to the plate's end."""
+    return bsx(CHORD_X0, ANTLER_X1, *CHORD_U, *CHORD_N)
 
 
 def build_antler_right(side=1):
     name = "antler_right" if side > 0 else "antler_left"
-    (u0, u1), n_lo = ANTLER_U, hw.RAD420_HOLES_N[0]
-    holes_x = [x for x, _ in antler_holes_xn(+1)]
-    x_in, x_out = min(holes_x) - 9.75, max(holes_x) + 9.75
+    u0, u1 = ANTLER_U
     holes = []
-    for (x, n) in antler_holes_xn(+1):      # 6-32 into the radiator, from behind, along u
+    for (x, n) in antler_holes_xn(+1):      # 6-32 through the plate, along u: the screws go from the fan side through fan and plate into the core
         holes.append(clear_hole("M3c", hw.bp(hw.x_to_v(x), u0 - OVERSHOOT, n), hw.U_DIR, ANTLER_T + 2 * OVERSHOOT))
     for (y, z) in TONGUE_BOLTS:             # M4 clearance through the tongue, along X
         holes.append(x_clear(y, z, TONGUE_X[0] - OVERSHOOT, TONGUE_X[1] + OVERSHOOT))
     rings = hole_rings(holes)
     sides = (1,) if side > 0 else (-1,)
-    bar = bsx(x_in, x_out, u0, u1, n_lo - ANTLER_BAR_HALF, n_lo + ANTLER_BAR_HALF)
-    finger = bsx(max(holes_x) - 9.25, x_out, u0, u1, n_lo, ANTLER_FINGER_N1)
-    plate = rounded_like(fuse_all([bar, finger]), hw.U_DIR, name + " plate", sides=sides, own=(name,), rings=rings)
-    buttress = Poly([hw.bp_yz(u1, ANTLER_BUTTRESS_N0), hw.bp_yz(u1 + ANTLER_BUTTRESS_DEPTH, TONGUE_N[1]),
-                     hw.bp_yz(u1, ANTLER_BUTTRESS_N1)]).solid(*TONGUE_X)      # a triangle behind the plate, as wide as the tongue
-    tongue = bsx(*TONGUE_X, TONGUE_U[0], TONGUE_U[1], TONGUE_N[0], TONGUE_N[1]).fuse(
-        bsx(*TONGUE_X, u0, u1, TONGUE_N[0], TONGUE_LINK_N1)).fuse(buttress)
-    tongue = rounded_like(tongue.clean(), (1, 0, 0), name + " tongue", sides=sides, own=(name,), rings=rings)
-    s = fuse_all([plate, tongue])
+    inner = antler_openings(u0 - 1.0, u1 + 1.0)[1:]              # inside the plate: cut after the rounding, which the Guard is told
+    air = rd.Neighbor("fan openings", Compound.makeCompound(antler_openings(u0 - 1.0, u1 + 1.0)), "keepout")      # a rounding must not add plate to an opening (check 14)
+    plate = rounded_like(antler_plate_blank(), hw.U_DIR, name + " plate", sides=sides, own=(name,), rings=rings, post_cuts=inner, extra=[air])
+    plate = cut_all(plate, inner)
+    keep = [(hw.bp(hw.x_to_v(CHORD_X0), CHORD_U[0], CHORD_N[0]), "the tongue's inner face continues this wall: no edge")]
+    chord = rounded_like(antler_chord_blank(), hw.U_DIR, name + " chord", sides=sides, own=(name,), rings=rings, keep=keep, convex=CHORD_ROUND)
+    flush = "flush with the chord's face above it: not a corner of the fused part"
+    keep = [(hw.bp(hw.x_to_v(TONGUE_X[0]), u, TONGUE_N[1]), flush) for u in TONGUE_U]
+    tongue = rounded_like(bsx(*TONGUE_X, *TONGUE_U, *TONGUE_N), (1, 0, 0), name + " tongue", sides=sides, own=(name,), rings=rings, keep=keep)
+    flush = "flush with the chord's top face: not a corner of the fused part"
+    keep = [(hw.bp(hw.x_to_v(x), u, RIB_N[0]), flush) for x in RIB_X for u in RIB_U]
+    rib = rounded_like(bsx(*RIB_X, *RIB_U, *RIB_N), hw.U_DIR, name + " end rib", sides=sides, own=(name,), rings=rings, keep=keep, convex=RIB_ROUND)
+    s = fuse_all([plate, chord, tongue, rib])
 
-    def pick(e):      # the tongue's outer side (X 168) where it leaves the bar's underside: along u
+    def pick(e):      # the tongue's outer side (X 168) where it leaves the chord's underside: along u
         m, d = edge_info(e)
         return abs(abs(float(d @ np.array(hw.U_DIR))) - 1) < 1e-6 and abs(m[0] - TONGUE_X[1]) < 1e-3 \
-            and abs(un_of(m[1], m[2])[1] - (n_lo - ANTLER_BAR_HALF)) < 1e-2
-    s = junction_fillet(s, name, "tongue meets bar", pick, sides=sides, own=(name,), rings=rings)
+            and abs(un_of(m[1], m[2])[1] - CHORD_N[0]) < 1e-2
+    s = junction_fillet(s, name, "tongue meets chord", pick, sides=sides, own=(name,), rings=rings)
     return drill(s, holes)
 
 
@@ -1526,8 +1557,9 @@ def _build_frame():
     n_atx = len(hw.ATX_HOLES)
     fastener("board", "beam_low/beam_mid/beam_top", "M3 insert", n_atx,
              "9 standoff bosses, 3 per beam; board underside n=-2 touches the bosses")
-    fastener("rad420", "antler_left + antler_right", "6-32", 6,
-             "3 per antler along u through the 10 mm plate and the 27 mm fans: 2 on the bar, 1 on the finger")
+    fastener("rad420", "antler_left + antler_right", "6-32", 2 * len(antler_holes_xn(1)),
+             f"{len(antler_holes_xn(1))} per antler along u: the fan screws, from the fans' outer face through the fan and the {ANTLER_T:g} mm plate into the core "
+             f"(the four of the outer fan and the two nearer ones of the middle fan); {ANTLER_T:g} mm longer than the stock screw")
     fastener("rad360", "visor_arm_left + visor_arm_right", "6-32", 2 * len(hw.RAD360_HOLES_U),
              "2 per arm along n at u = 192, 297")
     fastener("psu", "psu_bulkhead (+ skid_front, skid_rear support)", "6-32", len(hw.PSU_PATTERN),
@@ -1880,7 +1912,7 @@ def check_holes(parts, failures, memo=None):
 # Check 5: mounts derived from the solids
 # ---------------------------------------------------------------------------
 DRIVE_SCREWS = sum(len(fc["holes"]) for fc in hw.drive_layout()["faces"].values())          # per bay: 6 on the 3.5 inch drive + 4 on the 2.5 inch drive
-EXPECTED_MOUNTS = {"board": 9, "rad420": 6, "rad360": 4, "psu": 4, "gpu_post": 2, "gpu_rest": 1, "front_io": 2, "organic": 12,
+EXPECTED_MOUNTS = {"board": 9, "rad420": 2 * len(antler_holes_xn(1)), "rad360": 4, "psu": 4, "gpu_post": 2, "gpu_rest": 1, "front_io": 2, "organic": 12,
                    "tie_pilot": len(TIE_POINTS), "tie_bridge": len(TIE_POINTS), **{k: DRIVE_SCREWS for k in hw.DRIVES}}
 ORGANIC_PROBE_DEPTH = 3.0      # check 5: the axis point of a pad's pilot lies this far in from the face
 MIN_MOUNTS = {"fan_side_left": FAN_MIN_SCREWS, "fan_side_right": FAN_MIN_SCREWS}     # at least this many of the four corner holes
@@ -2231,6 +2263,126 @@ def check_apertures(parts, failures, memo=None):
 
 
 # ---------------------------------------------------------------------------
+# Check 14 (revision 11): the 420's bracket plates leave the fans' openings clear and keep the wall round every fan screw
+# ---------------------------------------------------------------------------
+MIN_WEB = 2.0              # nothing of an antler may be narrower than this, measured on its section at the plate's mid-plane (revision 11, second pass)
+WEB_RES = 0.1              # mm per pixel of that section; the radius found is good to about one pixel, so a failure is a web under MIN_WEB - 0.1
+
+
+def web_section(solid, res=WEB_RES):
+    """The section of `solid` by the plane through the plate's middle (u = ANTLER_U mid), rasterised in (X, n): (mask, xs, ns, res)."""
+    import trimesh
+    from matplotlib.path import Path
+    vs, fs = tessellate(solid, 0.05)
+    mesh = trimesh.Trimesh(vs, fs, process=False)
+    sec = mesh.section(plane_origin=np.array(hw.bp(0.0, sum(ANTLER_U) / 2.0, 0.0)), plane_normal=np.array(hw.U_DIR))
+    loops = [np.array([(q[0], un_of(q[1], q[2])[1]) for q in line]) for line in (sec.discrete if sec is not None else [])]
+    if not loops:
+        return np.zeros((1, 1), bool), np.zeros(1), np.zeros(1), res
+    allp = np.vstack(loops)
+    xs = np.arange(allp[:, 0].min() - 1.0, allp[:, 0].max() + 1.0, res)
+    ns = np.arange(allp[:, 1].min() - 1.0, allp[:, 1].max() + 1.0, res)
+    X, N = np.meshgrid(xs, ns)
+    P = np.c_[X.ravel(), N.ravel()]
+    mask = np.zeros(len(P), bool)
+    for lp in loops:
+        mask ^= Path(lp).contains_points(P)             # even-odd: an inner loop is a hole
+    return mask.reshape(X.shape), xs, ns, res
+
+
+def narrow_pieces(section, r):
+    """Pieces of the section that no disc of radius r fits in, other than the tips of its corners: the section opened by a disc of radius r, what is left of it
+    opened by a disc of 0.5 mm (a corner's tip is thinner than that, a web is not). Returns [(area mm2, (x0, x1), (n0, n1))]."""
+    from scipy import ndimage
+    mask, xs, ns, res = section
+    core = ndimage.distance_transform_edt(mask) * res >= r
+    left = mask & ~(ndimage.distance_transform_edt(~core) * res <= r)
+    kept = ndimage.distance_transform_edt(left) * res >= 0.5
+    left = left & (ndimage.distance_transform_edt(~kept) * res <= 0.5)
+    lab, k = ndimage.label(left)
+    out = []
+    for i in range(1, k + 1):
+        yy, xx = np.where(lab == i)
+        out.append((len(yy) * res * res, (float(xs[xx.min()]), float(xs[xx.max()])), (float(ns[yy.min()]), float(ns[yy.max()]))))
+    return out
+
+
+def narrowest_web(solid):
+    """(width mm, (x range), (n range)) of the narrowest web of the section: the widest disc (bisection, 0.02 mm) that fits everywhere but in a corner's tip.
+    Returns (inf, None, None) when no piece is narrower than 3 mm."""
+    section = web_section(solid)
+    lo, hi = 0.5, 1.5
+    if not narrow_pieces(section, hi):
+        return float("inf"), None, None
+    for _ in range(6):
+        mid = (lo + hi) / 2.0
+        lo, hi = (mid, hi) if not narrow_pieces(section, mid) else (lo, mid)
+    pieces = narrow_pieces(section, hi)
+    big = max(pieces, key=lambda q: q[0]) if pieces else (0.0, None, None)
+    return 2.0 * hi, big[1], big[2]
+
+
+def check_420_plates(parts, failures, memo=None):
+    """Check 14. (a) No antler material inside the open air path of any of the 420's three fans (hardware.rad420_fan_opening: a circle of
+    140 cut to 136 across the flats, probed through the whole stack u 310..378, so the plate, the chord and the tongue are all measured).
+    (b) Every one of the twelve fan screws has its wall of material round the hole (the part's own wall rule, measured on the solid).
+    Returns {'openings': [(part, fan k, overlap mm3, distance mm)], 'screws': [(part, x, n, ok)]}."""
+    out = {"openings": [], "screws": []}
+    probes = [hw.rad420_fan_opening(k, hw.RAD420_BS[2], hw.RAD420_BS[3]) for k in range(len(hw.RAD420_FAN_X))]
+    n_ok = 0
+    for p in parts:
+        if not p.name.startswith("antler"):
+            continue
+        for k, probe in enumerate(probes):
+            v = _guard(failures, "CHECK14", f"{p.name} x opening of fan {k}", inter_vol, p.solid, probe)
+            d = _guard(failures, "CHECK14", f"{p.name} x opening of fan {k}", solid_distance, p.solid, probe)
+            if v is None or d is None:
+                continue
+            out["openings"].append((p.name, k, v, d))
+            if v >= VOL_EPS:
+                failures.append(f"CHECK14 {p.name} has {v:.1f} mm3 inside the opening of the 420's fan {k} (centre X {hw.RAD420_FAN_X[k]:g})")
+        for h in p.holes:
+            if abs(abs(float(np.dot(h.d, hw.U_DIR))) - 1.0) > 1e-6:
+                continue                      # the tongue's bolts run along X: not fan screws
+            try:
+                spans = material_spans(p.blank, h)
+                deficit = wall_deficit(p.solid, h, spans, h.wall) if spans else float("inf")
+            except BooleanFailure as e:
+                failures.append(f"CHECK14 {p.name}: {h.describe()}: BOOLEAN FAILED: {e}")
+                continue
+            ok = bool(spans) and deficit <= WALL_EPS
+            n_ok += ok
+            pt = h.point(OVERSHOOT)
+            out["screws"].append((p.name, pt, ok))
+            if not ok:
+                failures.append(f"CHECK14 {p.name}: the fan screw at ({pt[0]:.1f}, {pt[1]:.1f}, {pt[2]:.1f}) has no wall of {h.wall:g} mm of plate round it")
+    need = 2 * len(antler_holes_xn(1))
+    if n_ok != need:
+        failures.append(f"CHECK14 {n_ok} of the {need} fan screws of the 420 have their wall of plate round them")
+    # (c) no sliver: nothing of an antler (the blank, before its holes: the wall round a hole is the hole check's) is narrower than MIN_WEB
+    out["webs"] = []
+    for p in parts:
+        if p.name.startswith("antler"):
+            w, xr, nr = _guard(failures, "CHECK14", f"{p.name} narrowest web", memo_call, memo, (p.blank if p.blank is not None else p.solid,), "web", narrowest_web,
+                               p.blank if p.blank is not None else p.solid) or (float("nan"), None, None)
+            out["webs"].append((p.name, w, xr, nr))
+            if w < MIN_WEB - 0.1:
+                failures.append(f"CHECK14 {p.name} has a web {w:.2f} mm wide at |X| {abs(xr[0]):.1f}..{abs(xr[1]):.1f}, n {nr[0]:.1f}..{nr[1]:.1f}: nothing of the plate may be narrower than {MIN_WEB:g} mm")
+    # (d) the chord and the plate's lower edge keep CHORD_FAN_GAP clear of the fans' underside (n -16) wherever they stand under the fans
+    air = hw.bs_box(*hw.RAD420_FAN_V, *hw.RAD420_FAN_U, hw.RAD420_FAN_N[0] - CHORD_FAN_GAP + 0.01, hw.RAD420_FAN_N[0] - 0.01)
+    out["underside"] = []
+    for p in parts:
+        if p.name.startswith("antler"):
+            v = _guard(failures, "CHECK14", f"{p.name} x the fans' underside", memo_call, memo, (p.solid, air), "iv", inter_vol, p.solid, air)
+            if v is None:
+                continue
+            out["underside"].append((p.name, v))
+            if v >= VOL_EPS:
+                failures.append(f"CHECK14 {p.name} has {v:.1f} mm3 within {CHORD_FAN_GAP:g} mm below the underside of the 420's fans (n {hw.RAD420_FAN_N[0]:g}): the chord must keep clear of them")
+    return out
+
+
+# ---------------------------------------------------------------------------
 # Check 12 (revision 8): sharp outline corners that remain on the plates
 # ---------------------------------------------------------------------------
 PLATE_PREFIXES = ("rib_A", "rib_B", "neck_", "visor_arm", "antler", "fan_bracket")      # the parts whose outlines are rounded
@@ -2253,17 +2405,22 @@ def bracket_join_x(name):
 
 def plate_accept(name):
     """A filter for sharp_axial_edges: drops edges that run along an extrusion direction without being an outline corner.
-    antler: the plate is extruded along u (corners 10 mm long) and the tongue along X (X 158..168); the plate's long rim edges along X
-    and the tongue's rim edges along u are not corners. visor_arm_right: the 5 mm step of the notch is a cut, not an outline corner."""
+    antler: the plate and the chord are extruded along u (their corners are edges along u) and the tongue along X (X 158..168); the tongue's
+    rim edges along u (X 158 and 168, below the chord) and the plate's and chord's long rim edges along X are not corners.
+    visor_arm_right: the 5 mm step of the notch is a cut, not an outline corner."""
     if name.startswith("antler"):
         lo, hi = TONGUE_X
 
         def accept(e):
             d = e["b"] - e["a"]
-            if abs(float(d[0])) / float(np.linalg.norm(d)) < 0.9999:            # along u: a corner of the plate only if it is as long as the plate is thick
-                return e["length"] <= ANTLER_T + 0.5
-            xs = sorted((abs(float(e["a"][0])), abs(float(e["b"][0]))))         # along X: a corner of the tongue only inside its X range
-            return xs[0] >= lo - 0.5 and xs[1] <= hi + 0.5
+            xs = sorted((abs(float(e["a"][0])), abs(float(e["b"][0]))))
+            length = float(np.linalg.norm(d))
+            if abs(float(d[0])) / length < 0.9999:
+                if abs(float(np.dot(d, hw.U_DIR))) / length < 0.9999:
+                    return False                                                # along n: a rim edge of the end rib, not an outline corner
+                n = un_of(float(e["mid"][1]), float(e["mid"][2]))[1]            # along u: a corner of the plate, the chord or the rib, unless it is a rim edge of the tongue
+                return not (xs[0] >= lo - 0.5 and xs[1] <= hi + 0.5 and n <= TONGUE_N[1] + 0.5)
+            return xs[0] >= lo - 0.5 and xs[1] <= hi + 0.5                      # along X: a corner of the tongue only inside its X range
         return accept
     if name.startswith("visor_arm"):
         return lambda e: e["length"] > NECK_X[0] - ARM_NOTCH_X + 0.5
@@ -2658,6 +2815,9 @@ def run_checks(hardware, parts, memo=None):
     # 11. the side fans' apertures stay open
     res["apertures"] = check_apertures(parts, failures)
 
+    # 14. the 420's bracket plates stay out of the fans' openings and keep the wall round every fan screw
+    res["plates420"] = check_420_plates(parts, failures, memo)
+
     # 12. sharp outline corners that remain on the plates; fails only for a plate where nothing was rounded
     res["corners"] = check_corners(parts, hardware, pb, hb, failures, memo)
 
@@ -3016,7 +3176,8 @@ def format_report(hardware, parts, res, memo=None):
     w("")
     w("Воздушный поток")
     w(f"  420: стоит под 90° к плате за её верхним краем. Сердцевина с портами на грани u = {hw.RAD420_CORE_U[0]} (к плате), "
-      f"вентиляторы на внешней грани (u {hw.RAD420_FAN_U[0]}..{hw.RAD420_FAN_U[1]}) дуют вниз по склону вдоль платы.")
+      f"вентиляторы на внешней грани (u {hw.RAD420_FAN_U[0]}..{hw.RAD420_FAN_U[1]}) дуют вниз по склону вдоль платы. Между сердцевиной (u {hw.RAD420_CORE_U[0]}..{hw.RAD420_CORE_U[1]}) "
+      f"и вентиляторами зажата пластина кронштейна (u {hw.RAD420_PLATE_U[0]}..{hw.RAD420_PLATE_U[1]}, ревизия 11).")
     w(f"  360: вентиляторы на внешней стороне (n {hw.RAD360_FAN_N[0]:g}..{hw.RAD360_FAN_N[1]:g}) дуют внутрь от передней грани, "
       f"к плате (сердцевина n {hw.RAD360_CORE_N[0]:g}..{hw.RAD360_CORE_N[1]:g}).")
     fl, fr = hw.FAN_SIDE_X["fan_side_left"], hw.FAN_SIDE_X["fan_side_right"]
@@ -3103,6 +3264,17 @@ def format_report(hardware, parts, res, memo=None):
           f"винт 2.5 входит {min(r['pen']['inner'][0] for r in dr):.2f} мм (стандарт до {i_['enter'][1]:g}), под каждой головкой есть место, отсек (салазки, диски, зоны штекеров) внутри |X| {hw.DRIVE_ENVELOPE[0][0]:g}..{hw.DRIVE_ENVELOPE[0][1]:g}, "
           f"Y {hw.DRIVE_ENVELOPE[1][0]:g}..{hw.DRIVE_ENVELOPE[1][1]:g}, Z {hw.DRIVE_ENVELOPE[2][0]:g}..{hw.DRIVE_ENVELOPE[2][1]:g}: " + "; ".join(f"{r['bay']} X {r['box'][0]:.1f}..{r['box'][1]:.1f}, Y {r['box'][2]:.1f}..{r['box'][3]:.1f}, Z {r['box'][4]:.1f}..{r['box'][5]:.1f}" for r in dr)
           + "   " + ("PASS" if not any(f.startswith('CHECK13') for f in res['failures']) else "FAIL"))
+    p4 = res.get("plates420") or {}
+    if p4:
+        op = p4["openings"]
+        w(f"  14. (доп.) пластины 420 (ревизия 11): в отверстиях трёх вентиляторов (круг Ø{hw.FAN_P14['opening_d']:g}, срезанный до {hw.FAN_P14['opening_flats']:g} по лыскам, "
+          f"сквозь весь пакет u {hw.RAD420_BS[2]}..{hw.RAD420_BS[3]}) нет материала пластин: наибольший объём {max(v for _, _, v, _ in op):.2f} мм³, наименьший зазор {min(d for _, _, _, d in op):.2f} мм "
+          f"({min(op, key=lambda r: r[3])[0]}, вентилятор {min(op, key=lambda r: r[3])[1]}); стенка пластины вокруг каждого из {len(p4['screws'])} винтов вентиляторов не меньше {hw.M3_MIN_WALL:g} мм: "
+          f"{sum(1 for _, _, ok in p4['screws'] if ok)} из {len(p4['screws'])}; самая узкая перемычка пластины {min(wd for _, wd, _, _ in p4['webs']):.2f} мм "
+          f"(не меньше {MIN_WEB:g}; {min(p4['webs'], key=lambda r: r[1])[0]}, |X| {abs(min(p4['webs'], key=lambda r: r[1])[2][0]):.0f}..{abs(min(p4['webs'], key=lambda r: r[1])[2][1]):.0f}, "
+          f"n {min(p4['webs'], key=lambda r: r[1])[3][0]:.0f}..{min(p4['webs'], key=lambda r: r[1])[3][1]:.0f}); под низом вентиляторов (n {hw.RAD420_FAN_N[0]:g}) на {CHORD_FAN_GAP:g} мм материала антлеров нет "
+          f"(наибольший объём {max(v for _, v in p4['underside']):.2f} мм³)   "
+          + ("PASS" if not any(f.startswith('CHECK14') for f in res['failures']) else "FAIL"))
     w("")
     w("Скругление (ревизии 8 и 8a)")
     ref = reference_parts()
@@ -3571,6 +3743,13 @@ DEVIATIONS: list[str] = [
     "(EPS 2: от (84, 160, 7) к (113, 332, 93) и (122, 346, 108), потом вверх по X 132) и проходят сквозь объём правого отсека (X 79..119, Y 252..375, Z 3..150); при построенном правом отсеке cables.py не проходил (ATX 24-pin, EPS 1 и EPS 2 по 0.00 мм "
     "от drive_right при минимуме 3, EPS 2 1.59 мм от салазок). Кабели не перекладывались. В hardware.py DRIVE_SIDES = {\"left\": -1}; всё строится по этому словарю, возврат ключа right строит правый отсек (и снова роняет cables.py и drive_access.py). "
     "Свободное место справа от БП в плане было измерено без кабелей (слой кабелей в черновой сетке был пуст: rt.solid у маршрута None, пока не вызван rt.build()).",
+    "Ревизия 11, антлеры (проход 2): кронштейн 420 стал пластиной 3 мм между сердцевиной и вентиляторами (u 348..351), двумя зеркальными половинами, с хордой под вентиляторами у конца радиатора и прежним языком на внешней грани rib_B (два болта M4). Таблица отверстий 420 по рисунку ARCTIC P14 Pro: шаг 125.00 (было 124.5), 12 винтов, по 6 на половину. rad420 в железе стал двумя телами (сердцевина u 310..348 шириной 138, вентиляторы u 351..378 шириной 140 и длиной 420). Отклонения от спецификации, каждое измерено:",
+    "(1) Вентиляторы 140 мм в n (-16..124), сердцевина 138 (-15..123): ENVELOPE_N стал 124 (грань верха 420 - верх вентиляторов), перемычка над отверстием 2.0 мм (самая узкая 2.03 мм, X 124..156 над внешним вентилятором, измерено сечением на u 349.5; проверка 14c не пускает уже 1.9 мм). Низ вентиляторов n -16: зазор до кредла rib_B (n -18) стал 2.00 мм (был 2.55). Длину вентиляторов в железе я сделал 420 (X +-210, три рамки встык), а не 458 как у сердцевины: концевые бачки торчат на 19 мм за вентиляторами. Спецификация этого не требовала; без этого концевое ребро (п. 5) некуда поставить. Бокс органического слоя для keep-out теперь RAD420_ENV_BS (с шириной вентиляторов).",
+    "(2) Пластина начинается на |X| = 40, не на X 0: над отверстием среднего вентилятора перемычка 2 мм только при |X| до 16.6, до |X| 40 меньше 12 мм, а торцевая кромка короче радиусов скругления. Нижняя кромка пластины n -17 (на 1 мм ниже вентиляторов, CHORD_FAN_GAP), зазор до кредла 1 мм.",
+    "(3) Хорда: X 158..228 (от внешней грани rib_B до конца пластины), n -22..-17 (5 мм), u 338..388 как язык, верх на 1 мм ниже вентиляторов (проверка 14d). Во внутренней части |X| < 158 хорды нет: пластина висит на радиаторе. Над кредлом (|X| 142..158) хорде нет места: между вентиляторами (n -16) и кредлом (n -18) 2 мм, первый проход (хорда n -17..-15) там сидел на вентиляторах. Хорда не заходит в |X| < 158, поэтому drive_access.py даёт 28 / 28 градусов (хорда на всю длину давала 30 / 30). Короткий отрезок X 122..140 перед кредлом не делался: он не связан с остальной хордой.",
+    "(4) Контур и скругление: вырезы вентиляторов в контур не входят (галтели в углах лыска-круг ограничены вырезом: r 2, не 8; 0.01 мм³ в вырезе); углы языка на u 338 и 388 у хорды не скругляются (одна грань с хордой); галтель язык-хорда r 4 (больше закрыла бы подход к головке винта M4). Буттресс ревизии 10 и звено языка убраны вместе со старой пластиной 10 мм.",
+    "(5) КОНЦЕВОЕ РЕБРО, которого нет в спецификации: полоса X 222..228, u 351..378, n -17..124 на задней грани пластины у конца радиатора (за концом вентиляторов, X > 210; со стороны сердцевины концевой бачок). Измерено, зачем: без него (strength.py, радиатор как жёсткое тело, среднее по пятну 9.5 мм, шаг 7 и 1.5 мм) концевая полоса пластины 3 x 20 мм несёт вес верхних винтов как консоль: 7.9 МПа при допустимых 6.7 (запас 0.8), прогиб у верхнего внешнего винта 15.8 мм, у тела радиатора 6.5 мм. С ребром (сечение уголком, момент инерции в 220 раз больше) наибольшее напряжение в пластине, хорде и языке 2.3 МПа (мелкая сетка 2.4), прогиб 2.4 и 1.1 мм. Ребро доходит до u 378 (задняя грань вентиляторов) и не выше n 124: по Z оно вровень с верхом 420 (385.0), не выше. Масса антлера 71.5 г при 20 % (первый проход 84.9 г, без ребра 56.5 г).",
+    "(6) strength.py, ревизия 11 проход 2: радиатор стал телом в модели (E 10000 МПа, паяная алюминиевая сборка; чувствительность к E в отчёте), связанным с пластинами в 12 винтах по пятну Ø9.5 мм (RAD420_SCREW_PATCH_D, ДОПУЩЕНИЕ: шайба #6), вес вдоль уклона - объёмная сила на теле (центр масс), кредл как раньше. Судится случай «stiff» (среднее перемещение по пятну с весами по площади): прямая жёсткая привязка узлов давала у края пятна напряжение, растущее с измельчением сетки (7.1 -> 12.4 МПа при 2.5 -> 1.5 мм до ребра), поэтому она осталась как проверка чувствительности («stiff-rigid»: 2.8 МПа, прогиб 2.1 мм). Случай «point» (старая модель, 12 точечных нагрузок, радиатор без жёсткости) на этой геометрии даёт 42 МПа на нижней кромке пластины и прогиб 90 мм: без хорды при |X| < 158 восемь из двенадцати винтов тянут консоль без опоры. Это и есть довод в пользу тела: настоящий радиатор передаёт вес на внешние винты. Первый проход (хорда на всю длину, точки): перемычка 15.7 МПа, прогиб 12.2 мм.",
 ]
 OPEN_ITEMS: list[str] = [
     "Отсеки под диски: глубина штекера и изгиба кабеля за диском 25 мм (DRIVE_PLUG_ZONE) - ПРЕДПОЛОЖЕНИЕ, источника нет. Головки винтов, нижний предел входа 2.5 дюйма, резиновые втулки (нет размеров), кабели SATA (данные от платы, питание от БП), "
@@ -3586,11 +3765,8 @@ OPEN_ITEMS: list[str] = [
     "Обслуживание (RAM, блок CPU): откидывать 360 нельзя, шарнира нет (visor_swing.py: с осью за верхней кромкой 360 упирается в 420 через 15-20°, "
     "с осью на внешнем углу нижняя губа проходит через шланги CPU уже на 15°). Порядок: отвернуть 4 болта M4 (два на сторону, соединение плеча с шеей), "
     "поднять 360 вперёд; шланги дают около 100 мм (трасса GPU сжимается примерно до 331 и 352 мм из 450). Не проверено руками на настоящих шлангах.",
-    "Опрокидывающая нагрузка: вес 420 разлагается на 0.71 вдоль n (прижим к кредлу) и 0.71 вдоль уклона (в сторону -u, вниз к плате); "
-    "вдоль уклона и момент (центр масс n = 54, плоскость кредла n = -18, плечо 72 мм) держат только антлеры: 6 винтов 6-32 через "
-    "вентиляторы и два язычка на двух болтах M4 каждый. Прочность и жёсткость не считались.",
-    "Длинные винты через вентиляторы: винты антлеров проходят пластину 10 мм и вентилятор 27 мм (u 351..378), штатные винты "
-    "вентиляторов коротки: нужны более длинные 6-32 или зенковка в антлере.",
+    "Опрокидывающая нагрузка: вес 420 разлагается на 0.71 вдоль n (прижим к кредлу) и 0.71 вдоль уклона (в сторону -u, вниз к плате); вдоль уклона и момент (центр масс n = 54, плоскость кредла n = -18, плечо 72 мм) держат только антлеры: 6 винтов 6-32 в пластине 3 мм между сердцевиной и вентиляторами, концевое ребро и язычок на двух болтах M4 каждый. strength.py 7 2, радиатор как жёсткое тело, 20 %: язык 2.05, хорда 2.31, корень пластины над хордой 2.21, перемычка между вентиляторами 0.16 МПа при допустимых 6.7; прогиб 420 2.4 мм у верхнего внешнего винта (случай точечных нагрузок: 42 МПа, 90 мм, он не судится). Не считалось: ползучесть пластины 3 мм под постоянной нагрузкой у тёплого радиатора, проскальзывание зажима плиты (трение зажатой между сердцевиной и рамкой), пятно Ø9.5 мм взято допущением.",
+    "Длинные винты через вентиляторы (ревизия 11): винты идут с внешней грани через вентилятор 27 мм и пластину 3 мм в резьбу сердцевины, то есть на 3 мм длиннее штатных (6-32 x 34.9 мм, если штатные 32). Длину штатных винтов, резьбу (по отзывам 6-32 UNC) и полезную глубину резьбы в радиаторе ARCTIC не указывает: это замеры владельца. Вентиляторы нужно перенести на ту грань, где у радиатора воронки портов (чертёж ARCTIC), владелец подтвердил, что радиатор нарезан с обеих сторон.",
     "GPU_BRACKET_TAB_N = 108 остаётся PLACEHOLDER, верх gpu_post (n = 108) не подтверждён. Положение ATX-отверстий подтверждено по скану "
     "платы; схема БП и вставки взяты из исследования (ATX12V v2.0, ruthex RX), на деталях владельца не измерены. БП: вентилятор вверх, "
     "сетевой разъём у -X, одна схема из четырёх отверстий; на самом БП не проверено.",

@@ -68,6 +68,21 @@ def wbox(x0, x1, y0, y1, z0, z1) -> Solid:
     return Solid.makeBox(x1 - x0, y1 - y0, z1 - z0, Vector(x0, y0, z0))
 
 
+def bs_place(shape):
+    """A shape built in board-space axes (v, u, n) as (x, y, z), moved to where it stands: the placement bs_box applies."""
+    return shape.rotate(Vector(0, 0, 0), Vector(1, 0, 0), TILT_DEG).translate(Vector(*ORIGIN))
+
+
+def rad420_fan_opening(k: int, u0: float, u1: float) -> Solid:
+    """The open air path of the 420's fan number k (0, 1, 2 from -X): a circle of opening_d cut to opening_flats across the flats on both
+    axes (FAN_P14), about the fan's centre, as a prism along u from u0 to u1. A probe for what may not stand in the way, not hardware."""
+    d, flats = FAN_P14["opening_d"], FAN_P14["opening_flats"]
+    v, n = x_to_v(RAD420_FAN_X[k]), RAD420_MID_N
+    disc = Solid.makeCylinder(d / 2, u1 - u0, Vector(v, u0, n), Vector(0, 1, 0))
+    square = Solid.makeBox(flats, u1 - u0, flats, Vector(v - flats / 2, u0, n - flats / 2))
+    return bs_place(disc.intersect(square))
+
+
 def bs_cyl(radius, v, u, n0, n1) -> Solid:
     """Cylinder with its axis along n, centred at (v, u), from n0 to n1, placed like bs_box."""
     c = Solid.makeCylinder(radius, n1 - n0, Vector(v, u, n0), Vector(0, 0, 1))
@@ -131,12 +146,26 @@ RAD360_BS = (-75, 319, 184, 305, RAD360_INNER_N, RAD360_INNER_N + 55)   # core n
 RAD360_CORE_N = (RAD360_INNER_N, RAD360_INNER_N + 30)
 RAD360_FAN_N = (RAD360_INNER_N + 30, RAD360_INNER_N + 55)
 # 420 at 90 deg to the board behind its top edge (board space), ported core face towards the board (u = 310),
-# fans on the outer face (u = 378) blowing down-slope along the board. 68 mm stack (ARCTIC spec: 38 core + 27 fan
-# + hardware), 138 mm wide in n, 458 long in v. Its underside is the plane n = -15, a 45 deg face rising to the back.
-RAD420_BS = (-107, 351, 310, 378, -15, 123)
+# fans on the outer face (u = 378) blowing down-slope along the board. 68 mm stack (ARCTIC drawing: 38 core + 27 fan
+# + 3 mm between them, where the antlers' plate is clamped, revision 11), 458 long in v. The core is 138 mm wide in n (RAD420_BS, RAD420_CORE_N): its
+# underside is the plane n = -15, a 45 deg face rising to the back. The fans are 140 mm wide (FAN_P14, ARCTIC drawing), 1 mm more than the core on each
+# long side: n -16..124 (RAD420_FAN_N), and 420 long (RAD420_FAN_V), the end tanks of the core stand 19 mm past them. RAD420_ENV_BS is the box round the whole stack; the hardware "rad420" is two solids under one name,
+# the core and the fans (build_hardware), and the 3 mm between them are empty.
+RAD420_BS = (-107, 351, 310, 378, -15, 123)            # the core's width in n; u runs over the whole stack
+RAD420_CORE_N = (RAD420_BS[4], RAD420_BS[5])
 RAD420_CORE_U = (310, 348)
+RAD420_PLATE_U = (348, 351)                            # the gap between core and fans: the bracket plate goes here
 RAD420_FAN_U = (351, 378)
-RAD420_MID_N = (RAD420_BS[4] + RAD420_BS[5]) / 2       # 54
+RAD420_MID_N = (RAD420_CORE_N[0] + RAD420_CORE_N[1]) / 2       # 54
+# The fans (ARCTIC P14 Pro, the ones that come on the LF3 Pro 420) from ARCTIC's drawing "P14 Pro Fan Mounting Pattern", rev. 2025-05-14, which the owner
+# opened: holes 125.00 apart on both axes (not the 124.5 of the side fans, which are another product), hole diameter 4.30, frame 140.00 square, the
+# opening a circle of 140.00 cut to 136.00 across the flats on both axes, about the fan's centre. ARCTIC does not dimension the radiator's own holes;
+# they are taken from the fan. The 3 fans stand edge to edge along the radiator's length (pitch = frame), centred on the middle of its width in n.
+FAN_P14 = dict(source="ARCTIC P14 Pro Fan Mounting Pattern, rev. 2025-05-14", pitch=125.00, hole_d=4.30, frame=140.00, opening_d=140.00, opening_flats=136.00)
+RAD420_FAN_X = tuple(k * FAN_P14["frame"] for k in (-1.0, 0.0, 1.0))         # world X of the three fans' centres: -140, 0, 140
+RAD420_FAN_N = (RAD420_MID_N - FAN_P14["frame"] / 2, RAD420_MID_N + FAN_P14["frame"] / 2)      # the fans' width in n: -16..124, the core's 138 plus 1 mm each side
+RAD420_FAN_V = (x_to_v(RAD420_FAN_X[0] - FAN_P14["frame"] / 2), x_to_v(RAD420_FAN_X[-1] + FAN_P14["frame"] / 2))     # the fans' length: three frames edge to edge, X -210..210 (the radiator is 458 long, the end tanks stand 19 mm past the fans)
+RAD420_ENV_BS = (*RAD420_BS[:4], *RAD420_FAN_N)         # the whole stack, fans' width: what the 420 occupies, for keep-outs
 # Ports (ARCTIC drawing page 2, refs/arctic_radiator_ports_*.png): two collars stand on the FACE of one end
 # tank, square to it, 8.4 mm in from the radiator's end, 23.8 mm apart about the middle of the 138 mm width,
 # collar diameter 20, top 20 mm above the core face. They are not axial. The MSI 360's ports are like ARCTIC's.
@@ -282,9 +311,9 @@ DRIVE_PLUGS = tuple(f"drive_plugs_{s}" for s in DRIVE_SIDES)       # the plug ke
 ENVELOPE_X = float(RAD420_BS[1] - RAD420_BS[0]) / 2          # 229
 ENVELOPE_Y0 = 0.0                                            # the front plane (it was the front fans' face until revision 7)
 # Revision 6: no frame part may rise above the 420's top edge. The 420 stands at 45 deg, so "above" is meant in board space:
-# the top face of the radiator is the plane n = RAD420_BS[5] and a part reaching past it stands above the radiator seen from
+# the top face of the radiator (its fans, 140 mm wide) is the plane n = RAD420_FAN_N[1] and a part reaching past it stands above the radiator seen from
 # the side. (In world Z a 10 mm plate behind the fan face is always higher than the radiator's highest corner.)
-ENVELOPE_N = float(RAD420_BS[5])                             # 123
+ENVELOPE_N = float(RAD420_FAN_N[1])                         # 124: the fans stand 1 mm above the core's top face (revision 11, second pass)
 
 # ---------------------------------------------------------------------------
 # Mounting interfaces
@@ -303,9 +332,12 @@ ATX_STANDOFF_H = 6.35
 ATX_BOARD_N = -2.0                       # board underside
 ATX_TRAY_N = ATX_BOARD_N - ATX_STANDOFF_H  # tray (beam) surface, -8.35
 
-# rad420 threaded holes on the outer (fan) face u = RAD420_BS[3] (6-32): world X, and n = middle of the width +- 62.25
-RAD420_HOLES_X = (-202.25, -77.75, -62.25, 62.25, 77.75, 202.25)
-RAD420_HOLES_N = (RAD420_MID_N - 62.25, RAD420_MID_N + 62.25)
+# rad420 fan screws (6-32), the pattern of FAN_P14 about each fan's centre: world X of the six columns, and n = middle of the width +- pitch / 2.
+# The screws go through the fan and the plate into the core (u axis); the plate between them is at u RAD420_PLATE_U.
+RAD420_HOLES_X = tuple(sorted(cx + s * FAN_P14["pitch"] / 2 for cx in RAD420_FAN_X for s in (-1.0, 1.0)))      # -202.5 -77.5 -62.5 62.5 77.5 202.5
+RAD420_HOLES_N = (RAD420_MID_N - FAN_P14["pitch"] / 2, RAD420_MID_N + FAN_P14["pitch"] / 2)
+RAD420_SCREW_PATCH_D = 9.5      # ASSUMPTION, not measured: the footprint of a 6-32 screw's washer (a #6 flat washer is 3/8 in = 9.5 mm across) through which a fan screw clamps the fan and the plate
+                                # to the core; strength.py ties the radiator to the plates over a patch of this diameter at each of the twelve screws
 
 # rad360 inner-face threaded holes (n = RAD360_INNER_N): world X and u
 RAD360_HOLES_X = (-172.5, -67.5, -52.5, 52.5, 67.5, 172.5)
@@ -462,7 +494,9 @@ def build_hardware() -> dict[str, Solid]:
     hw["gpu"] = bs_box(*GPU_BS)
     hw["cpu_block"] = cpu_block_solid()
     hw["rad360"] = bs_box(*RAD360_BS)
-    hw["rad420"] = bs_box(*RAD420_BS)
+    # revision 11: the core and the fans, two solids under one name; the 3 mm between them (RAD420_PLATE_U) are the antlers' plate
+    hw["rad420"] = Compound.makeCompound([bs_box(*RAD420_BS[:2], *RAD420_CORE_U, *RAD420_CORE_N),
+                                          bs_box(*RAD420_FAN_V, *RAD420_FAN_U, *RAD420_FAN_N)])
     hw["psu"] = wbox(*PSU_W)
     for name in FAN_SIDE_NAMES:
         hw[name] = bs_box(*fan_side_bs(name))

@@ -571,7 +571,7 @@ def build_c3(parts_by_name):
 def solid_checks(items: dict, parts_by_name: dict, hardware: dict, extra: dict):
     # G1 .. G4, G6: holes against the skeleton, then placement on the component
     g = items
-    check_holes(g["G1"], ["antler_left"], parts_by_name, 3, "G1")
+    check_holes(g["G1"], ["antler_left"], parts_by_name, 2 * len(hw.RAD420_HOLES_N), "G1")      # revision 11: the antler takes all four holes of the end fan (two columns, two rows)
     check_placed(g["G1"], hardware, "rad420")
     check_holes(g["G2"], ["visor_arm_right"], parts_by_name, 2, "G2")
     check_placed(g["G2"], hardware, "rad360")
