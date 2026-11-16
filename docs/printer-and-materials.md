@@ -25,3 +25,27 @@ Given by the owner on 15 Nov 2026. Facts about his equipment, not design decisio
 - PA6 takes up water fast and prints badly when damp. At 65 % humidity the CFS is not a place to keep it: dry it before printing and feed it from a dry box.
 - ABS and PA6 need the chamber closed; the printer stands in a bedroom, so mind the fumes (see `HANDOFF.md`).
 - Unfilled PA6 warps on large flat parts. Keep nylon parts small.
+
+## Fasteners on hand (owner's photo of the kits, 16 Nov 2026)
+
+All screws are hex socket head cap screws. There are no M4 screws and no heat-set inserts.
+
+| Screw | Black 12.9 steel | Stainless 304 | Total |
+|---|---|---|---|
+| M3 x 6 | 30 | 20 | 50 |
+| M3 x 8 | 30 | 20 | 50 |
+| M3 x 10 | 30 | 20 | 50 |
+| M3 x 12 | 30 | 20 | 50 |
+| M3 x 16 | 30 | 20 | 50 |
+| M3 x 18 | | 20 | 20 |
+| M3 x 20 | 30 | 20 | 50 |
+| M3 x 25 | | 20 | 20 |
+| M3 x 30 | | 20 | 20 |
+| M3 x 35 | | 20 | 20 |
+| M3 x 40 | | 20 | 20 |
+
+- M3 nuts: 180 black and about 220 stainless. M3 flat washers: 80. M3 lock washers: 180.
+- An M2 kit (M2 x 4 to M2 x 20 with nuts and washers). The case has no use for it so far.
+- The counts are the kits' labels, not a count of what is left in the boxes.
+
+What follows for the model is in `docs/plans/fasteners-m3.md`.
