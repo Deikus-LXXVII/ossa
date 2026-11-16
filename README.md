@@ -61,6 +61,7 @@ python3 -m venv .venv
 .venv/bin/python cad_b6/test_checks.py   # prove the checks bite
 .venv/bin/python cad_b6/render_vtk.py    # previews/b6_v0_*.png
 .venv/bin/python cad_b6/render_full.py   # previews/b6_full_*.png, the whole design
+.venv/bin/python cad_b6/render_blender.py # meshes for the Blender render (cad_b6/blender_scene.py, previews/b6_render_*.png)
 .venv/bin/python cad_b6/strength.py 7 2  # strength and plastic, about 7 minutes
 ```
 
@@ -99,7 +100,8 @@ A separate check keeps each contact face at 97 % of its area or more after round
 ## Not done yet
 
 - The front I/O module is a placeholder until the real module is measured.
-- The organic layer has fixings and checks, but no print split yet, and the insert pilots for it are not cut in the skeleton.
+- The organic layer has fixings and checks, but no print split yet. Its surface is still lumpy and it has no rear panel.
+- External cables cannot be plugged in yet: the left side fan stands 58 mm in front of the board's rear connectors and the card's end post covers its video outputs (`docs/plans/external-cables.md`).
 - Cable routes are drawn and checked, and eleven tie points for hook-and-loop straps shape them. The graphics card's power cable stands about 10 mm in front of the front plane, which the owner accepted.
 - No test prints yet. The fit gauges and coupons are ready to print (`docs/fit-gauges-check-sheet.ru.md`).
 
