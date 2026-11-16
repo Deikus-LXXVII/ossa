@@ -44,3 +44,11 @@ Recommendation, main session: **order them, and keep inserts everywhere instead 
 What it needs from the owner: the insert's outer diameter and length (of the ones on hand and of the ones ordered, best the same kind), because the pilot hole is sized to the insert. The model's M3 pilot today is 4.0 mm wide and 6.7 mm deep, which is ruthex's figure for its M3 x 5.7 insert.
 
 If the owner does not order, the rules above (captive nuts, inserts only under the board) stand.
+
+## Decided, 16 Nov 2026: M3 inserts everywhere
+
+The owner orders 200 M3 inserts. Revision 12 is therefore the small one: every M4 and short M4 insert pilot becomes an M3 pilot, every M4 clearance hole an M3 one, the screw lengths come from the owner's table, and the model checks the count of each length and of the inserts against the stock. The captive-nut rules above are not used.
+
+Open until the owner gives the insert's outer diameter and length: the pilot's diameter and depth.
+
+**The 420's fan screws.** The owner's fan screws are about 30 mm under the head. With the 3 mm plate of Revision 11 the screws have to be about 33 mm; the nearest common length is 35 mm (6-32). Before ordering, the owner checks how deep a screw can go into the radiator's thread: a 35 mm screw goes 5 mm into it behind a 27 mm fan and the plate.

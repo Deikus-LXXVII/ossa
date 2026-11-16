@@ -19,7 +19,19 @@ Given by the owner on 15 Nov 2026. Facts about his equipment, not design decisio
 | Creality Hyper PLA | black | organic outer layer (`cad_b6/organic_frame.py`) |
 | ELEGOO translucent PLA | translucent | diffuser of the light line |
 | yxpolyer Nylon PA6, unfilled, 1 kg | black | parts that snap: the two hose guides only. The cable tie bridges are ABS since 16 Nov 2026 (hook-and-loop straps hold the cables), and the PLA layer is fixed with M3 screws |
-| plain PLA | white | not planned |
+| plain PLA | white | test prints of every part before it is printed in ABS (owner's decision, 16 Nov 2026) |
+
+## Stock and order of printing (owner, 16 Nov 2026)
+
+- **Black ABS:** two spools of 1 kg. The skeleton is about 1.65 kg at 4 walls and 20 % infill, before supports and rejects, so nothing is wasted on trials.
+- **Trials in white PLA first.** A part is printed in white PLA and checked on the hardware; ABS follows only when the trial fits.
+- **Black PLA:** about 1.8 kg, more to be ordered.
+- **Side fans:** the two 140 mm fans come from the owner's present case.
+- **Hook-and-loop straps:** to be ordered.
+- **Drives:** the owner has neither an HDD nor a SATA SSD. The drive bay is a provision for later; no SATA cable is routed.
+- **Radiator fan screws:** the screws the owner used to put fans on a radiator are about 30 mm under the head.
+
+Mind when reading a PLA trial: ABS shrinks more than PLA as it cools, so a hole or a fit that is right in PLA comes out a little tighter in ABS. Fits that matter (insert pilots, screw clearances, the fit gauges) are confirmed on a small ABS piece, not on the PLA trial.
 
 ## What follows for printing
 - PA6 takes up water fast and prints badly when damp. At 65 % humidity the CFS is not a place to keep it: dry it before printing and feed it from a dry box.
@@ -48,7 +60,7 @@ All screws are M3 hex socket head cap screws. There are no M4 screws.
 | M3 x 40 | | 20 | | 20 |
 
 - **M3 nuts:** about 700 (180 + 220 + 300). **M3 flat washers:** 380 (80 + 300). **M3 lock washers:** 180.
-- **M3 heat-set inserts:** 20 at most (owner's word, 16 Nov 2026). Size not stated.
+- **M3 heat-set inserts:** 20 at most on hand, 200 more ordered (owner's word, 16 Nov 2026). Outer diameter and length not stated yet; the pilot hole is sized to them.
 - An M2 kit (M2 x 4 to M2 x 20 with nuts and washers). The case has no use for it so far.
 - The counts are the kits' labels, not a count of what is left in the boxes. The ordered kit's contents were read off its Amazon listing (the label in the product picture and the description agree).
 
