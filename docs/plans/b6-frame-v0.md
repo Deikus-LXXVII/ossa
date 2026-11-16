@@ -470,4 +470,39 @@ Owner's observation: the 420's mount sits where its fans are. Either it has to c
 
 It does not change the decision. Fans on the board side would need 27 mm where there are 5, and moving the radiator back by 27 mm to make room would lengthen the CPU hoses, which use 432 of their 450 mm.
 
-The spec for `cad-implementer` follows when the research is back.
+### Research result (Grok `web-research`, 16 Nov 2026; the pattern drawing was opened and read in the main session)
+
+- **Fan hole pattern: 125.00 mm, not 124.5.** ARCTIC's "P14 Pro Fan Mounting Pattern" drawing (rev. 2025-05-14): holes 125.00 apart, diameter 4.30, frame 140.00 square. `hardware.py` has 124.5 for the 420. ARCTIC does not dimension the radiator's own holes; the fans that come on it are P14 Pro, so the radiator's pattern is taken from the fan.
+- **Fan opening:** a circle of 140.00 cut to 136.00 across the flats. At the middle of a side the opening is 2 mm from the frame's edge.
+- **Thread:** not stated by ARCTIC. Users report 6-32 UNC, and the 4.30 hole fits a #6 screw. Stock long screws: 32 to 34 mm by two user reports, not measured.
+- **How deep a screw may go into the radiator:** not stated anywhere.
+- **Fan corners:** rubber round the four mounting holes on a plastic frame (one review).
+- **Fans on either face:** ARCTIC's manual shows both; the owner says the same.
+- **Stack:** 38.0 + 27.00 with 68.0 overall on the drawing. The 3 mm are not labelled.
+- **Weight:** 2370 g for the whole cooler.
+
+### Revision 11: spec for `cad-implementer`
+
+**Hardware, `hardware.py`.**
+
+- The 420's hole table on the 125.00 pattern: X +-62.5, +-77.5, +-202.5; n = middle +-62.5. Name the source beside it. Add the fan's hole diameter and the opening (circle 140 cut to 136 across the flats, about the fan's centre).
+- `rad420` becomes two solids under one name: the core u 310..348 and the fans u 351..378. The 3 mm between them is where the plate goes. Correct the comment that calls those 3 mm "hardware".
+
+**Parts.** `antler_right` and `antler_left` keep their names and their foot; the plate changes. The left one is the right one mirrored, as now.
+
+- **Plate:** 3 mm, on the plane u 348..351, between core and fans. The right half covers X 0..228 less a joint gap at X 0, and n -15..123.
+- **Openings:** nothing of the plate lies inside a fan's opening. What is left of it between the fans' frames is the outer end bar (over the end tank, beyond the outer fan), the web between two fans, the 2 mm webs along the top, and the corners.
+- **Holes:** six per half, 6-32 clearance, at the table's positions: all four of the outer fan and the two nearer ones of the middle fan.
+- **Limits:** nothing above n 123 (the rule that no part rises above the 420), nothing beyond the radiator's end.
+- **Lower chord and foot:** below the radiator's underside (n -15) the plate may grow thicker and run the half's whole length as a chord. It joins the present foot: the tongue on rib B's outer face with its two M4 bolts (`TONGUE_BOLTS` stay if they can) and the buttress. The old 10 mm plate behind the fans, its bar and its finger go.
+- Rounded by the skeleton's rules.
+
+**Checks.**
+
+- Existing ones as they are: clearances, intended contacts (the plate touches the core and the fans), fastener rows (the 420 now has 12 screws, 6 per half), the height rule, rounding.
+- New: the plate does not enter any fan opening, and every one of the twelve holes has plate material round it by the wall rule.
+- `test_checks.py`: cases that prove the two new checks bite; the cases that measured the old antler are updated and named in the report.
+- `strength.py`: rerun. Report the stress at the root and in the plate against the allowable.
+- `organic_frame.py`, then `organic_strength` is not rerun here (the gaming PC is down); `cables.py`, `fit_gauges.py`, `drive_access.py`, `render_full.py` rerun. Say how much the organic field changed.
+
+**Report's open items:** the fan screws must be 3 mm longer than stock (6-32 x 34.9 mm if the stock ones are 32); the stock length, the thread and the usable thread depth in the radiator are the owner's measurements.
