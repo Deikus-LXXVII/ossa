@@ -30,3 +30,17 @@ A steel nut in a pocket holds better in ABS than an insert, can be taken out and
 
 - Twelve 6-32 screws about 35 mm long for the 420's fans, once the stock screw is measured (Revision 11).
 - Anything the front I/O module needs, once it is measured.
+
+## Update, 16 Nov 2026: the owner can order 100 more M3 inserts
+
+With 20 on hand and 100 ordered there are 120 M3 inserts. The model needs about 97 (58 skeleton joints that are M4 or short M4 today, 9 under the board, 11 cable tie points, 12 pads of the organic layer, 2 for the drive sled, 2 for the front I/O, 3 to 5 for the side fans if they do not get a through screw and a nut).
+
+Recommendation, main session: **order them, and keep inserts everywhere instead of nuts.** It is not strictly needed, nuts would work. The reasons to prefer inserts once there are enough of them:
+
+- **The joints stay as they are drawn.** An insert pilot is a blind hole, as now; only its diameter and depth change from M4 to M3. A nut needs a pocket and a slot at every joint, which is a new shape at about 90 places, takes material out of the members' ends and has to be reachable and printable.
+- **The owner's lengths fit without sinking any head.** With an M3 pilot 6.7 mm deep the stacks measured on the model give: 16 mm (26 joints) M3 x 20; 20 mm M3 x 25; 34 mm M3 x 40; 12 mm M3 x 16 or 18; 10 mm M3 x 14 or 16; 8 mm M3 x 12 or 14.
+- **Assembly:** nothing to hold in place while a screw is started.
+
+What it needs from the owner: the insert's outer diameter and length (of the ones on hand and of the ones ordered, best the same kind), because the pilot hole is sized to the insert. The model's M3 pilot today is 4.0 mm wide and 6.7 mm deep, which is ruthex's figure for its M3 x 5.7 insert.
+
+If the owner does not order, the rules above (captive nuts, inserts only under the board) stand.
