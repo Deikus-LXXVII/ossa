@@ -66,3 +66,12 @@ All screws are M3 hex socket head cap screws. There are no M4 screws.
 - The counts are the kits' labels, not a count of what is left in the boxes. The ordered kit's contents were read off its Amazon listing (the label in the product picture and the description agree).
 
 What follows for the model is in `docs/plans/fasteners-m3.md`.
+
+## LED strip for the light line (researched 16 Nov 2026)
+
+Looked for on amazon.de by Grok (`web-research`); the product pages were then opened and read in the main session.
+
+- **Header on the board:** JARGB_V2, 5 V, 3 A, 180 LEDs at most, pins +5 V, data, no pin, ground (MSI user guide, page 55).
+- **No bare strip up to 10 mm wide comes with the motherboard plug.** The ready-made PC strips with that plug are 16 to 20 mm wide bars and do not fit the 14 x 14 mm channel.
+- **Strip:** BTF-LIGHTING WS2812 ECO, 1 m, 60 LEDs per metre, black PCB, IP30, 10 mm wide, JST-SM 3-pin on both ends, ASIN B088BRY2SH, 9.49 EUR, in stock on the day. About 270 mm is used: 16 LEDs, at most 0.96 A at full white, so it is run dimmed in the closed channel. The same strip with 30 LEDs per metre is sold only as a 5 m roll (ASIN B088BB8WTZ, 17.99 EUR); its 33 mm pitch behind a 10 mm air gap would show as separate dots (main session's judgement, not tested).
+- **Lead from the board to the strip:** a "5 V 3-pin ARGB to SM 3-pin" cable, for example ASIN B0CQJLQ7ZC (four 30 cm cables, 5.99 EUR) or B0F8C4SB31 (a 30 cm splitter, 6.69 EUR). Not verified: whether the lead's SM end is the gender that mates with the strip's input end, and the wire order. The strip is one-directional (data in at one end). If the plug does not mate, three wires are soldered.
