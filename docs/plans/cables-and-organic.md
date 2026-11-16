@@ -483,6 +483,16 @@ Decision, main session: **the drive stands on its far end with the connector end
 
 **Not in this pass:** SATA cable routes, the rear organic panel, rubber grommets.
 
+### The organic layer is printed in ABS (owner's decision, 16 Nov 2026)
+
+The owner prints the organic layer in black ABS as well, because ABS costs less than PLA now.
+
+- **What gets simpler:** skeleton and layer shrink alike, and heat near the card and the PSU stops being a limit. The 10 mm gaps stay as drawn; nothing is moved closer.
+- **Strength.** Under a given push the stress does not depend on the stiffness, so the PLA run still gives the stresses. The allowable falls from 12.5 MPa (PLA, 25 across the layers, safety 2) to 10 MPa (ABS, 20 across the layers, the figure `strength.py` uses). Read off `report_organic_strength.txt`: 2 of 320 pushes are over 10 MPa (17.6 and one more among the ten worst listed) where 1 was over 12.5. Deflections grow by about 1.4 (E 2000 against 2800). A rerun with ABS numbers waits for the gaming PC.
+- **Printing.** ABS warps more on long thin members and prints overhangs worse than PLA. A white PLA trial does not show either, so one piece of the layer with long threads is an early ABS trial.
+- **To do in the code after Revision 11:** `organic_frame.py` and `organic_strength.py` name PLA, use its density and modulus, and call the gap `PLA_GAP`; the skeleton report's material paragraph; the mass of the layer (1843 cm3 is 1.92 kg of solid ABS).
+- The light line's diffuser stays translucent PLA, with its 10 mm air gap to the LED strip.
+
 ### Next
 
 Drive sleds and the rear panel, once the research is back: spec, then `cad-implementer`. Split the organic layer into printable pieces (the rear panel is one of them). Rerun `strength.py` with the bridges. Rerun the organic strength check when the gaming PC is back in Linux.

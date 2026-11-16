@@ -15,8 +15,8 @@ Given by the owner on 15 Nov 2026. Facts about his equipment, not design decisio
 ## Filament, 1.75 mm
 | Material | Colour | Use in this project |
 |---|---|---|
-| Creality CR-ABS, Creality Hyper ABS | black | load-bearing skeleton (`cad_b6/frame_v0.py`) |
-| Creality Hyper PLA | black | organic outer layer (`cad_b6/organic_frame.py`) |
+| Creality CR-ABS, Creality Hyper ABS | black | load-bearing skeleton (`cad_b6/frame_v0.py`) and, since 16 Nov 2026, the organic outer layer (`cad_b6/organic_frame.py`): the owner finds ABS cheaper than PLA now |
+| Creality Hyper PLA | black | no planned use since the organic layer went to ABS |
 | ELEGOO translucent PLA | translucent | diffuser of the light line |
 | yxpolyer Nylon PA6, unfilled, 1 kg | black | parts that snap: the two hose guides only. The cable tie bridges are ABS since 16 Nov 2026 (hook-and-loop straps hold the cables), and the PLA layer is fixed with M3 screws |
 | plain PLA | white | test prints of every part before it is printed in ABS (owner's decision, 16 Nov 2026) |
@@ -25,7 +25,8 @@ Given by the owner on 15 Nov 2026. Facts about his equipment, not design decisio
 
 - **Black ABS:** two spools of 1 kg. The skeleton is about 1.65 kg at 4 walls and 20 % infill, before supports and rejects, so nothing is wasted on trials.
 - **Trials in white PLA first.** A part is printed in white PLA and checked on the hardware; ABS follows only when the trial fits.
-- **Black PLA:** about 1.8 kg, more to be ordered.
+- **Black PLA:** about 1.8 kg. Not needed for the case since the organic layer went to ABS.
+- **ABS needed in all:** about 1.65 kg for the skeleton and, by the main session's estimate, 1.5 to 2 kg for the organic layer with its supports (1843 cm3 is 1.9 kg solid). With rejects that is 4 to 5 kg against the 2 kg on hand.
 - **Side fans:** the two 140 mm fans come from the owner's present case.
 - **Hook-and-loop straps:** to be ordered.
 - **Drives:** the owner has neither an HDD nor a SATA SSD. The drive bay is a provision for later; no SATA cable is routed.
