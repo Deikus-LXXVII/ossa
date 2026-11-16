@@ -44,3 +44,15 @@ The owner asked to look at raising the radiators so the fans could go up, then a
   - The CPU hoses run inside, under the 360, with 8 to 12 bends in free air at the 35 mm radius, and sit on the 5 mm clearance limit in several places (card, `gpu_post`, visor arm, 360, the fan).
   - Both fan brackets are new parts; both hose guides are redrawn or dropped; the fans' leads are rerouted; `gpu_post` becomes a frame; the organic layer is redrawn on both flanks.
 - **Not verified:** hoses are rigid centre lines in the model (stiffness, twist and sag are not modelled); the search is not exhaustive; the 120 mm route was not rerun after the script's last edits.
+
+## Measurement: 140 mm fans kept at their height and moved outwards (16 Nov 2026)
+
+The owner asked to go back to 140 mm fans and stand them further from the case, so that the cables have room behind the fan. Measured by the main session on the model's 1.5 mm grid (skeleton without the fan brackets, hardware, hoses, cables without the fans' own leads; the organic layer left out because it is redrawn). The scripts were scratch files and are not in the repository. Picture: `previews/b6_study_fans_out_f140.png` (fans teal, the plugs' zone pink, no brackets, no layer).
+
+- **The fan can stand outside the CPU hoses.** In the fan's footprint (u 120..260, n -42..98) the hoses lie at X -228..-213. Moving the fan out by 6 to 48 mm meets them; from an inner face at X -235.5 the fan is 6 mm clear of them (4.5 mm at X -234).
+- **Proposed place:** left fan X -260..-235, right fan X 235..260, both at today's u and n. Nothing stands in the right fan's way at any shift.
+- **Room behind the left fan:** 113 mm from the board's edge instead of 58 mm. The CPU hoses stay where they are and run through that room 91 to 106 mm from the board's edge, in its upper part (n 35..98); they cross the top 6 mm of the connectors' aperture (u 243..287).
+- **Way out for the cables:** from the plugs' zone a ball 90 mm across reaches the rear face of the model without leaving the slot between the fan and the board (X -234..-122).
+- **Nothing else moves:** the radiators, both pairs of hoses and their guides stay; the 40 mm straight at the 420's ports stays.
+- **What it costs:** the case becomes 520 mm wide instead of 458 mm (each fan stands 31 mm beyond the 420's end); both fan brackets are new and reach further; the fans' leads are rerouted; the organic layer is redrawn on both flanks with an opening to the rear on the left.
+- **Not checked:** the new brackets and their strength; the leads' length; the view of the connectors (the fan still stands in front of them, so plugs go in by hand from the rear or from below); air flow (the fan is twice as far from the board).
