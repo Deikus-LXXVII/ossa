@@ -26,26 +26,30 @@ Given by the owner on 15 Nov 2026. Facts about his equipment, not design decisio
 - ABS and PA6 need the chamber closed; the printer stands in a bedroom, so mind the fumes (see `HANDOFF.md`).
 - Unfilled PA6 warps on large flat parts. Keep nylon parts small.
 
-## Fasteners on hand (owner's photo of the kits, 16 Nov 2026)
+## Fasteners on hand (owner's photo of the kits and the kit ordered on 16 Nov 2026)
 
-All screws are hex socket head cap screws. There are no M4 screws and no heat-set inserts.
+All screws are M3 hex socket head cap screws. There are no M4 screws.
 
-| Screw | Black 12.9 steel | Stainless 304 | Total |
-|---|---|---|---|
-| M3 x 6 | 30 | 20 | 50 |
-| M3 x 8 | 30 | 20 | 50 |
-| M3 x 10 | 30 | 20 | 50 |
-| M3 x 12 | 30 | 20 | 50 |
-| M3 x 16 | 30 | 20 | 50 |
-| M3 x 18 | | 20 | 20 |
-| M3 x 20 | 30 | 20 | 50 |
-| M3 x 25 | | 20 | 20 |
-| M3 x 30 | | 20 | 20 |
-| M3 x 35 | | 20 | 20 |
-| M3 x 40 | | 20 | 20 |
+| Screw | Black 12.9 steel, 620-piece kit | Stainless 304, 440-piece kit | Black alloy steel, 1110-piece kit (ordered) | Total |
+|---|---|---|---|---|
+| M3 x 4 | | | 55 | 55 |
+| M3 x 5 | | | 55 | 55 |
+| M3 x 6 | 30 | 20 | 55 | 105 |
+| M3 x 8 | 30 | 20 | 55 | 105 |
+| M3 x 10 | 30 | 20 | 55 | 105 |
+| M3 x 12 | 30 | 20 | 55 | 105 |
+| M3 x 14 | | | 30 | 30 |
+| M3 x 16 | 30 | 20 | 30 | 80 |
+| M3 x 18 | | 20 | 30 | 50 |
+| M3 x 20 | 30 | 20 | 30 | 80 |
+| M3 x 25 | | 20 | 30 | 50 |
+| M3 x 30 | | 20 | 30 | 50 |
+| M3 x 35 | | 20 | | 20 |
+| M3 x 40 | | 20 | | 20 |
 
-- M3 nuts: 180 black and about 220 stainless. M3 flat washers: 80. M3 lock washers: 180.
+- **M3 nuts:** about 700 (180 + 220 + 300). **M3 flat washers:** 380 (80 + 300). **M3 lock washers:** 180.
+- **M3 heat-set inserts:** 20 at most (owner's word, 16 Nov 2026). Size not stated.
 - An M2 kit (M2 x 4 to M2 x 20 with nuts and washers). The case has no use for it so far.
-- The counts are the kits' labels, not a count of what is left in the boxes.
+- The counts are the kits' labels, not a count of what is left in the boxes. The ordered kit's contents were read off its Amazon listing (the label in the product picture and the description agree).
 
 What follows for the model is in `docs/plans/fasteners-m3.md`.
