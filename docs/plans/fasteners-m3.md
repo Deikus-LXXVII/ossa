@@ -52,3 +52,36 @@ The owner orders 200 M3 inserts. Revision 12 is therefore the small one: every M
 Open until the owner gives the insert's outer diameter and length: the pilot's diameter and depth.
 
 **The 420's fan screws.** The owner's fan screws are about 30 mm under the head. With the 3 mm plate of Revision 11 the screws have to be about 33 mm; the nearest common length is 35 mm (6-32). Before ordering, the owner checks how deep a screw can go into the radiator's thread: a 35 mm screw goes 5 mm into it behind a 27 mm fan and the plate.
+
+## Revision 12: spec for `cad-implementer` (M3 inserts everywhere)
+
+**Goal.** Every screw that joins printed parts is an M3 socket head cap screw from the owner's kits into an M3 heat-set insert. No M4 anywhere. The screws that come with the hardware stay.
+
+**Data, in `hardware.py` only.**
+
+- The owner's stock, with its source (`docs/printer-and-materials.md`): the count of each M3 length from 4 to 40 mm, washers, and 220 M3 inserts.
+- The M3 insert's pilot stays 4.0 mm wide and 6.7 mm deep with a 1.6 mm wall, marked as an assumption until the owner gives the insert's outer diameter and length. It is one constant; nothing else may repeat it.
+- An M3 screw's clearance hole gets its own kind (3.4 mm). The 4.0 mm kind stays for 6-32 hardware screws. Today one kind serves both.
+- Head 5.5 mm across and 3.0 mm high; washer 7 mm across and 0.5 mm thick.
+
+**Joints.**
+
+- Each pilot stays in the part it is in and each clearance hole in the part it is in. The M4 and short M4 pilots become M3 pilots; the M4 clearance holes become M3 clearance holes.
+- A washer lies under every head that bears on printed plastic.
+- **Length rule.** A screw goes at least 3.5 mm into its insert and stops at least 0.5 mm short of the bottom of the hole. Where no length in the kit does that, first deepen the blind hole under the insert with a relief bore of clearance diameter (the insert is open at the bottom), and only if that is not possible sink the head. Say which joints needed which.
+- **Counts.** No more than four fifths of the stock of any length, and no more than four fifths of the inserts. The frame's report gets a bill of fasteners: length, where, how many, how many the owner has.
+- The wall rules, the hole checks and the fastener counts move to the new kinds. No check is dropped.
+
+**Particular places.**
+
+- **Side fans:** M3 x 30 through the 25 mm fan into an insert in the bracket.
+- **Cable tie bridges:** M3 x 8. The report says M3 x 10 today, which is 0.3 mm longer than foot plus hole.
+- **Organic layer's pads:** M3 x 10. **Board:** M3 x 6. **Drive sled's flange:** through the 6 mm bulkhead.
+- **PSU:** its own 6-32 screws are about 6 mm long and the bulkhead is 6 mm thick. Counterbore the bulkhead from behind so that 2.0 mm is left under each head.
+- **360 radiator on the visor arms:** the same idea if the arm is thicker under the screw than a stock radiator screw allows. The stock screw's length is not known; mark the number as an assumption and put it in the report's open items.
+
+**Fit gauges.** `C2_insert_ladder` becomes M3 only: a row of pilot diameters from 3.8 to 4.6 mm in steps of 0.1 at the pilot's depth, and a row of clearance holes from 3.2 to 3.8 mm. ABS.
+
+**The organic layer's material, in the same pass.** `organic_frame.py`, `organic_strength.py`, `shell_concepts.py` and the frame report's material paragraph still say PLA. The layer is PETG with ABS as the fallback: density 1.27 g/cm3, and for strength the ABS figures `strength.py` uses (E 2000 MPa, 20 MPa across the layers), safety 2 as now, so the allowable is 10 MPa. Names that say PLA become names that say what the thing is (the gap to the card and the PSU, the layer's density). No member of the layer moves. `organic_strength.py` is not run here; the main session runs it on the gaming PC.
+
+**Done means:** `frame_v0.py`, `test_checks.py`, `cables.py -norender`, `organic_frame.py`, `drive_access.py`, `fit_gauges.py` pass; `strength.py 7 2` is rerun (smaller holes, new counterbores) and reported; `render_full.py` rerun. Nothing committed.
