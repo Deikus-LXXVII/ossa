@@ -18,7 +18,7 @@ from __future__ import annotations
 import math
 
 import cadquery as cq
-from cadquery import Solid, Vector, Wire
+from cadquery import Compound, Solid, Vector, Wire
 
 C = math.cos(math.radians(45.0))
 TILT_DEG = 45.0
@@ -211,6 +211,72 @@ FRONT_HARDWARE = ("front_io", "light_strip")           # in front of the front p
 
 PSU_REAR_Y = 375.0
 
+# ---------------------------------------------------------------------------
+# Drive bays (docs/plans/cables-and-organic.md, "Drive bays: research result" and "Drive bays, pass 1"): one sled on each side of the PSU, the drives
+# stand on their far end with the connector end up. Right bay: its outer face looks to +X; the left bay is the right one mirrored in X.
+# ---------------------------------------------------------------------------
+# The two form factors, from the standards named beside each. Sizes in mm. `rows` are the bottom holes' distances from the connector end, `col_inset` the
+# columns' distance from each side edge, `col_pitch` the distance between the two columns. `enter` is how far a bottom screw may enter the drive (SFF-8301:
+# 2.39..3.56; SFF-8201: 2.50 at most, no lower limit given, 1.0 is this project's ASSUMPTION). `screw_len` is the screw under its head (the plan's 6-32 x 6.35
+# and M3 x 5); head_d and head_h are an ASSUMPTION (pan head).
+# The side holes are facts of the standards too, but the sled holds a drive by its bottom holes only and nothing reads them, so they are written down here and not
+# as numbers: SFF-8301 has them 28.50 and 130.10 from the connector end, 6.35 above the bottom face; SFF-8201 at the same stations as its bottom holes, 3.00 above it.
+# (As numbers, 28.50 would be a hardware value that test_checks.py's literal scanner then looks for in frame_v0.py, where the beams' n0 = -28.5 is a different number.)
+DRIVE_FORMS = {
+    "hdd35": dict(standard="SFF-8301 Rev 1.9", width=101.60, length=147.00, height=26.10, thread="6-32", col_inset=3.18, col_pitch=95.25,
+                  rows=(41.28, 85.73, 117.48), enter=(2.39, 3.56), screw_len=6.35, head_d=6.7, head_h=2.5),
+    "ssd25": dict(standard="SFF-8201 Rev 3.4", width=69.85, length=100.45, height=7.00, thread="M3", col_inset=4.07, col_pitch=61.72,
+                  rows=(14.00, 90.60), enter=(1.0, 2.50), screw_len=5.0, head_d=5.7, head_h=2.5),
+}
+# The SATA connector on the connector end (same for both forms): where it starts along the width from one side edge, its length, its height above the bottom face.
+DRIVE_SATA = dict(standard="SFF-8323 and SFF-8223", from_edge=13.43, length=42.73, above_bottom=3.5)
+DRIVE_PLUG_ZONE = 25.0                     # ASSUMPTION: plug depth and cable bend beyond the connector end (no source found), a keep-out above each drive
+DRIVE_ON = {"outer": "hdd35", "inner": "ssd25"}      # which form is on which face of the sled; the inner drive is 7 mm thick (the thickest 2.5 inch form is 15)
+# The sled's interface numbers: the drives' places follow from them, so they live here. From the PSU's side (X 75) outwards: air, the inner drive, a boss, the plate,
+# a boss, the outer drive.
+DRIVE_PSU_AIR = 4.0
+DRIVE_PLATE_T = 5.0
+DRIVE_BOSS_H = 1.0                         # the boss round each screw hole, so that the drive's board does not lie on the plate
+DRIVE_Z0 = 3.0                             # the outer drive's lower end above skid_rear's top face (Z 0)
+DRIVE_Y_EDGE = 256.0                       # the outer (3.5 inch) drive's side edge on the connector side; the connector side looks to the front
+DRIVE_CENTRED = True                       # the inner drive is centred on the outer one in Y, so that its holes keep clear of the outer drive's counterbores
+# What a bay (sled, drives, plug zones) may occupy: the volume the sweep of cad_b6/drive_access.py proved free and reachable.
+DRIVE_ENVELOPE = ((78.5, 120.0), (248.0, 375.0), (0.0, 178.0))      # |X|, Y, Z
+
+
+def drive_layout() -> dict:
+    """The right bay as numbers. plate_x is the sled's plate, z_top the height of every drive's connector end. For each face ("outer", "inner"):
+    form, dir (the way X goes from the drive's bottom face into the drive), pb_x (X of the bottom face, where the boss tops stand), body (x0, x1, y0, y1, z0, z1),
+    holes [(y, z)] the bottom holes in the plane x = pb_x, plug (x0, x1, y0, y1, z0, z1) the keep-out above the connector, and the form's own dict."""
+    outer_f, inner_f = DRIVE_FORMS[DRIVE_ON["outer"]], DRIVE_FORMS[DRIVE_ON["inner"]]
+    pb_in = PSU_W[1] + DRIVE_PSU_AIR + inner_f["height"]
+    plate = (pb_in + DRIVE_BOSS_H, pb_in + DRIVE_BOSS_H + DRIVE_PLATE_T)
+    pb_out = plate[1] + DRIVE_BOSS_H
+    z_top = DRIVE_Z0 + outer_f["length"]
+    faces = {}
+    for face, form, pb, d in (("outer", DRIVE_ON["outer"], pb_out, 1.0), ("inner", DRIVE_ON["inner"], pb_in, -1.0)):
+        F = DRIVE_FORMS[form]
+        y_edge = DRIVE_Y_EDGE + ((outer_f["width"] - F["width"]) / 2 if DRIVE_CENTRED else 0.0)
+        xs = sorted((pb, pb + d * F["height"]))
+        body = (xs[0], xs[1], y_edge, y_edge + F["width"], z_top - F["length"], z_top)
+        holes = [(y_edge + c, z_top - r) for c in (F["col_inset"], F["col_inset"] + F["col_pitch"]) for r in F["rows"]]
+        plug = (xs[0], xs[1], y_edge + DRIVE_SATA["from_edge"], y_edge + DRIVE_SATA["from_edge"] + DRIVE_SATA["length"], z_top, z_top + DRIVE_PLUG_ZONE)
+        faces[face] = dict(form=form, dir=d, pb_x=pb, body=body, holes=holes, plug=plug, spec=F)
+    return dict(plate_x=plate, z_top=z_top, faces=faces)
+
+
+def _drive_box(side, box) -> Solid:
+    x0, x1, y0, y1, z0, z1 = box
+    return wbox(*(sorted((side * x0, side * x1))), y0, y1, z0, z1)
+
+
+# The bays that exist: side name -> sign of X. Only the left one: the PSU's ATX 24-pin, EPS 1 and EPS 2 cables run down the right side of the PSU and round its rear, through
+# the volume a right bay needs (X 79..119, Y 252..375), so there is no right bay (docs/plans/cables-and-organic.md). Everything that builds, checks or draws a bay loops over this
+# dict; adding "right": 1 back builds the right bay too (it then fails cables.py and drive_access.py until the cables leave that volume).
+DRIVE_SIDES = {"left": -1}
+DRIVES = tuple(f"drive_{s}" for s in DRIVE_SIDES)                  # the largest occupants of each bay: a 3.5 inch body on the outer face, a 7 mm 2.5 inch body on the inner
+DRIVE_PLUGS = tuple(f"drive_plugs_{s}" for s in DRIVE_SIDES)       # the plug keep-outs above them
+
 # Owner's rule (revision 5): nothing may stick out past the radiators' ends (|X| <= 229) or in front of the
 # front fans (Y >= 0), because a passer-by could catch it. Frame parts and hose keep-outs are both held to it.
 ENVELOPE_X = float(RAD420_BS[1] - RAD420_BS[0]) / 2          # 229
@@ -280,7 +346,7 @@ IO_ZONE_BS = (-50, 0, 148.49, 307.24, -3.81, 40.64)
 # with a small margin. The hose keep-outs stop at these boxes; they are not hoses.
 RAD420_PORTS_BS = (-111, -86, 288, 310, 30, 78)
 RAD360_PORTS_BS = (298, 323, 220, 269, 100, 122)
-KEEP_OUT = ("io_zone", "dimms", "atx24", "eps", "rad420_ports", "rad360_ports", "cpu_hoses", "gpu_hoses", "light_strip")
+KEEP_OUT = ("io_zone", "dimms", "atx24", "eps", "rad420_ports", "rad360_ports", "cpu_hoses", "gpu_hoses", "light_strip") + DRIVE_PLUGS
 HOSES = ("cpu_hoses", "gpu_hoses")
 
 # ---------------------------------------------------------------------------
@@ -410,6 +476,10 @@ def build_hardware() -> dict[str, Solid]:
     hw["cpu_hoses"] = hose_solid("cpu_hoses", hw["cpu_block"])
     hw["gpu_hoses"] = hose_solid("gpu_hoses", hw["gpu"])
     hw["light_strip"] = bs_box(*LIGHT_STRIP_BS)
+    lay = drive_layout()
+    for name, plug_name, side in zip(DRIVES, DRIVE_PLUGS, DRIVE_SIDES.values()):
+        hw[name] = Compound.makeCompound([_drive_box(side, f["body"]) for f in lay["faces"].values()])
+        hw[plug_name] = Compound.makeCompound([_drive_box(side, f["plug"]) for f in lay["faces"].values()])
     return hw
 
 
@@ -421,3 +491,5 @@ HW_COLORS = {
     "rad420_ports": "#c25a00", "rad360_ports": "#7a8f00", "cpu_hoses": "#1a1a1c", "gpu_hoses": "#6b3d1f",
     "front_io": "#d4a017", "light_strip": "#f2e45a",
 }
+HW_COLORS.update({k: "#6c7a89" for k in DRIVES})
+HW_COLORS.update({k: "#c9a0dc" for k in DRIVE_PLUGS})

@@ -24,6 +24,7 @@ warnings.filterwarnings("ignore")
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 import cadquery as cq  # noqa: E402
+import numpy as np  # noqa: E402
 
 import frame_v0 as f  # noqa: E402
 import hardware as hw  # noqa: E402
@@ -831,6 +832,126 @@ def main():
     rt_x.tie, rt_x.fail = saved_tie, saved_fail
     check("a tie failure is a cable failure, so cables.py ends with exit status 1: failures() carries it with the cable's name", any(t.startswith("ATX 24-pin: bend of 45 deg") for t in got),
           ("'ATX 24-pin: bend of 45 deg ...' among the failures", got[0] if got else "no failure"))
+
+    # 14. the drive bay (docs/plans/cables-and-organic.md, "Drive bays, pass 1"; one bay, the left: the PSU's cables run through the right side): hole patterns, seats, envelope, contacts.
+    # The sled is built right-handed and mirrored, so the cutters of the damage below are built right-handed and mirrored too.
+    lay = hw.drive_layout()
+    n_screws = sum(len(fc["holes"]) for fc in lay["faces"].values())
+    sled_l = part_named(parts, "drive_sled_left")
+    check("one bay, the left: one sled, one drive, one plug zone, and no right-hand part or hardware",
+          list(hw.DRIVE_SIDES) == ["left"] and hw.DRIVES == ("drive_left",) and sum(1 for p_ in parts if p_.name.startswith("drive_sled")) == 1
+          and not [k_ for k_ in hardware if k_.startswith("drive") and k_.endswith("right")],
+          ("DRIVE_SIDES = {'left': -1}, 1 sled, drive_left only", f"{hw.DRIVE_SIDES}, {[p_.name for p_ in parts if p_.name.startswith('drive_sled')]}, {[k_ for k_ in hardware if k_.startswith('drive')]}"))
+    check("the sled has its ten drive screw holes derived from the solids (six 6-32 and four M3), the fastener list agrees, and check 13 is quiet",
+          base["mounts"]["drive_left"] == n_screws == 10 and sum(f_["count"] for f_ in f.FASTENERS if f_["item"] == "drive_left") == 10 and "drive_right" not in base["mounts"]
+          and not [x for x in base["failures"] if x.startswith("CHECK13")],
+          ("10, no CHECK13", f"{base['mounts'].get('drive_left')}, {len([x for x in base['failures'] if x.startswith('CHECK13')])} CHECK13"))
+    check("the screws enter the drives as the standards allow: 3.35 mm into the 3.5 inch (2.39..3.56), 2.00 mm into the 2.5 inch (up to 2.50), with the head's room under the face",
+          len(base["drives"]) == 1 and all(abs(r_["pen"]["outer"][0] - 3.35) < 0.02 and abs(r_["pen"]["inner"][0] - 2.0) < 0.02 and min(r_["head"].values()) >= 2.5 - 1e-6 for r_ in base["drives"]),
+          ("3.35 and 2.00 mm, head room 2.5 mm", "; ".join(f"{r_['bay']}: {r_['pen']['outer'][0]:.2f}, {r_['pen']['inner'][0]:.2f}, room {min(r_['head'].values()):.2f}" for r_ in base["drives"])))
+    contacts_all = set(base["contacts"]) | set(base["pp_contact"]) | {(b_, a_) for a_, b_ in base["pp_contact"]}
+    check("the bosses carry the drive (listed zero-gap contact), the foot stands on skid_rear and the flange against psu_bulkhead (part contacts), no other contact with hardware",
+          ("drive_sled_left", "drive_left") in base["contacts"] and ("drive_sled_left", "drive_left") in f.INTENDED_CONTACTS and ("drive_sled_left", "skid_rear") in contacts_all
+          and ("drive_sled_left", "psu_bulkhead") in contacts_all and not [c_ for c_ in base["contacts"] if c_[0].startswith("drive_sled") and c_ not in f.INTENDED_CONTACTS],
+          ("drive, skid_rear, psu_bulkhead; nothing else", f"{sorted(c_ for c_ in base['contacts'] if c_[0].startswith('drive_sled'))}"))
+    check("the plug zone is a keep-out, the drive is not, and each is a compound of two bodies (3.5 inch outer, 2.5 inch inner)",
+          all(k_ in hw.KEEP_OUT for k_ in hw.DRIVE_PLUGS) and not any(k_ in hw.KEEP_OUT for k_ in hw.DRIVES) and all(len(hardware[k_].Solids()) == 2 for k_ in hw.DRIVES + hw.DRIVE_PLUGS),
+          ("plug zone in KEEP_OUT, drive out, two solids each", f"{[k_ in hw.KEEP_OUT for k_ in hw.DRIVE_PLUGS + hw.DRIVES]}"))
+    check("every name that colours or draws a bay is a bay that exists: HW_COLORS and render_vtk.HW_RGB name no drive that is not in hardware",
+          {k_ for k_ in hw.HW_COLORS if k_.startswith("drive")} == set(hw.DRIVES + hw.DRIVE_PLUGS) == {k_ for k_ in __import__("render_vtk").HW_RGB if k_.startswith("drive")},
+          ("drive_left, drive_plugs_left only", f"{sorted(k_ for k_ in hw.HW_COLORS if k_.startswith('drive'))}"))
+
+    # 14a. a hole pattern shifted 5 mm in hardware.py, the sled left as it was: the screws of that drive have no holes (the 4 M3 holes of the other face still do)
+    forms0 = hw.DRIVE_FORMS
+    shifted = {k_: dict(v_) for k_, v_ in forms0.items()}
+    shifted["hdd35"]["rows"] = tuple(r_ + 5.0 for r_ in forms0["hdd35"]["rows"])
+    with patched(hw, "DRIVE_FORMS", shifted):
+        r = f.run_checks(hardware, parts, MEMO)
+    case("the 3.5 inch pattern shifted 5 mm in hardware.py: the six 6-32 positions have no hole", "CHECK5 drive_left: 4 positions have a hole", r["failures"], "CHECK5 drive_left: 4 positions")
+    case("  same damage, the sled's recorded holes disagree with the table", "CHECK13 drive_sled_left: no recorded 6-32 hole at the table's (Y ..., Z ...)", r["failures"], "CHECK13 drive_sled_left: no recorded 6-32 hole")
+    shifted = {k_: dict(v_) for k_, v_ in forms0.items()}
+    shifted["ssd25"]["col_inset"] = forms0["ssd25"]["col_inset"] + 5.0
+    with patched(hw, "DRIVE_FORMS", shifted):
+        r = f.run_checks(hardware, parts, MEMO)
+    case("the 2.5 inch columns shifted 5 mm in hardware.py: the four M3 positions have no hole", "CHECK5 drive_left: 6 positions have a hole", r["failures"], "CHECK5 drive_left: 6 positions")
+
+    # 14b. a seat too thin or too thick: the counterbore cut 1 mm deeper under one head leaves 2 mm, and the screw enters 4.35 mm (3.5 inch, limit 3.56) or 3.00 mm (2.5 inch, limit 2.50)
+    px0, px1 = lay["plate_x"]
+    y_o, z_o = lay["faces"]["outer"]["holes"][0]
+    y_i, z_i = lay["faces"]["inner"]["holes"][0]
+    cb_o = f.mirror_x(f.cyl((px0 - f.OVERSHOOT, y_o, z_o), (1, 0, 0), lay["faces"]["outer"]["spec"]["head_d"] + f.SLED_CB_PLAY, f.OVERSHOOT + 4.0))
+    cb_i = f.mirror_x(f.cyl((px1 + f.OVERSHOOT, y_i, z_i), (-1, 0, 0), lay["faces"]["inner"]["spec"]["head_d"] + f.SLED_CB_PLAY, f.OVERSHOOT + 4.0))
+    r = f.run_checks(hardware, with_part(parts, "drive_sled_left", solid=sled_l.solid.cut(cb_o)), MEMO)
+    case("drive_sled_left: one 6-32 counterbore cut 1 mm too deep (2 mm of seat)", "CHECK13 drive_sled_left: the 6-32 screw ... enters the outer drive 4.35 mm", r["failures"], "CHECK13 drive_sled_left", "6-32 screw", "enters the outer drive 4.35")
+    r = f.run_checks(hardware, with_part(parts, "drive_sled_left", solid=sled_l.solid.cut(cb_i)), MEMO)
+    case("drive_sled_left: one M3 counterbore cut 1 mm too deep (2 mm of seat)", "CHECK13 drive_sled_left: the M3 screw ... enters the inner drive 3.00 mm", r["failures"], "CHECK13 drive_sled_left", "M3 screw", "enters the inner drive 3.00")
+    ring = f.mirror_x(f.cyl((px0 + 0.5, y_o, z_o), (1, 0, 0), 7.4, 1.0).cut(f.cyl((px0 + 0.4, y_o, z_o), (1, 0, 0), 6.0, 1.2)))      # a lip in the counterbore: the head has no room under it
+    r = f.run_checks(hardware, with_part(parts, "drive_sled_left", solid=sled_l.solid.fuse(ring).clean()), MEMO)
+    case("drive_sled_left: a lip inside one counterbore, the head has no room", "CHECK13 drive_sled_left: the head of the 6-32 screw ... has room only 0.50 mm", r["failures"], "CHECK13 drive_sled_left", "head of the 6-32 screw", "has room only")
+    hole_o = next(h for h in sled_l.holes if h.kind == "M3c")
+    r = f.run_checks(hardware, with_part(parts, "drive_sled_left", solid=refilled(sled_l, hole_o)), MEMO)
+    case("drive_sled_left: one drive screw bore filled back in", "CHECK7 drive_sled_left ... M3c clearance ... is not drilled", r["failures"], "CHECK7 drive_sled_left", "M3c clearance", "is not drilled")
+    case("  same damage, the drive's screw count derived from the solids", "CHECK5 drive_left: 9 positions have a hole", r["failures"], "CHECK5 drive_left: 9 positions")
+    pilot_f = next(h for h in sled_l.holes if h.kind == "M4")
+    r = f.run_checks(hardware, with_part(parts, "drive_sled_left", solid=refilled(sled_l, pilot_f)), MEMO)
+    case("drive_sled_left (built right-handed, mirrored): one flange pilot filled back in", "CHECK7 drive_sled_left ... M4 pilot ... is not drilled", r["failures"], "CHECK7 drive_sled_left", "M4 pilot", "is not drilled")
+    bulk = part_named(parts, "psu_bulkhead")
+    hole_b = next(h for h in bulk.holes if h.kind == "M4c" and h.start[2] == f.SLED_BOLT_Z[0] and h.start[0] < 0)
+    r = f.run_checks(hardware, with_part(parts, "psu_bulkhead", solid=refilled(bulk, hole_b)), MEMO)
+    case("psu_bulkhead: the sled's lower flange clearance hole filled back in", "CHECK7 psu_bulkhead ... M4c clearance ... is not drilled", r["failures"], "CHECK7 psu_bulkhead", "M4c clearance", "is not drilled")
+    flank = [h_b for h_b in bulk.holes if h_b.kind == "M4c" and abs(h_b.start[0]) > 80]
+    check("the flange screws line up: each sled pilot axis meets a clearance hole of the bulkhead (X -89.5 at Z 30 and 76), and the bulkhead has holes on the left only",
+          all(any(abs(h_b.start[0] - pl.start[0]) < 1e-6 and abs(h_b.start[2] - pl.start[2]) < 1e-6 for h_b in flank) for pl in sled_l.holes if pl.kind == "M4")
+          and sum(1 for h_ in sled_l.holes if h_.kind == "M4") == 2 == len(flank) and all(h_b.start[0] < 0 for h_b in flank),
+          ("2 pilots, 2 clearance holes, same X and Z, none at X > 0", f"{[(h_.kind, round(h_.start[0], 1), round(h_.start[2], 1)) for h_ in flank]}"))
+
+    # 14c. a sled moved into its drive, out of its envelope, off the bulkhead and the skid
+    mv = moved(sled_l, -2, 0, 0)
+    r = f.run_checks(hardware, with_part(parts, "drive_sled_left", solid=mv.solid, blank=mv.blank, holes=mv.holes), MEMO)
+    case("drive_sled_left moved 2 mm into its drive (the bosses enter the 3.5 inch body)", "CHECK2 part x hardware drive_sled_left x drive_left", r["failures"], "CHECK2 part x hardware drive_sled_left x drive_left")
+    mv = moved(sled_l, 0, -5, 0)
+    r = f.run_checks(hardware, with_part(parts, "drive_sled_left", solid=mv.solid, blank=mv.blank, holes=mv.holes), MEMO)
+    case("drive_sled_left moved 5 mm to the front: the bay leaves its envelope (Y 248..375)", "CHECK13 left bay ... outside the envelope", r["failures"], "CHECK13 left bay", "outside the envelope")
+    mv = moved(sled_l, 0, 0, 3)
+    r = f.run_checks(hardware, with_part(parts, "drive_sled_left", solid=mv.solid, blank=mv.blank, holes=mv.holes), MEMO)
+    case("drive_sled_left lifted 3 mm off skid_rear: the foot no longer stands on it", "CHECK13 drive_sled_left does not stand on skid_rear: no zero-gap contact", r["failures"], "CHECK13 drive_sled_left", "skid_rear", "no zero-gap contact")
+    mv = moved(sled_l, 0, -3, 0)
+    r = f.run_checks(hardware, with_part(parts, "drive_sled_left", solid=mv.solid, blank=mv.blank, holes=mv.holes), MEMO)
+    case("drive_sled_left moved 3 mm to the front: the flange leaves the bulkhead", "CHECK13 drive_sled_left does not stand against psu_bulkhead: no zero-gap contact", r["failures"], "CHECK13 drive_sled_left", "psu_bulkhead", "no zero-gap contact")
+
+    # 14d. cad_b6/drive_access.py: the sweep. The bay (the left; there is no right bay, the PSU cables run through it), without and with the plug zone
+    import drive_access as da
+    field = da.load_field()
+    strands, no_strand = da.cable_strands()
+    maps_l = da.bay_maps(parts, hardware, strands, field, "left")
+    rects_l = da.bay_rects(parts, hardware, "left")
+    res_l = [da.access(maps_l, rc) for rc in rects_l]
+    check("drive_access: the left bay's sled can be carried in from behind with at most 30 degrees of tilt, without and with the plug zone", all(da.passes(x_) for x_ in res_l),
+          ("a path, least tilt <= 30 both times", "; ".join(da.verdict(x_) for x_ in res_l)))
+    check("drive_access: every cable route is in the grid (no route without strands), and the body is the sled, the drives and the plug boxes as built",
+          not no_strand and len(strands) == 12 and len(rects_l[0]) == 3 and len(rects_l[1]) == 5 and da.silhouette(rects_l[1])[3] == lay["z_top"] + hw.DRIVE_PLUG_ZONE,
+          ("12 routes, 3 and 5 rectangles, top at the plug zone's top", f"{len(strands)} routes, {len(rects_l[0])} and {len(rects_l[1])} rectangles, top {da.silhouette(rects_l[1])[3]:g}"))
+    seat_l = da.access(maps_l, rects_l[1], extra_blocks=[(250.0, 300.0, 100.0, 130.0)])
+    check("drive_access: a block of 50 x 30 mm in the seat (Y 250..300, Z 100..130) leaves the seat blocked, and the check fails", not da.passes(seat_l) and not seat_l["goal_free"],
+          ("the seat is blocked", da.verdict(seat_l)))
+    lid = da.access(maps_l, rects_l[0], extra_blocks=[(378.0, 394.0, 92.0, 400.0)])
+    check("drive_access: a wall across the rear opening (Y 378..394, from the bulkhead's top up) leaves no path, and the check fails", not da.passes(lid),
+          ("no path (the seat is free, the way is not)", da.verdict(lid)))
+    tight = da.access(maps_l, rects_l[1], tilts=(0.0, 10.0))
+    check("drive_access: the plug-zone body does not get in with at most 10 degrees (the least tilt is 28, which is what the limit of 30 is measured against)", not da.passes(tight) and res_l[1]["least"] is not None and res_l[1]["least"] > 10.0,
+          ("no path at 0 or 10 degrees, a path at the least tilt above 10", f"{da.verdict(tight)}; least tilt {res_l[1]['least']}"))
+    cab_l = da.access(da.bay_maps(parts, hardware, {"test_cable": [(np.array([[-100.0, 240.0, 20.0], [-100.0, 330.0, 140.0]]), 6.0)]}, field, "left"), rects_l[0])
+    check("drive_access: a cable of radius 6 across the left slot (from (-100, 240, 20) to (-100, 330, 140)) is in the grid: the seat is blocked", not cab_l["goal_free"] and not da.passes(cab_l),
+          ("the seat is blocked", da.verdict(cab_l)))
+    og = da.organic_gap(field, hardware, parts, "left")
+    check("drive_access: the organic layer is at least PLA_GAP (10 mm) from the left drive, and nothing is reported", all(d_ >= da._pla_gap() for n_, d_ in og if n_ == "drive_left") and not da.gap_failures(og, "left"),
+          ("every distance >= 10", ", ".join(f"{n_} {d_:.1f}" for n_, d_ in og)))
+    near_field = dict(field, d=field["d"].copy())
+    ix, iy, iz = (int(np.searchsorted(near_field[k_], v_)) for k_, v_ in (("xs", -125.0), ("ys", 300.0), ("zs", 80.0)))
+    near_field["d"][ix:ix + 3, iy:iy + 3, iz:iz + 3] = -1.0                  # a lump of layer 6 mm outside the 3.5 inch drive's outer face (X -119.1)
+    og2 = da.organic_gap(near_field, hardware, parts, "left")
+    got = da.gap_failures(og2, "left")
+    case("drive_access: a lump of the organic layer 5..8 mm from the left drive is reported (PLA keeps 10 mm)", "DRIVE_ACCESS left bay: the organic layer is ... mm from drive_left, PLA keeps 10", got, "DRIVE_ACCESS left bay", "drive_left", "PLA keeps 10")
 
     # last: the undamaged model, once more with nothing remembered
     final = f.run_checks(hardware, parts)

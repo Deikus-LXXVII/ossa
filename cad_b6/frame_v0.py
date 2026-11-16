@@ -1022,15 +1022,87 @@ def build_skid(name, y0, y1):
 BOSS_R = 5.0               # standoff boss radius
 BULK_BLOCK_X = 122.0       # the end blocks of the bulkhead start here
 BULK_R = 2.75              # the plate is 6 mm thick: a radius of 3 would leave no flat on the edge
+BULK_WINDOW = (-63.0, 63.0, 12.0, 74.0)      # X0, X1, Z0, Z1: IEC, switch and fan
+
+# Drive sleds (docs/plans/cables-and-organic.md, "Drive bays, pass 1"). Where the drives stand and every hole pattern is hardware.py's (hw.drive_layout); what is here is
+# the sled's own: a 5 mm plate in the YZ plane, a boss round each drive screw hole, a counterbore from the far face under each head, and a flange at the rear end
+# that two M4 screws from behind (through the bulkhead's flank) hold. The foot is the plate's bottom face, flat, on skid_rear's top face.
+SLED_FLOOR = 3.0                  # material left under each screw head, between the counterbore's floor and the drive's board: the screw then enters screw_len - 3.0 (3.35 for 6-32 x 6.35, 2.0 for M3 x 5)
+SLED_BOSS_R = 4.5                 # boss radius round a hole
+SLED_CB_PLAY = 0.8                # counterbore diameter = screw head + this
+SLED_FRONT = 4.0                  # the plate starts this far in front of the outer drive's side edge
+SLED_TOP_GAP = 5.0                # the plate stops this far under the drives' connector end (the plug zone is above that end)
+SLED_FLANGE_Y = 13.0              # the flange's depth against the bulkhead's front face: the M4 pilot is 9.1 deep, 3.9 mm of floor
+SLED_FLANGE_Z = (18.0, 88.0)      # its height: the bulkhead's rounded top edge starts at Z 89.25
+SLED_FLANGE_HALF_X = 7.0          # its half width about the plate's mid-plane: the pilot's 5.6 plus 2 x 2.1 wall is 9.8
+SLED_BOLT_Z = (30.0, 76.0)        # the two M4 screws along Y through the bulkhead's flank, stacked in Z
+SLED_BOLT_KIND = "M4"
+SLED_BOLT_X = sum(hw.drive_layout()["plate_x"]) / 2     # on the plate's mid-plane (right bay; the left is the mirror image)
+SLED_ORDER = ("a sled that carries a 3.5 inch drive and an inner 2.5 inch drive takes the inner drive first: its screw heads end up under the 3.5 inch drive "
+              "(the outer face's counterbores are covered by it, the heads stay below the face)")
+
+
+def sled_holes():
+    """(holes, counterbore cutters, probes) of one right-hand sled. holes: the clearance bores of the drive screws and the two M4 pilots in the flange. probes: per drive
+    hole (face, form, y, z, bore start x, direction from the far face into the sled)."""
+    lay = hw.drive_layout()
+    px0, px1 = lay["plate_x"]
+    holes, cuts = [], []
+    for face, fc in lay["faces"].items():
+        F = fc["spec"]
+        far = px0 if face == "outer" else px1               # the face the screw comes in from: opposite to the drive
+        d = fc["dir"]                                        # towards the drive's side: from the far face through the plate and the boss
+        depth_cb = hw.DRIVE_PLATE_T + hw.DRIVE_BOSS_H - SLED_FLOOR
+        for (y, z) in fc["holes"]:
+            holes.append(clear_hole("M3c", (far - d * OVERSHOOT, y, z), (d, 0, 0), hw.DRIVE_PLATE_T + hw.DRIVE_BOSS_H + 2 * OVERSHOOT))
+            cuts.append(cyl((far - d * OVERSHOOT, y, z), (d, 0, 0), F["head_d"] + SLED_CB_PLAY, depth_cb + OVERSHOOT))
+    for z in SLED_BOLT_Z:
+        holes.append(pilot((SLED_BOLT_X, hw.PSU_REAR_Y, z), (0, -1, 0), SLED_BOLT_KIND))
+    return holes, cuts
+
+
+def sled_bosses():
+    lay = hw.drive_layout()
+    px0, px1 = lay["plate_x"]
+    out = []
+    for face, fc in lay["faces"].items():
+        base = px1 if face == "outer" else px0
+        d = fc["dir"]
+        for (y, z) in fc["holes"]:
+            out.append(cyl((base - d * 0.5, y, z), (d, 0, 0), 2 * SLED_BOSS_R, hw.DRIVE_BOSS_H + 0.5))      # 0.5 mm sunk into the plate
+    return out
+
+
+def build_drive_sled(side=1):
+    """One sled, built right-handed. side -1: the same, as the left one will be (mirrored by the caller); the rounding sees the mirror image of the neighbours."""
+    name = "drive_sled_right" if side > 0 else "drive_sled_left"
+    lay = hw.drive_layout()
+    px0, px1 = lay["plate_x"]
+    y_front = lay["faces"]["outer"]["body"][2] - SLED_FRONT
+    holes, cuts = sled_holes()
+    rings = hole_rings(holes)
+    plate = Rect(y_front, hw.PSU_REAR_Y, 0.0, lay["z_top"] - SLED_TOP_GAP).solid(px0, px1)
+    foot = "the foot's bottom face and the rear face against the bulkhead are contacts: this corner joins them and its rounding would take 30 mm2 from the bulkhead contact, which the bulkhead's own top edge has already cut by 1.3 %"
+    plate = rounded_like(plate, (1, 0, 0), name, sides=(1,) if side > 0 else (-1,), own=(name,), rings=rings, keep=(((px0, hw.PSU_REAR_Y, 0.0), foot),))
+    flange = Rect(hw.PSU_REAR_Y - SLED_FLANGE_Y, hw.PSU_REAR_Y, *SLED_FLANGE_Z).solid(SLED_BOLT_X - SLED_FLANGE_HALF_X, SLED_BOLT_X + SLED_FLANGE_HALF_X)
+    lip = "the flange's rear face lies against the bulkhead: its two rear corners stay whole, the bulkhead's own top edge has already taken 1.3 % of the contact and the allowance is 3 %"
+    fx = SLED_BOLT_X - SLED_FLANGE_HALF_X
+    flange = rounded_like(flange, (1, 0, 0), name + " flange", sides=(1,) if side > 0 else (-1,), own=(name,), rings=rings,
+                          keep=tuple(((fx, hw.PSU_REAR_Y, z), lip) for z in SLED_FLANGE_Z))
+    s = fuse_all([plate, flange] + sled_bosses())
+    return drill(s, holes, cuts)
 
 
 def build_psu_bulkhead():
     lo, hi = (-X_IN, hw.PSU_REAR_Y, BULK_Z[0]), (X_IN, BULK_Y1, BULK_Z[1])
     plate = hw.wbox(lo[0], hi[0], lo[1], hi[1], lo[2], hi[2])
-    window = hw.wbox(-63, 63, hw.PSU_REAR_Y - 1.0, BULK_Y1 + 1.0, 12, 74)    # IEC, switch and fan
+    window = hw.wbox(BULK_WINDOW[0], BULK_WINDOW[1], hw.PSU_REAR_Y - 1.0, BULK_Y1 + 1.0, BULK_WINDOW[2], BULK_WINDOW[3])
     holes = []
     for (x, z) in hw.PSU_HOLES:
         holes.append(clear_hole("M3c", (x, hw.PSU_REAR_Y - OVERSHOOT, z), (0, 1, 0), 7.0))
+    for sgn in hw.DRIVE_SIDES.values():          # the drive sleds' flange screws, through the flank, from behind
+        for z in SLED_BOLT_Z:
+            holes.append(clear_hole("M4c", (sgn * SLED_BOLT_X, hw.PSU_REAR_Y - OVERSHOOT, z), (0, 1, 0), BULK_T + 2 * OVERSHOOT))
     holes += end_pilot_holes("psu_bulkhead")
     desk = "the bottom face stands on the desk (a contact pad)"
     plate = round_box(plate, (lo, hi), 0, "psu_bulkhead", all_corners(-BULK_BLOCK_X, BULK_BLOCK_X, {(False, False): desk, (True, False): desk}),
@@ -1419,7 +1491,14 @@ def _build_frame():
         add(name, build_beam(name), f"ATX tray beam, row u = {row}, 3 standoff bosses")
     add("skid_front", build_skid("skid_front", 185, 205), "PSU skid, front")
     add("skid_rear", build_skid("skid_rear", 325, 345), "PSU skid, rear")
-    add("psu_bulkhead", build_psu_bulkhead(), "PSU bulkhead with IEC window, 4 PSU screw holes")
+    add("psu_bulkhead", build_psu_bulkhead(), "PSU bulkhead with IEC window, 4 PSU screw holes, M4 clearance holes for the drive sleds' flanges (only on the side that has a bay)")
+    for bay, sgn in hw.DRIVE_SIDES.items():          # hw.DRIVE_SIDES lists the bays that are built
+        if sgn > 0:
+            add(f"drive_sled_{bay}", build_drive_sled(sgn),
+                "right drive sled: 5 mm plate beside the PSU, bosses and counterbored 6-32 / M3 holes for a 3.5 inch drive (outer face) and a 2.5 inch drive (inner face), flange with 2 x M4 inserts against the bulkhead, foot on skid_rear")
+        else:
+            add_mirror(f"drive_sled_{bay}", build_drive_sled(sgn),
+                       "left drive sled: the right one mirrored in X; flange with 2 x M4 inserts against the bulkhead, foot on skid_rear")
 
     add("antler_right", build_antler_right(1), "420 bracket on the fan face + tongue on the rib's outer face, right")
     add_mirror("antler_left", build_antler_right(-1), "420 bracket on the fan face + tongue on the rib's outer face, left")
@@ -1484,6 +1563,15 @@ def _build_frame():
                  f"{r} {sum(1 for t in TIE_POINTS if t['row'] == r)}" for r in dict.fromkeys(t["row"] for t in TIE_POINTS)))
     fastener("tie_bridge", "tie_bridge_* -> the tie points", "M3 screw", len(TIE_POINTS),
              "one M3 x 10 through the bridge's foot (4 mm clearance hole) into the insert; the bridge is ABS, the same part at every point")
+    for side_name in hw.DRIVE_SIDES:
+        faces = hw.drive_layout()["faces"]
+        fastener(f"drive_{side_name}", f"drive_sled_{side_name}", "6-32 x 6.35 + M3 x 5", DRIVE_SCREWS,
+                 f"{len(faces['outer']['holes'])} 6-32 x 6.35 on the 3.5 inch drive (outer face), {len(faces['inner']['holes'])} M3 x 5 on the 2.5 inch drive (inner face): each from the face "
+                 f"opposite the drive, head in a counterbore, {SLED_FLOOR:g} mm of material under it, so the screw enters 6.35 - {SLED_FLOOR:g} = {faces['outer']['spec']['screw_len'] - SLED_FLOOR:.2f} mm "
+                 f"(standard {faces['outer']['spec']['enter'][0]:g}..{faces['outer']['spec']['enter'][1]:g}) and 5 - {SLED_FLOOR:g} = {faces['inner']['spec']['screw_len'] - SLED_FLOOR:.2f} mm (at most {faces['inner']['spec']['enter'][1]:g}); "
+                 f"assembly order: {SLED_ORDER}")
+    fastener("drive sled flanges", "drive_sled_* -> psu_bulkhead", SLED_BOLT_KIND + " insert", len(hw.DRIVE_SIDES) * len(SLED_BOLT_Z),
+             f"{len(SLED_BOLT_Z)} per sled along Y at X {', '.join(f'{sg * SLED_BOLT_X:g}' for sg in hw.DRIVE_SIDES.values())}, Z {SLED_BOLT_Z[0]:g} and {SLED_BOLT_Z[1]:g}: clearance holes through the bulkhead's flank, pilots in the flange; screws from behind (heads on the bulkhead's rear face)")
     fastener("organic", "rib_A_L/R, rib_B_L/R, neck_L/R, front_sill", "M3 insert", len(hw.ORGANIC_PADS),
              "the PLA layer's pads (hw.ORGANIC_PADS): 6 a side, one pilot each along X into the outer face; the screw and the pad are in organic_frame.py")
     return parts, neck_prims
@@ -1554,6 +1642,20 @@ def check_bolts(neck_prims):
             r = m[0] / 2 + m[2]
             ok = (row + lo + r <= u <= row + hi - r) and (BEAM_N0 + r <= n <= hw.ATX_TRAY_N - r)
             BOLT_CHECKS.append((f"{name} bolt (u={u:.1f}, n={n:.1f}) pilot inside section", ok, ""))
+    # drive sleds: the flange screws' X, Z in the bulkhead's flank, clear of the PSU's screws, the window and the end blocks; the pilots inside the flange's section
+    m4 = hw.INSERTS[SLED_BOLT_KIND]
+    flange = Rect(SLED_BOLT_X - SLED_FLANGE_HALF_X, SLED_BOLT_X + SLED_FLANGE_HALF_X, *SLED_FLANGE_Z)
+    for z in SLED_BOLT_Z:
+        x = SLED_BOLT_X
+        wall = cr + hw.M4_MIN_WALL
+        in_flank = BULK_WINDOW[1] + wall <= x <= BULK_BLOCK_X - wall and BULK_Z[0] + wall <= z <= BULK_Z[1] - wall - BULK_R
+        gap_psu = min(math.dist((x, z), px) for px in hw.PSU_HOLES) - cr - hw.M3_CLEAR_D / 2
+        BOLT_CHECKS.append((f"drive sled bolt (X {x:.1f}, Z {z:.1f}) in the bulkhead's flank: outside the window (|X| {BULK_WINDOW[1]:g}) and the end blocks (|X| {BULK_BLOCK_X:g}) by the M4 wall, "
+                            f"{gap_psu:.1f} mm of wall to the PSU's screw holes (needs {hw.M4_MIN_WALL:g})", in_flank and gap_psu >= hw.M4_MIN_WALL, ""))
+        ok = flange.contains((x, z), m4[0] / 2 + m4[2])
+        BOLT_CHECKS.append((f"drive sled bolt (X {x:.1f}, Z {z:.1f}) pilot inside the flange's section (X, Z) with the {SLED_BOLT_KIND} wall", ok, ""))
+    gap = abs(SLED_BOLT_Z[1] - SLED_BOLT_Z[0])
+    BOLT_CHECKS.append((f"drive sled bolts {gap:.1f} mm apart (>= pilot + wall = {m4[0] + m4[2]:.1f})", gap >= m4[0] + m4[2], ""))
     sections = {"beam_front": Rect(0, 40, -10, 10),
                 "skid_front": Rect(185, 205, -10, 0), "skid_rear": Rect(325, 345, -10, 0),
                 "psu_bulkhead": Rect(BULK_Y0, BULK_Y1, BULK_Z[0], BULK_Z[1])}
@@ -1777,11 +1879,13 @@ def check_holes(parts, failures, memo=None):
 # ---------------------------------------------------------------------------
 # Check 5: mounts derived from the solids
 # ---------------------------------------------------------------------------
+DRIVE_SCREWS = sum(len(fc["holes"]) for fc in hw.drive_layout()["faces"].values())          # per bay: 6 on the 3.5 inch drive + 4 on the 2.5 inch drive
 EXPECTED_MOUNTS = {"board": 9, "rad420": 6, "rad360": 4, "psu": 4, "gpu_post": 2, "gpu_rest": 1, "front_io": 2, "organic": 12,
-                   "tie_pilot": len(TIE_POINTS), "tie_bridge": len(TIE_POINTS)}
+                   "tie_pilot": len(TIE_POINTS), "tie_bridge": len(TIE_POINTS), **{k: DRIVE_SCREWS for k in hw.DRIVES}}
 ORGANIC_PROBE_DEPTH = 3.0      # check 5: the axis point of a pad's pilot lies this far in from the face
 MIN_MOUNTS = {"fan_side_left": FAN_MIN_SCREWS, "fan_side_right": FAN_MIN_SCREWS}     # at least this many of the four corner holes
 FAN_HOLDER = {"fan_side_left": "fan_bracket_left", "fan_side_right": "fan_bracket_right"}
+DRIVE_PROBE_DEPTH = 1.5        # check 5: the axis point of a drive screw lies this far into the boss and plate from the drive's board (the boss is 1 mm high, the bore is empty to the head)
 FAN_PROBE_DEPTH = 1.5          # axis point inside the pilot, from the fan face: the pilot is 5.0 deep, so at 1.5 the bore wall (r 2.8) is the nearest material
 
 
@@ -1809,6 +1913,10 @@ def mount_points():
         pt = tie_face_point(tp)
         out.append(("tie_pilot", tp["host"], tuple(c - ORGANIC_PROBE_DEPTH * k for c, k in zip(pt, tp["normal"])), hw.M3_PILOT_D / 2, None))
         out.append(("tie_bridge", tie_name(tp), tuple(c + TIE_FOOT_T / 2 * k for c, k in zip(pt, tp["normal"])), hw.M3_CLEAR_D / 2, None))
+    for item, side in zip(hw.DRIVES, hw.DRIVE_SIDES.values()):      # the drives' screws: an empty clearance bore on the axis, 1.5 mm into the sled from the drive's board
+        for fc in hw.drive_layout()["faces"].values():
+            for (y, z) in fc["holes"]:
+                out.append((item, "drive_sled_" + item.split("_")[1], (side * (fc["pb_x"] - fc["dir"] * DRIVE_PROBE_DEPTH), y, z), hw.M3_CLEAR_D / 2, None))
     for fan, holder in FAN_HOLDER.items():
         x = hw.FAN_SIDE_INNER_X[fan] + hw.FAN_SIDE_IN[fan] * FAN_PROBE_DEPTH
         x_out = hw.FAN_SIDE_X[fan][0 if hw.FAN_SIDE_IN[fan] > 0 else 1]
@@ -1884,7 +1992,8 @@ def derive_mounts(parts, contacts, failures, memo=None):
     # the hand-written registry must agree with what the solids show
     registry = {"board": "board", "rad420": "rad420", "rad360": "rad360", "psu": "psu", "front_io": "front_io",
                 "fan_side_left": "fan_side_left", "fan_side_right": "fan_side_right", "gpu": "gpu_post",
-                "organic": "organic", "tie_pilot": "tie_pilot", "tie_bridge": "tie_bridge"}       # fastener item -> derived item
+                "organic": "organic", "tie_pilot": "tie_pilot", "tie_bridge": "tie_bridge",
+                **{k: k for k in hw.DRIVES}}       # fastener item -> derived item
     for item, derived_item in registry.items():
         listed = sum(f["count"] for f in FASTENERS if f["item"] == item)
         if listed != got[derived_item]:
@@ -1904,6 +2013,7 @@ INTENDED_CONTACTS = {
     ("beam_front", "front_io"),                                              # revision 9: the module's underside (Z 10, placeholder) is beam_front's top face
     ("visor_arm_right", "rad360"), ("visor_arm_left", "rad360"),
     ("antler_right", "rad420"), ("antler_left", "rad420"),
+    *((f"drive_sled_{bay}", f"drive_{bay}") for bay in hw.DRIVE_SIDES),            # the bosses' tops carry the drives' boards
 }
 # part-part zero-gap contacts are all planned (lap, member ends, antler tongue, pad, post-on-beam)
 
@@ -2264,6 +2374,100 @@ def check_corners(parts, hardware, pb, hb, failures, memo=None):
     return rows
 
 
+# ---------------------------------------------------------------------------
+# Check 13 (drive bays): every hole pattern of a sled agrees with hardware.py's table, the material under each head gives a screw penetration inside the standard's
+# limits, a head has room, and the bay stays inside its envelope
+# ---------------------------------------------------------------------------
+HEAD_SAMPLE_FROM = 0.25          # mm: the head's room is probed from this deep under the far face down to the head's height
+RUN_STEP, RUN_MAX = 0.1, 8.0     # mm: the run of material under a head is searched this finely, at most this far
+POS_TOL = 0.05                   # mm: a recorded hole's axis against the table's position
+
+
+def solid_run(solid, p, d):
+    """How far (mm) the solid stays solid from point p, which lies on a face, along the unit vector d; found by sampling isInside and bisecting the last step."""
+    def inside(t):
+        return solid.isInside(Vector(*(c + t * k for c, k in zip(p, d))))
+    t = 0.02
+    if not inside(t):
+        return 0.0
+    while t < RUN_MAX and inside(t + RUN_STEP):
+        t += RUN_STEP
+    if t >= RUN_MAX:
+        return RUN_MAX
+    lo, hi = t, t + RUN_STEP
+    for _ in range(14):
+        mid = (lo + hi) / 2
+        lo, hi = (mid, hi) if inside(mid) else (lo, mid)
+    return (lo + hi) / 2
+
+
+def check_drive_bays(parts, hardware, failures, contacts=(), pp_contact=()):
+    """Check 13. Returns one row per bay: dict(bay, sled, holes, run (min, max mm of material under a head), pen {form: (min, max)}, head (the smallest room), box).
+    contacts, pp_contact: the zero-gap pairs of checks 2 and 3: the sled's bosses must carry its drive, its foot must stand on skid_rear and its flange must lie against psu_bulkhead."""
+    byname = {p.name: p for p in parts}
+    touching = set(pp_contact) | {(b, a) for a, b in pp_contact}
+    rows = []
+    for side_name, side in hw.DRIVE_SIDES.items():
+        sled = byname.get(f"drive_sled_{side_name}")
+        if sled is None:
+            failures.append(f"CHECK13 part drive_sled_{side_name} is missing")
+            continue
+        row = dict(bay=side_name, sled=sled.name, holes=0, run={}, pen={}, head={})
+        if (sled.name, f"drive_{side_name}") not in set(contacts):
+            failures.append(f"CHECK13 {sled.name} does not carry drive_{side_name}: no zero-gap contact between the bosses and the drive's board")
+        for other, what in (("skid_rear", "stand on"), ("psu_bulkhead", "stand against")):
+            if (sled.name, other) not in touching:
+                failures.append(f"CHECK13 {sled.name} does not {what} {other}: no zero-gap contact")
+        recorded = [h for h in sled.holes if h.kind == "M3c"]
+        n_table = 0
+        for face, fc in hw.drive_layout()["faces"].items():
+            F = fc["spec"]
+            into = (-side * fc["dir"], 0.0, 0.0)                    # from the drive's board into the sled
+            far_into = (side * fc["dir"], 0.0, 0.0)                 # from the face the screw comes in from, towards the drive
+            r_head = F["head_d"] / 2
+            r_bore = hw.M3_CLEAR_D / 2
+            rho = (r_bore + r_head + SLED_CB_PLAY / 2) / 2          # between the bore and the counterbore's wall: on the floor under the head
+            far_x = side * (hw.drive_layout()["plate_x"][0] if face == "outer" else hw.drive_layout()["plate_x"][1])
+            runs, heads = [], []
+            for (y, z) in fc["holes"]:
+                n_table += 1
+                if not any(abs(h.start[1] - y) < POS_TOL and abs(h.start[2] - z) < POS_TOL for h in recorded):
+                    failures.append(f"CHECK13 {sled.name}: no recorded {F['thread']} hole at the table's (Y {y:.2f}, Z {z:.2f}) for the {face} drive")
+                run = solid_run(sled.solid, (side * fc["pb_x"], y + rho, z), into)
+                runs.append(run)
+                pen = F["screw_len"] - run
+                lo, hi = F["enter"]
+                if not (lo - 1e-6 <= pen <= hi + 1e-6):
+                    failures.append(f"CHECK13 {sled.name}: the {F['thread']} screw at (Y {y:.2f}, Z {z:.2f}) enters the {face} drive {pen:.2f} mm (the material under its head is {run:.2f} mm), standard {lo:g}..{hi:g}")
+                # room for the head: no material at the head's radius from just under the far face to the head's height
+                room = 0.0
+                for k in range(0, 11):
+                    t = HEAD_SAMPLE_FROM + (F["head_h"] - HEAD_SAMPLE_FROM) * k / 10
+                    if any(sled.solid.isInside(Vector(far_x + far_into[0] * t, y + r_head * math.cos(a), z + r_head * math.sin(a))) for a in np.linspace(0, 2 * math.pi, 16, endpoint=False)):
+                        break
+                    room = t
+                heads.append(room)
+                if room < F["head_h"] - 1e-6:
+                    failures.append(f"CHECK13 {sled.name}: the head of the {F['thread']} screw at (Y {y:.2f}, Z {z:.2f}) has room only {room:.2f} mm under the {face} face, it is {F['head_h']:g} high")
+            row["run"][face] = (min(runs), max(runs))
+            row["pen"][face] = (F["screw_len"] - max(runs), F["screw_len"] - min(runs))
+            row["head"][face] = min(heads)
+        if len(recorded) != n_table:
+            failures.append(f"CHECK13 {sled.name}: {len(recorded)} drive screw holes recorded, the table has {n_table}")
+        row["holes"] = n_table
+        boxes = [bbox_of(sled.solid), bbox_of(hardware[f"drive_{side_name}"]), bbox_of(hardware[f"drive_plugs_{side_name}"])]
+        ex, ey, ez = hw.DRIVE_ENVELOPE
+        row["box"] = (min(min(abs(b[0]), abs(b[1])) if b[0] * b[1] > 0 else 0.0 for b in boxes), max(max(abs(b[0]), abs(b[1])) for b in boxes),
+                      min(b[2] for b in boxes), max(b[3] for b in boxes), min(b[4] for b in boxes), max(b[5] for b in boxes))
+        inside_env = ex[0] - 1e-6 <= row["box"][0] and row["box"][1] <= ex[1] + 1e-6 and ey[0] - 1e-6 <= row["box"][2] and row["box"][3] <= ey[1] + 1e-6 \
+            and ez[0] - 1e-6 <= row["box"][4] and row["box"][5] <= ez[1] + 1e-6
+        if not inside_env:
+            failures.append(f"CHECK13 {side_name} bay (sled, drives, plug zones) is X {row['box'][0]:.1f}..{row['box'][1]:.1f}, Y {row['box'][2]:.1f}..{row['box'][3]:.1f}, "
+                            f"Z {row['box'][4]:.1f}..{row['box'][5]:.1f}: outside the envelope |X| {ex[0]:g}..{ex[1]:g}, Y {ey[0]:g}..{ey[1]:g}, Z {ez[0]:g}..{ez[1]:g}")
+        rows.append(row)
+    return rows
+
+
 def contact_area(a, b):
     """Area (mm2) where planar faces of solid `a` lie flat against planar faces of solid `b`."""
     nb = rd.Neighbor("b", b, "part")
@@ -2456,6 +2660,9 @@ def run_checks(hardware, parts, memo=None):
 
     # 12. sharp outline corners that remain on the plates; fails only for a plate where nothing was rounded
     res["corners"] = check_corners(parts, hardware, pb, hb, failures, memo)
+
+    # 13. the drive bays: hole patterns, screw penetration, head room, envelope
+    res["drives"] = check_drive_bays(parts, hardware, failures, contacts, pp_contact)
 
     # 7. extra sanity: one connected solid per part, bolt positions inside outlines, every hole drilled
     #    with the wall its insert or screw needs
@@ -2688,6 +2895,58 @@ def ru_reason(text):
     return text.replace("mm2", "мм²").replace("mm3", "мм³")
 
 
+def bay_neighbours(subject, parts, hardware, own, k=5, reach=40.0):
+    """The k nearest other solids to `subject` (a solid): [(name, distance)], parts as they are, hardware as hw:name; `own` names are left out (the bay's own sled, drive and plug zone)."""
+    sb = bbox_of(subject)
+    rows = []
+    for q in parts:
+        if q.name not in own and bbox_gap(sb, bbox_of(q.solid)) <= reach:
+            rows.append((q.name, solid_distance(subject, q.solid)))
+    for n, sol in hardware.items():
+        if n not in own and bbox_gap(sb, bbox_of(sol)) <= reach:
+            rows.append(("hw:" + n, solid_distance(subject, sol)))
+    return sorted(rows, key=lambda t: t[1])[:k]
+
+
+def drive_bay_lines(parts, hardware, res):
+    """Report lines of the drive bays (check 13): where everything stands, the screws, the clearances, the assembly order."""
+    lay = hw.drive_layout()
+    byname = {p.name: p for p in parts}
+    L = []
+    px0, px1 = lay["plate_x"]
+    o, i = lay["faces"]["outer"], lay["faces"]["inner"]
+    L.append("Отсеки под диски (проход 1, docs/plans/cables-and-organic.md, «Drive bays, pass 1»): салазки сбоку от БП (слева); диск стоит на дальнем торце разъёмом вверх. "
+             "Отсек один, левый (наружная грань смотрит в -X; строится правосторонним и зеркалится по X); правого отсека нет: кабели БП идут через его объём (см. hardware.DRIVE_SIDES). Места дисков и таблицы отверстий - hardware.py (стандарты: SFF-8301 для 3.5, SFF-8201 для 2.5, SFF-8323/8223 разъём).")
+    L.append(f"  Пластина {hw.DRIVE_PLATE_T:g} мм: X {px0:g}..{px1:g}; от БП (X {hw.PSU_W[1]:g}): воздух {hw.DRIVE_PSU_AIR:g} мм, внутренний диск 2.5 (X {i['body'][0]:g}..{i['body'][1]:g}), бобышка {hw.DRIVE_BOSS_H:g} мм, пластина, "
+             f"бобышка, внешний диск 3.5 (X {o['body'][0]:g}..{o['body'][1]:g}). Разъёмы всех дисков на Z {lay['z_top']:g} (сверху), зона штекеров {hw.DRIVE_PLUG_ZONE:g} мм выше (ПРЕДПОЛОЖЕНИЕ, источника нет).")
+    for nm in (f"drive_sled_{bay}" for bay in hw.DRIVE_SIDES):
+        if nm in byname:
+            sg = hw.DRIVE_SIDES[nm.rsplit("_", 1)[1]]
+            b = bbox_of(byname[nm].solid)
+            L.append(f"  {nm}: X {b[0]:.1f}..{b[1]:.1f}  Y {b[2]:.1f}..{b[3]:.1f}  Z {b[4]:.1f}..{b[5]:.1f}; пластина Y {b[2]:.1f}..{hw.PSU_REAR_Y:g}, Z {b[4]:g}..{lay['z_top'] - SLED_TOP_GAP:g}; "
+                     f"фланец у стенки {SLED_FLANGE_Y:g} мм (Y {hw.PSU_REAR_Y - SLED_FLANGE_Y:g}..{hw.PSU_REAR_Y:g}, Z {SLED_FLANGE_Z[0]:g}..{SLED_FLANGE_Z[1]:g}, X +-{SLED_BOLT_X - SLED_FLANGE_HALF_X:g}..{SLED_BOLT_X + SLED_FLANGE_HALF_X:g}); "
+                     f"2 x M4 вдоль Y в X {sg * SLED_BOLT_X:g}, Z {SLED_BOLT_Z[0]:g} и {SLED_BOLT_Z[1]:g} (проходные Ø{hw.M4_CLEAR_D:g} в стенке psu_bulkhead, вставки {SLED_BOLT_KIND} во фланце); ступня - нижняя грань на skid_rear (Z 0)")
+    for nm in hw.DRIVES:
+        b = bbox_of(hardware[nm])
+        L.append(f"  {nm}: X {b[0]:.1f}..{b[1]:.1f}  Y {b[2]:.1f}..{b[3]:.1f}  Z {b[4]:.1f}..{b[5]:.1f} (3.5: Y {o['body'][2]:g}..{o['body'][3]:g}, Z {o['body'][4]:g}..{o['body'][5]:g}; "
+                 f"2.5: Y {i['body'][2]:g}..{i['body'][3]:g}, Z {i['body'][4]:g}..{i['body'][5]:g}, центр по Y совпадает с 3.5)")
+    for face, fc in (("внешняя грань, 3.5 дюйма, 6-32 x 6.35", o), ("внутренняя грань, 2.5 дюйма, M3 x 5", i)):
+        L.append(f"  Винты, {face} (Y, Z): " + "; ".join(f"({y:.2f}, {z:.2f})" for y, z in fc["holes"]))
+    L.append(f"  Каждое отверстие: проходное Ø{hw.M3_CLEAR_D:g}, зенковка Ø(головка + {SLED_CB_PLAY:g}) со стороны, противоположной диску, под головкой {SLED_FLOOR:g} мм материала (пластина {hw.DRIVE_PLATE_T:g} + бобышка {hw.DRIVE_BOSS_H:g} - зенковка), "
+             f"бобышка Ø{2 * SLED_BOSS_R:g} x {hw.DRIVE_BOSS_H:g} мм со стороны диска. Измерено по телам: " + "; ".join(
+                 f"{r['bay']}: материал под головкой {min(v[0] for v in r['run'].values()):.2f}..{max(v[1] for v in r['run'].values()):.2f} мм, "
+                 f"3.5 входит {r['pen']['outer'][0]:.2f} мм (норма {o['spec']['enter'][0]:g}..{o['spec']['enter'][1]:g}), 2.5 входит {r['pen']['inner'][0]:.2f} мм (норма до {i['spec']['enter'][1]:g}), "
+                 f"место под головку {min(r['head'].values()):.2f} из {o['spec']['head_h']:g} мм" for r in res.get("drives", [])) + ".")
+    L.append(f"  Порядок сборки: {SLED_ORDER}.")
+    L.append("  Ближайшее к каждому телу отсека, мм (контакт по плану - нулевой зазор: болты и бобышки, ступня, фланец):")
+    for side in hw.DRIVE_SIDES:
+        own = {f"drive_sled_{side}", f"drive_{side}", f"drive_plugs_{side}"}      # the bay's own three bodies are not neighbours
+        for label, subject in ((f"drive_sled_{side}", byname[f"drive_sled_{side}"].solid), (f"drive_{side}", hardware[f"drive_{side}"]), (f"drive_plugs_{side}", hardware[f"drive_plugs_{side}"])):
+            near = bay_neighbours(subject, parts, hardware, own)
+            L.append(f"      {label:20s} " + ", ".join(f"{n} {d:.2f}" for n, d in near))
+    return L
+
+
 def format_report(hardware, parts, res, memo=None):
     L = []
     w = L.append
@@ -2836,6 +3095,14 @@ def format_report(hardware, parts, res, memo=None):
     for name, now, before, by, op in cr:
         w(f"      {name:18s} острых {now:2d} из {before:2d}: " + ", ".join(f"{k} {by[k]}" for k in CORNER_CLASSES if by[k])
           + "".join(f"; без объяснения Y {c[1]:.1f} Z {c[2]:.1f} {c[3]:.0f}° длина {c[4]:.1f}" for c in op))
+    dr = res.get("drives", [])
+    if dr:
+        o_, i_ = hw.drive_layout()["faces"]["outer"]["spec"], hw.drive_layout()["faces"]["inner"]["spec"]
+        w(f"  13. (доп.) отсеки под диски: у каждых салазок рисунок отверстий совпадает с таблицей hardware.py ({dr[0]['holes']} отверстий на отсек, по записям Hole и по телам), материал под головкой "
+          f"{min(v[0] for r in dr for v in r['run'].values()):.2f}..{max(v[1] for r in dr for v in r['run'].values()):.2f} мм, винт 3.5 входит {min(r['pen']['outer'][0] for r in dr):.2f} мм (стандарт {o_['enter'][0]:g}..{o_['enter'][1]:g}), "
+          f"винт 2.5 входит {min(r['pen']['inner'][0] for r in dr):.2f} мм (стандарт до {i_['enter'][1]:g}), под каждой головкой есть место, отсек (салазки, диски, зоны штекеров) внутри |X| {hw.DRIVE_ENVELOPE[0][0]:g}..{hw.DRIVE_ENVELOPE[0][1]:g}, "
+          f"Y {hw.DRIVE_ENVELOPE[1][0]:g}..{hw.DRIVE_ENVELOPE[1][1]:g}, Z {hw.DRIVE_ENVELOPE[2][0]:g}..{hw.DRIVE_ENVELOPE[2][1]:g}: " + "; ".join(f"{r['bay']} X {r['box'][0]:.1f}..{r['box'][1]:.1f}, Y {r['box'][2]:.1f}..{r['box'][3]:.1f}, Z {r['box'][4]:.1f}..{r['box'][5]:.1f}" for r in dr)
+          + "   " + ("PASS" if not any(f.startswith('CHECK13') for f in res['failures']) else "FAIL"))
     w("")
     w("Скругление (ревизии 8 и 8a)")
     ref = reference_parts()
@@ -2922,6 +3189,10 @@ def format_report(hardware, parts, res, memo=None):
             wall = tie_pilot_wall(byname_[tp["host"]], tp)
             who, d = near.get(nm, ("-", float("nan")))
             w(f"  {nm:18} {tp['host']:12} {tp['face']:22} ({pt[0]:7.1f}, {pt[1]:7.1f}, {pt[2]:7.1f}){'':8} {('>= 8' if wall > 7.9 else format(wall, '.2f')):>11} мм {(who + ' ' + format(d, '.1f') + ' мм') if who else 'ничего ближе ' + format(TIE_CLEAR + 4.0, 'g') + ' мм':>34}")
+        w("")
+    if any(q.name.startswith("drive_sled") for q in parts):
+        for line in drive_bay_lines(parts, hardware, res):
+            w(line)
         w("")
     w("Положение болтов (Y, Z):")
     for label, ok, _ in BOLT_CHECKS:
@@ -3279,8 +3550,32 @@ DEVIATIONS: list[str] = [
     "стал в 28.9 мм (угол 38°). Длина трассы 649 -> 652 мм при заводской 700 (запас 51 -> 48 мм), зазор до rib_A_right 4.5 -> 4.5 мм, остальные проверки кабелей зелёные, 12V-2x6 к допуску впереди не тронут.",
     "Материал мостиков (16.11.2026, вопрос владельца): tie_bridge теперь ABS, не PA6. Кабели держит стяжка-липучка, мостик не защёлкивается и не гнётся, нейлон ему не нужен. Форма не менялась. "
     "Ручная оценка для skid_1 (лапа 13 x 3 мм висит на 12.5 мм, рывок 20 Н за стяжку): 14 МПа вдоль слоёв при прочности ABS вдоль слоёв около 35 МПа, запас 2.4; испытанием не подтверждено. PA6 остаётся только у двух направляющих шлангов.",
+    # --- отсеки под диски, проход 1
+    "Отсеки под диски, проход 1 (16.11.2026, docs/plans/cables-and-organic.md, «Drive bays, pass 1»): добавлена одна деталь drive_sled_left (ABS, строится правосторонней и зеркалится), железо drive_left (составное тело: 3.5 дюйма на "
+    "внешней грани, 2.5 дюйма на внутренней) и зона штекеров drive_plugs_left (запретная зона), два проходных отверстия M4 в psu_bulkhead (X -89.5, Z 30 и 76), проверка 13 в frame_v0.py и новый скрипт drive_access.py. Все таблицы "
+    "отверстий, стандарты, разъём и место дисков - в hardware.py (DRIVE_FORMS, DRIVE_SATA, drive_layout). Приняты по плану: плита 5 мм, бобышка 1 мм, зазор до БП 4 мм, под головкой 3.0 мм материала, фланец у перегородки с двумя M4, ступня плоской гранью на skid_rear.",
+    "Отсеки, отступление 1: 2.5 дюйма центрирован по Y на 3.5 дюйма (в плане положение по Y не задано). Если выровнять их по краю разъёма, колонна 2.5 дюйма (4.07 мм от края) оказывается в 0.9 мм по Y от колонны 3.5 дюйма (3.18 мм от края), "
+    "а их отверстия по Z (85.73 и 90.60 мм от разъёма) в 4.9 мм друг от друга: зенковки с противоположных граней перекрылись бы (нужно не меньше 8.6 мм между осями при зенковке Ø7.5 и стенке 1.6). При центрировании ближайшие оси в 16.8 мм. "
+    "Следствие: разъёмы 2.5 и 3.5 дюйма по Y не совпадают (3.5: Y 269.4..312.2, 2.5: Y 285.3..328.0), зона штекеров - два бокса, оба сверху Z 150..175.",
+    "Отсеки, отступление 2: размеры, которых план не задавал. Диск 3.5 дюйма стоит нижним концом на Z 3.0 (DRIVE_Z0, как место в обмере: 3 мм над skid_rear), разъёмный край диска и разъёмы всех дисков на Z 150, его край по Y 256..357.6, "
+    "пластина Y 252..375 и Z 0..145 (на 5 мм ниже разъёмного края, чтобы пластина не лезла в зону штекеров), фланец Y 362..375 (13 мм), Z 18..88, X 82.5..96.5 (14 мм: пилот M4 Ø5.6 со стенкой 2.1 даёт 9.8 мм). Вставки M4 (глубина 9.1), а не M4S: "
+    "под них хватает 13 мм фланца, остаётся 3.9 мм дна. Бобышка Ø9 (R 4.5), зенковка Ø(головка + 0.8), головка 6.7 / 5.7 мм высотой 2.5 мм - ПРЕДПОЛОЖЕНИЕ (круглая головка), нижний предел входа винта 2.5 дюйма 1.0 мм - ПРЕДПОЛОЖЕНИЕ (стандарт даёт только максимум 2.5).",
+    "Отсеки, отступление 3: скругление. Плита и фланец скруглены по контуру тем же правилом (rounded_like), но салазки не внесены в PLATE_PREFIXES: проверка 12 по-прежнему считает 12 плит. Два угла остались острыми по контакту "
+    "с перегородкой: задний нижний угол плиты (ступня и задняя грань - контакты) и два задних угла фланца. Причина измерена: верхнее ребро самой перегородки (R 2.75) уже отнимает 13.75 мм² (1.3 %) от контакта 1040.74 мм² с салазками, "
+    "а скругление этих углов отняло бы ещё 30 + 28 мм²; вместе с перегородкой это 4.2 % при пороге 3 % (первая сборка: CONTACT psu_bulkhead x drive_sled 95.8 %). Контакт сохранён на 98.68 %.",
+    "Отсеки, отступление 4: проверка drive_access.py. (а) Тело - силуэт сбоку из прямоугольников построенных тел (салазки, диски, боксы зоны штекеров), а не один описанный прямоугольник: описанный 123 x 175 мм требует 45° наклона с зоной штекеров "
+    "(боксы штекеров уже салазок и стоят на дисках, прямоугольник считает пустой воздух над ними телом). (б) Место - конечная поза, отодвинутая на 3 мм назад и 3 мм вверх, тело полного размера (задняя грань и ступня касаются перегородки и "
+    "скида, а препятствия выросли на 1.5 мм); сверка со сценарием главной сессии (тело 120 x 150, Y 252..372): те же 26..30°. (в) Кабели берутся по жилам из cables.py с настоящим радиусом (замер по телам занял бы 3 минуты). "
+    "(г) ВАЖНО: в черновой сетке главной сессии (rear_occ.npz) слой кабелей пуст: rt.solid у маршрута None, пока не вызван rt.build(), поэтому None было у всех 12 маршрутов, а не у пяти. Свободное место справа от БП измерено без кабелей.",
+    "Отсеки, результат и решение (главная сессия, 16.11.2026): левый отсек проходит (наклон 26° без зоны штекеров и 28° с ней, при пределе 30°). Правого отсека нет: ATX 24-pin, EPS 1 и EPS 2 идут справа от БП вдоль и вокруг его задней части "
+    "(EPS 2: от (84, 160, 7) к (113, 332, 93) и (122, 346, 108), потом вверх по X 132) и проходят сквозь объём правого отсека (X 79..119, Y 252..375, Z 3..150); при построенном правом отсеке cables.py не проходил (ATX 24-pin, EPS 1 и EPS 2 по 0.00 мм "
+    "от drive_right при минимуме 3, EPS 2 1.59 мм от салазок). Кабели не перекладывались. В hardware.py DRIVE_SIDES = {\"left\": -1}; всё строится по этому словарю, возврат ключа right строит правый отсек (и снова роняет cables.py и drive_access.py). "
+    "Свободное место справа от БП в плане было измерено без кабелей (слой кабелей в черновой сетке был пуст: rt.solid у маршрута None, пока не вызван rt.build()).",
 ]
 OPEN_ITEMS: list[str] = [
+    "Отсеки под диски: глубина штекера и изгиба кабеля за диском 25 мм (DRIVE_PLUG_ZONE) - ПРЕДПОЛОЖЕНИЕ, источника нет. Головки винтов, нижний предел входа 2.5 дюйма, резиновые втулки (нет размеров), кабели SATA (данные от платы, питание от БП), "
+    "задняя органическая панель - не в этом проходе. Салазки весят около 100 г при 100 % и 75 г при 4 стенках и 20 %; устойчивость на ребре 5 x 20 мм скида (диск 3.5 дюйма около 0.7 кг на плече 16 мм от плоскости пластины) и крепление двумя M4 на сдвиг "
+    "не считались. Запас прохода в левом отсеке 2° (28° из 30° с зоной штекеров).",
     "ПРАВЫЙ боковой вентилятор: три винта из четырёх (A, C с внутренней грани в штифты M4S, D с внешней через лапку Ø4.5; ревизия 7a), угол B без винта: на внутренней грани "
     "он в 4.10 мм от шланга GPU (нужно 5), с внешней планка до него не достаёт. Винт лапки идёт снаружи, головка выйдет за |X| = 229 на 2-3 мм: владелец принял это как допуск 15.11.2026 "
     "(потайная головка не нужна, лапка 2.5 мм для неё тонка). Планка в 1.00 мм от бокса rad360_ports (воротники с запасом): если запас нужен больше, RAIL_INSET (1.0) можно увеличить: планка станет тоньше по X и уйдёт дальше от rad360_ports.",

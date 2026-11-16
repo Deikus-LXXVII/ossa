@@ -26,6 +26,8 @@ HW_RGB = {
     "cpu_hoses": (0.10, 0.10, 0.11), "gpu_hoses": (0.42, 0.24, 0.12),     # the hoses are drawn opaque, as hoses
     "front_io": (0.83, 0.63, 0.09), "light_strip": (0.95, 0.89, 0.35),
 }
+HW_RGB.update({k: (0.42, 0.48, 0.54) for k in hardware.DRIVES})
+HW_RGB.update({k: (0.79, 0.63, 0.86) for k in hardware.DRIVE_PLUGS})
 # camera direction (from the model towards the eye), world axes: X right, Y back, Z up
 VIEWS = {
     "front_left": (-0.75, -1.25, 0.70),
