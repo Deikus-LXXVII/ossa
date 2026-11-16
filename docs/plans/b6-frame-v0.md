@@ -559,3 +559,40 @@ The radiators, both pairs of hoses, both hose guides and the 40 mm straight at t
 12. Run the project `verify` skill in full. Regenerate the reports and the previews that show the fans (`render_full.py`; the Blender pictures are not needed).
 
 **Report back:** the numbers asked for above, every place where this spec was wrong and what you did instead, every check or test that changed and why, anything left failing. Do not commit.
+
+## Revision 14a — card rest and front I/O seat as parts of their own; CPU hose clip moved to the left fan (17 Nov 2026)
+
+**Why.** Three decisions of 16 Nov 2026, recorded in `docs/plans/external-cables.md` and `docs/plans/modularity.md`: every card support is a part of its own, so that a misplaced support costs a small reprint; a hardware dimension that is not proved does not live in a part heavier than about 80 g, which today means the front I/O module's seat in `front_sill` (205 g, placeholder dimensions); the CPU hose clip does little next to the 420's ports and moves to where the hoses pass the left fan (6.4 mm apart since Revision 13).
+
+Built on Revision 13. The radiators, the fans, both pairs of hoses, `hose_guide_gpu`, `gpu_post` and the fan brackets do not change. If a requirement cannot be met without changing one of them, stop and report.
+
+### Revision 14a: spec for `cad-implementer`
+
+**1. `gpu_rest` becomes a part.**
+- Today it is the capsule `SHAPE_A_REST` in `rib_A_right`'s outline (`frame_v0.py`, near line 544): a finger 16 mm wide whose upper face is the card's cooler face (u = `hw.GPU_BS[2]`), from n -10 to n 104, as thick as the rib.
+- New: `rib_A_right` loses the finger and becomes the mirror of `rib_A_left` apart from what else differs today (report what does). A new part `gpu_rest` (ABS) carries the same contact face in the same place and is screwed to `rib_A_right` with two M3 screws into inserts in the new part, through clearance holes in the rib. The rib keeps a flat seat; the new part's foot lies on a face of the rib, not in a pocket.
+- Plain holes, no slots (the card's weight acts along a slot's direction).
+- Every dimension that follows the card comes from `hw.GPU_BS`.
+- Strength as a function in `frame_v0.py` like checks 17 and 18, margin at least 2 against the ABS allowable: the card's whole weight (`strength.py` has 1.6 kg) pressing on the finger's contact face at its middle, and separately a 20 N knock along X at the finger's tip. Report the two screws' tension.
+- Check 5's mount count for `gpu_rest`, the intended contact `rib_A_right` x `gpu`, the bill of fasteners and the report text follow.
+
+**2. The front I/O module's seat becomes a carrier.**
+- Today `front_sill` has a pocket drawn round the placeholder box `hw.FRONT_IO_W` with `SILL_POCKET_PLAY`, open to the front and below, and two M3 pilots for the module's own screws in the pocket's end walls (`hw.FRONT_IO_SCREWS`).
+- New: a part `front_io_carrier` (ABS) holds the module: it wraps the module's box on the two ends, the back and the top with walls of at least 3 mm and carries the two pilots for the module's screws. The sill's pocket grows to take the carrier with 0.3 mm of play and loses the module's pilots. The carrier is screwed to the sill with M3 screws into inserts (in the sill), at least two, placed where a screwdriver reaches them with the module out.
+- The carrier's inside follows `hw.FRONT_IO_W` and `hw.FRONT_IO_SCREWS`; the sill's pocket follows the carrier's outside. A later change of the module's numbers must change the carrier only, unless the module grows beyond the carrier's outside; say in the report how much the module may grow in each direction before the sill has to change.
+- The window in the sill's face, the light line's channel and slit, the sill's four screws into `beam_front` and the module's rest on `beam_front` stay as they are. If the larger pocket breaks one of them (wall under 2 mm, a screw's wall), stop and report the conflict with numbers.
+- Report the carrier's mass and the sill's mass before and after.
+
+**3. `hose_guide_cpu` moves.**
+- Today: a PA6 block with two snap channels, foot on `neck_left`, at about u 285, n 54, X -227..-192, just above the left fan and next to the 420's ports.
+- New place: on the left fan's free corner. Both fan brackets use corners A, B, C; corner D (high u, high n) is free on the left fan because the CPU hoses pass there. The guide is screwed to the fan's corner D hole: an M3 screw from the fan's outer face through the fan's 25 mm into an insert in the guide, like a bracket's ear. The guide sits on the fan's inner face and holds both hoses in snap channels drawn round the routes at that place (`hose_at`, `guide_channel`), mouths away from the fan.
+- If the hoses do not pass within the guide's reach of corner D (channel centres further than 45 mm from the screw's axis), do not stretch the guide: report the distances and propose the nearest sound foot instead.
+- `neck_left` loses the guide's pilot and its contact. Check 10 (guide against the true hose), check 9's exemption for the guides, the mirror relation of `neck_left` and `neck_right`, and the bill of fasteners follow.
+- The guide may not enter the fan's open circle (check 11 covers the brackets today; extend it to the guide) and must clear `io_zone` and `gpu_out_zone`.
+
+**4. Checks, tests, reports.**
+- `test_checks.py`: a case for each new joint (pilot filled in, part moved off its seat), for the rest's strength function (a thinned finger must fail), for the carrier (the module's box grown past the carrier must fail a check, not pass silently), and for the guide in the fan's open circle. No existing case is dropped without a successor of the same strictness.
+- `zone_access.py`, `cables.py`, `fit_gauges.py`, `drive_access.py` must still pass. Run the project `verify` skill in full. Regenerate the reports and the previews.
+- `organic_frame.py`: only make it run; the layer is redrawn in Revision 14b.
+
+**Report back:** the numbers asked for above, every place where this spec was wrong and what you did instead, every check or test that changed and why, anything left failing. Do not commit.
