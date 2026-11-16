@@ -369,6 +369,45 @@ The limits are 30 mm and 150 mm. Each cable's first bend sits at its PSU plug, w
 - The ATX and 12V-2x6 routes begin their first bend right at the PSU socket (148 and 128 degrees). A real cable wants a short straight there first; not modelled.
 - The strap takes a twist at most points: a face allows one direction for the bridge, and the cable passes at 28 to 90 degrees to it.
 
+### Bridge material: ABS, not PA6 (16 Nov 2026)
+
+The owner asked whether hook-and-loop straps remove the need for nylon. For the cables they do. PA6 was chosen for parts that snap or flex; a `tie_bridge` only gives the strap a slot to pass through. All eleven bridges are ABS now, the shape is unchanged. `frame_v0.py` passes, `test_checks.py` 136 of 136.
+
+- **Hand check, `skid_1`:** the 13 x 3 mm foot overhangs by 12.5 mm. A 20 N pull on the strap gives 14 MPa along the layers. Printed ABS holds about 35 MPa along the layers, so the margin is 2.4. Not tested.
+- **PA6 that is left:** the two hose guides. Their mouth is 0.75 of the hose diameter and the lip is about 2 mm, so the guide has to give when the hose goes in. Open point for the owner: an open channel closed by a strap would remove PA6 from the project (no drying, no dry box). Not changed without the owner's word, since PA6 for the guides was the owner's decision.
+
+### Whole-design pictures (16 Nov 2026)
+
+`cad_b6/render_full.py` draws everything in one scene: skeleton, hardware, hoses, cables, organic layer. It reads the layer from `out/organic/field.npz`. Output: `previews/b6_full_sides.png` (six parallel views at one scale), `previews/b6_full_corners.png` (four corners), `previews/b6_full_inside.png` (four corners without the layer, cables in their report colours).
+
+### Rear panel and drive bays (owner proposal, 16 Nov 2026): measurement
+
+The owner proposes an organic panel at the rear, where the PSU is, and places for HDD and SSD drives there.
+
+**Measured** on a 1.5 mm voxel grid of skeleton, hardware with keep-outs, the six thick cables and the organic layer, every body grown by 3 mm, plus 30 mm of air above the PSU's fan (my assumption). The five thin leads (ARGB, audio, three fan leads) have no solid and are not in the grid.
+
+- **Beside the PSU, both sides:** free X 79..138 (59 mm), Y 178..373, Z 3..169, and standing room up to Z 209 from Y 206 on. The right side is free from Y 194 on; in front of that the cables leave the PSU.
+- **Above the PSU:** free X -138..139, Y 188..375, Z 117..about 190, rising to Z 274 at Y 330.
+- **A 3.5 inch drive** (101.6 x 147 x 26.1, plus 20 mm for plugs) fits beside the PSU on its long edge on either side, and flat above the PSU. Two side by side on one side do not fit: 52.2 of 59 mm.
+- **A 2.5 inch drive** (69.85 x 100 x 7, plus 20 mm) fits almost anywhere in those zones.
+- **Rear face:** `psu_bulkhead` closes the rear from the desk to Z 92 across X -142..142 and holds the PSU. Above it the rear is open up to the board's underside.
+
+**Concept, main session, not built:**
+
+- **Two drive sleds, one on each side of the PSU.** ABS, because the PLA layer carries no component. A sled is a vertical plate along Y with both hole patterns: one 3.5 inch drive, or two 2.5 inch drives one above the other. Capacity: two HDDs, or four SSDs, or one HDD and two SSDs.
+- **Plugs face forward**, towards the PSU's modular face and the board's right edge, where the SATA ports are (to be confirmed by the research).
+- **Rear organic panel** as its own piece of the PLA layer, screwed with M3 to pilots in the rear faces of the B ribs and the bulkhead. It covers the open rear above the bulkhead and the flanks beside the PSU. It leaves the PSU's window open and keeps 10 mm from the PSU. The field's grid ends at Y 394, so the panel has Y 383..392.
+
+**Open points:**
+
+- **Getting a drive in and out.** The bulkhead blocks the way straight back below Z 92, and it is structural. The sled has to go in through the rear opening above the bulkhead and down, or from the side through rib B. This needs a swept check, not a guess.
+- **PLA near a hard drive.** A 3.5 inch drive runs warm. Proposal: PLA keeps 10 mm from a drive, as from the card and the PSU.
+- **Vibration.** Rubber grommets between drive and sled.
+- **SATA cables.** Two more cable kinds (data from the board, power from the PSU) to route and tie.
+- **How many drives the owner has** decides nothing in the concept above, only which holes get used.
+
+Research running (Grok, `web-research`): SFF-8301 and SFF-8201 hole patterns, SATA plug depths, the board's SATA ports, the PSU's SATA cables, drive temperature limits.
+
 ### Next
 
-Split the organic layer into printable pieces. Rerun `strength.py` with the bridges. Rerun the organic strength check when the gaming PC is back in Linux.
+Drive sleds and the rear panel, once the research is back: spec, then `cad-implementer`. Split the organic layer into printable pieces (the rear panel is one of them). Rerun `strength.py` with the bridges. Rerun the organic strength check when the gaming PC is back in Linux.

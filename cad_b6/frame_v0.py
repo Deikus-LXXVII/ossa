@@ -814,7 +814,7 @@ def organic_pilots(name, mirrored=False):
 
 # ---------------------------------------------------------------------------
 # Cable tie points (skeleton pass 2, docs/plans/cables-and-organic.md "Cable fixing"). A tie point is an M3 insert pilot in the underside of
-# a beam or of the right rib's rail; one printed part, tie_bridge (PA6), is screwed to it: a foot with an M3 clearance hole and, beside the
+# a beam or of the right rib's rail; one printed part, tie_bridge (ABS since 16 Nov 2026: a hook-and-loop strap goes through it, nothing snaps or flexes), is screwed to it: a foot with an M3 clearance hole and, beside the
 # hole, an arch whose slot a 12 mm hook-and-loop strap or a cable tie passes through. The shape is built once (in its own frame) and
 # placed at every tie point; the cables are not looked at here, cables.py keeps its 3 mm from every bridge and reports the distances.
 # ---------------------------------------------------------------------------
@@ -1440,7 +1440,7 @@ def _build_frame():
 
     for tp in TIE_POINTS:
         add(tie_name(tp), build_tie_bridge(tp),
-            f"cable tie bridge {tp['row']} {tp['k']}: foot on {tp['host']}'s {tp['face']} at world ({tp['pt'][0]:.1f}, {tp['pt'][1]:.1f}, {tp['pt'][2]:.1f}), 1 x M3 into its insert, a 12.5 x 3.5 slot for a strap or a tie", material="PA6")
+            f"cable tie bridge {tp['row']} {tp['k']}: foot on {tp['host']}'s {tp['face']} at world ({tp['pt'][0]:.1f}, {tp['pt'][1]:.1f}, {tp['pt'][2]:.1f}), 1 x M3 into its insert, a 12.5 x 3.5 slot for a hook-and-loop strap", material="ABS")
 
     # --- fastener registry: what the plan lists per hardware item. The counts below are written down by
     # hand; run_checks derives the real ones from the solids (derive_mounts) and fails if they differ.
@@ -1483,7 +1483,7 @@ def _build_frame():
              "the cable tie points (TIE_POINTS): one pilot each, into the part's face along the face's inward normal (along n into an underside, along X into a rib's inner face, along Z into the skid's top); rows: " + ", ".join(
                  f"{r} {sum(1 for t in TIE_POINTS if t['row'] == r)}" for r in dict.fromkeys(t["row"] for t in TIE_POINTS)))
     fastener("tie_bridge", "tie_bridge_* -> the tie points", "M3 screw", len(TIE_POINTS),
-             "one M3 x 10 through the bridge's foot (4 mm clearance hole) into the insert; the bridge is PA6, the same part at every point")
+             "one M3 x 10 through the bridge's foot (4 mm clearance hole) into the insert; the bridge is ABS, the same part at every point")
     fastener("organic", "rib_A_L/R, rib_B_L/R, neck_L/R, front_sill", "M3 insert", len(hw.ORGANIC_PADS),
              "the PLA layer's pads (hw.ORGANIC_PADS): 6 a side, one pilot each along X into the outer face; the screw and the pad are in organic_frame.py")
     return parts, neck_prims
@@ -2910,7 +2910,7 @@ def format_report(hardware, parts, res, memo=None):
         w("")
     if TIE_POINTS:
         w(f"Кабельные точки крепления (проход 2 скелета, docs/plans/cables-and-organic.md, «Cable fixing»): {len(TIE_POINTS)} штифтов M3: в нижних гранях beam_low, beam_mid, beam_top и правого рельса (rib_A_right), во внутренних гранях правых рёбер (средняя нога rib_A_right, пост rib_B_right) и в верхней грани skid_front, "
-          f"на каждом мостик tie_bridge (PA6, одна форма). Мостик {TIE_ARCH_END + TIE_HOLE_END:g} x {TIE_W:g} x {TIE_H:g} мм: лапа {TIE_FOOT_T:g} мм с проходным отверстием M3 Ø{hw.M3_CLEAR_D:g} "
+          f"на каждом мостик tie_bridge (ABS, одна форма). Мостик {TIE_ARCH_END + TIE_HOLE_END:g} x {TIE_W:g} x {TIE_H:g} мм: лапа {TIE_FOOT_T:g} мм с проходным отверстием M3 Ø{hw.M3_CLEAR_D:g} "
           f"и арка рядом, в арке щель {TIE_SLOT_W:g} x {TIE_SLOT_H:g} мм под липучку 12 мм или стяжку (вдоль стороны {TIE_W:g} мм). Печать лапой вниз: потолок щели - мостик {TIE_SLOT_W:g} мм на высоте {TIE_FOOT_T:g} мм, "
           f"других нависаний нет. Винт M3 x 10 с головкой на лапе. Мостик держит {TIE_CLEAR:g} мм от всех деталей, кроме своей, и от железа; 3 мм до кабелей проверяет cables.py.")
         w(f"  {'мостик':18} {'деталь':12} {'грань':22} {'мир (X, Y, Z) оси отверстия на грани':38} {'стенка штифта':>14} {'ближайшая другая деталь':>34}")
@@ -3277,6 +3277,8 @@ DEVIATIONS: list[str] = [
     "(путевые точки EPS 2 сдвигались: WAY на 10-14 мм вперёд даёт 22-26 мм до мостика, но тогда кабель в 2.7-2.9 мм от БП или пересекает ATX; сетка из 9 x 8 x 4 положений WAY дала два допустимых, оба с 31.5 мм). Консоль: от винта до середины щели 13.75 мм, нагрузка кабеля мала, но печатью это не проверено.",
     "Проход 2, второй заход, путевые точки: сдвинута одна, начало дорожки EPS 1 под платой с X 113 на X 122 (cables.V_IN_OF; остальные кабели остаются на X 113). Излом EPS 1 в 36° у начала дорожки был в 32.5 мм от лучшей точки на ноге rib_A_right, "
     "стал в 28.9 мм (угол 38°). Длина трассы 649 -> 652 мм при заводской 700 (запас 51 -> 48 мм), зазор до rib_A_right 4.5 -> 4.5 мм, остальные проверки кабелей зелёные, 12V-2x6 к допуску впереди не тронут.",
+    "Материал мостиков (16.11.2026, вопрос владельца): tie_bridge теперь ABS, не PA6. Кабели держит стяжка-липучка, мостик не защёлкивается и не гнётся, нейлон ему не нужен. Форма не менялась. "
+    "Ручная оценка для skid_1 (лапа 13 x 3 мм висит на 12.5 мм, рывок 20 Н за стяжку): 14 МПа вдоль слоёв при прочности ABS вдоль слоёв около 35 МПа, запас 2.4; испытанием не подтверждено. PA6 остаётся только у двух направляющих шлангов.",
 ]
 OPEN_ITEMS: list[str] = [
     "ПРАВЫЙ боковой вентилятор: три винта из четырёх (A, C с внутренней грани в штифты M4S, D с внешней через лапку Ø4.5; ревизия 7a), угол B без винта: на внутренней грани "
@@ -3319,7 +3321,7 @@ OPEN_ITEMS: list[str] = [
     "Порог: масса 490 г при 100 % (210 г при 4 стенках/20 %), 280 x 47 x 70 мм, длинная ABS-деталь с большой плоской гранью склонна к короблению: если печать повело, делить пополам по X = 0 (каждая половина 140 мм). "
     "Винты порога к beam_front ставятся снизу, зазор до стола 5 мм (собирать до постановки на стол). Порог выступает на 7.4 мм за заднюю грань beam_front (Y 40 -> 47.4), до платы 12.6 мм. "
     "Порог не входит в проверку 12.",
-    "PA6 (две направляющие шлангов, позже клипсы кабелей и клипсы оболочки): сушить и печатать из сухой коробки, CFS при 65 % влажности для нейлона не годится; плотность 1.14 г/см³ принята по справочному значению, не по катушке. "
+    "PA6 (только две направляющие шлангов; мостики кабелей с 16.11.2026 из ABS, оболочка крепится винтами M3): сушить и печатать из сухой коробки, CFS при 65 % влажности для нейлона не годится; плотность 1.14 г/см³ принята по справочному значению, не по катушке. "
     "PLA оболочка: держать не ближе 10 мм к видеокарте и БП и 4 мм к радиаторам и вентиляторам, нести только свой вес, крепиться к каркасу несколькими точками с зазором (разная усадка ABS и PLA): в этом файле её нет.",
 ]
 

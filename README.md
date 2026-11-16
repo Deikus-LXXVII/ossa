@@ -43,7 +43,7 @@ The envelope is about 460 × 385 × 405 mm (width × depth × height). Every pri
 | `cad_b6/organic_frame.py`, `organic_strength.py` | The organic outer layer as one solid with its fixings, and its strength check |
 | `cad_b6/cables.py` | Cable routes and their checks |
 | `cad_b6/fit_gauges.py` | Thin test plates that check the model's numbers against the real hardware |
-| `cad_b6/render_vtk.py`, `measure.py` | Offscreen renders and distance measurements |
+| `cad_b6/render_vtk.py`, `render_full.py`, `measure.py` | Offscreen renders (`render_full.py` draws the whole design from every side) and distance measurements |
 | `docs/plans/b6-frame-v0.md` | The design record: every revision, with reasons and coordinates |
 | `docs/printer-and-materials.md` | Printer and filament the design is made for |
 | `cad_b5/`, `history/` | The earlier B5 layout and studies. Frozen. |
@@ -60,6 +60,7 @@ python3 -m venv .venv
 .venv/bin/python cad_b6/frame_v0.py      # build, run every check, write the report and STEP
 .venv/bin/python cad_b6/test_checks.py   # prove the checks bite
 .venv/bin/python cad_b6/render_vtk.py    # previews/b6_v0_*.png
+.venv/bin/python cad_b6/render_full.py   # previews/b6_full_*.png, the whole design
 .venv/bin/python cad_b6/strength.py 7 2  # strength and plastic, about 7 minutes
 ```
 
@@ -93,7 +94,7 @@ A separate check keeps each contact face at 97 % of its area or more after round
 - **Skeleton:** ABS. It carries every component.
 - **Organic layer:** PLA. It keeps 10 mm from the graphics card and the power supply.
 - **Light line diffuser:** translucent PLA, 10 mm from the LED strip.
-- **Hose guides and clips:** PA6 nylon.
+- **Hose guides:** PA6 nylon (their mouths snap over the hose). The cable tie bridges are ABS: a hook-and-loop strap holds the cable, nothing snaps.
 
 ## Not done yet
 

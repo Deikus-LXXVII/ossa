@@ -575,9 +575,9 @@ def main():
           and all(p.material in f.MATERIALS for p in parts),
           ("1 solid, X -140..140, materials in ABS/PA6", f"{len(sill.solid.Solids())} solid, X {f.bbox_of(sill.solid)[0]:.1f}..{f.bbox_of(sill.solid)[1]:.1f}"))
     tie_names = [f.tie_name(tp) for tp in f.TIE_POINTS]
-    check("only the two hose guides and the cable tie bridges are PA6, every other part is ABS", sorted(p.name for p in parts if p.material == "PA6") == sorted(["hose_guide_cpu", "hose_guide_gpu"] + tie_names)
-          and all(p.material == "ABS" for p in parts if p.name not in f.GUIDE_PARTS and p.name not in tie_names),
-          ("PA6: hose_guide_cpu, hose_guide_gpu and the tie bridges; the other parts ABS", ", ".join(f"{p.name}={p.material}" for p in parts if p.material != "ABS")))
+    check("only the two hose guides are PA6, every other part (the cable tie bridges too) is ABS", sorted(p.name for p in parts if p.material == "PA6") == sorted(["hose_guide_cpu", "hose_guide_gpu"])
+          and all(p.material == "ABS" for p in parts if p.name not in f.GUIDE_PARTS) and all(n in [p.name for p in parts] for n in tie_names),
+          ("PA6: hose_guide_cpu and hose_guide_gpu; the other parts ABS", ", ".join(f"{p.name}={p.material}" for p in parts if p.material != "ABS")))
     check("front_io and light_strip are hardware: front_io real, light_strip a keep-out; both in front of Y = 0 nowhere", "front_io" in hardware and "light_strip" in hardware
           and "light_strip" in hw.KEEP_OUT and "front_io" not in hw.KEEP_OUT and base["envelope"]["front"][2] >= hw.ENVELOPE_Y0,
           ("both in build_hardware, min Y >= 0", f"min Y {base['envelope']['front'][2]:.1f} ({base['envelope']['front'][3]})"))
@@ -735,8 +735,8 @@ def main():
     vols = [b.blank.Volume() for b in bridges]
     check("one bridge shape: every bridge has the same volume before and after its hole, and 28 x 13 x 9 mm", max(vols) - min(vols) < 1e-6
           and max(b.solid.Volume() for b in bridges) - min(b.solid.Volume() for b in bridges) < 1e-6
-          and abs(f.TIE_ARCH_END + f.TIE_HOLE_END - 28.0) < 1e-9 and f.TIE_W == 13.0 and abs(f.TIE_H - 9.0) < 1e-9 and f.TIE_SLOT_W >= 12.0 + 0.4 and all(b.material == "PA6" for b in bridges),
-          ("equal volumes, 28 x 13 x 9, a slot wider than the 12 mm strap, PA6", f"{min(vols):.1f}..{max(vols):.1f} mm3, slot {f.TIE_SLOT_W:g}"))
+          and abs(f.TIE_ARCH_END + f.TIE_HOLE_END - 28.0) < 1e-9 and f.TIE_W == 13.0 and abs(f.TIE_H - 9.0) < 1e-9 and f.TIE_SLOT_W >= 12.0 + 0.4 and all(b.material == "ABS" for b in bridges),
+          ("equal volumes, 28 x 13 x 9, a slot wider than the 12 mm strap, ABS", f"{min(vols):.1f}..{max(vols):.1f} mm3, slot {f.TIE_SLOT_W:g}"))
     tp0 = tps[0]
     hp = part_named(parts, tp0["host"])
     hole0 = next(h for h in hp.holes if h.pilot and h.kind == "M3" and math.dist(h.point(f.OVERSHOOT), f.tie_face_point(tp0)) < 0.01)

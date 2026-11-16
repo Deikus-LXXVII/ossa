@@ -18,7 +18,7 @@ Given by the owner on 15 Nov 2026. Facts about his equipment, not design decisio
 | Creality CR-ABS, Creality Hyper ABS | black | load-bearing skeleton (`cad_b6/frame_v0.py`) |
 | Creality Hyper PLA | black | organic outer layer (`cad_b6/organic_frame.py`) |
 | ELEGOO translucent PLA | translucent | diffuser of the light line |
-| yxpolyer Nylon PA6, unfilled, 1 kg | black | small parts that flex or snap: hose guides, cable clips, the clips that fix the PLA layer to the skeleton |
+| yxpolyer Nylon PA6, unfilled, 1 kg | black | parts that snap: the two hose guides only. The cable tie bridges are ABS since 16 Nov 2026 (hook-and-loop straps hold the cables), and the PLA layer is fixed with M3 screws |
 | plain PLA | white | not planned |
 
 ## What follows for printing
