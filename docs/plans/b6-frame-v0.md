@@ -466,4 +466,8 @@ Owner's observation: the 420's mount sits where its fans are. Either it has to c
 
 **Also found, from ARCTIC's drawing (`refs/arctic_lf3_pro_420_2d_drawing.pdf`, page 1, side view):** the fans come mounted on the face the hose collars stand on. The model has the collars on the core face towards the board and the fans on the opposite face, so the fans have to be moved to the other face when the case is built. Whether the radiator is threaded on that face and whether the fans' lead reaches is in the same research.
 
+**Owner, 16 Nov 2026:** fans can be put on either face of a radiator, the CPU's or the card's, in any configuration. So the radiator is threaded on both faces and moving the fans is not an open point any more.
+
+It does not change the decision. Fans on the board side would need 27 mm where there are 5, and moving the radiator back by 27 mm to make room would lengthen the CPU hoses, which use 432 of their 450 mm.
+
 The spec for `cad-implementer` follows when the research is back.
