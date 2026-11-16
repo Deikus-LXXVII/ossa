@@ -56,3 +56,9 @@ The owner asked to go back to 140 mm fans and stand them further from the case, 
 - **Nothing else moves:** the radiators, both pairs of hoses and their guides stay; the 40 mm straight at the 420's ports stays.
 - **What it costs:** the case becomes 520 mm wide instead of 458 mm (each fan stands 31 mm beyond the 420's end); both fan brackets are new and reach further; the fans' leads are rerouted; the organic layer is redrawn on both flanks with an opening to the rear on the left.
 - **Not checked:** the new brackets and their strength; the leads' length; the view of the connectors (the fan still stands in front of them, so plugs go in by hand from the rear or from below); air flow (the fan is twice as far from the board).
+
+## Next revision (14), agreed with the owner on 16 Nov 2026
+
+- **Move `hose_guide_cpu`.** The owner asked what the clip next to the 420's ports is for, since the fittings already hold the hoses there. It adds little at that place. Agreed: move it along the route to where the CPU hoses pass the left fan (6 mm apart after Revision 13), so that it holds the pair off the fan. It stays a separate part on one screw.
+- **Redraw the organic layer's flanks** for the fans' new places, with an opening to the rear on the left for the cables, and keep `io_zone` and `gpu_out_zone` free.
+- **Correct the card's size** in `hw.GPU_BS` when the owner reports by how much the gauge `G7_gpu_end` overhangs the card's end.
