@@ -28,7 +28,7 @@ import shell_concepts as sc
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 ABS_RGB = (0.80, 0.80, 0.78)          # the skeleton is black ABS; drawn light so that it reads against the black layer
-PLA_RGB = (0.16, 0.16, 0.18)
+LAYER_RGB = (0.16, 0.16, 0.18)      # the organic layer's colour
 CABLE_RGB = (0.22, 0.22, 0.24)
 TILE = (1100, 850)
 
@@ -52,7 +52,7 @@ def organic_actor():
     a = vtk.vtkActor()
     a.SetMapper(m)
     p = a.GetProperty()
-    p.SetColor(*PLA_RGB)
+    p.SetColor(*LAYER_RGB)
     p.SetAmbient(0.35)
     p.SetDiffuse(0.65)
     p.SetSpecular(0.25)

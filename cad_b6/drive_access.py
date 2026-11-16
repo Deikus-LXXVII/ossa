@@ -262,9 +262,9 @@ def organic_gap(field, hardware, parts, side_name, margin=45.0):
 
 
 def gap_failures(organic, side_name):
-    """DRIVE_ACCESS lines when the organic layer is closer than PLA_GAP to a drive (the plan: PLA keeps the distance it keeps from the card and the PSU; a 3.5 inch drive runs warm)."""
-    gap = _pla_gap()
-    return [f"DRIVE_ACCESS {side_name} bay: the organic layer is {d:.1f} mm from {n}, PLA keeps {gap:g}" for n, d in organic if n == f"drive_{side_name}" and not d >= gap]
+    """DRIVE_ACCESS lines when the organic layer is closer than HOT_GAP to a drive (the plan: the layer keeps the distance it keeps from the card and the PSU; a 3.5 inch drive runs warm)."""
+    gap = _hot_gap()
+    return [f"DRIVE_ACCESS {side_name} bay: the organic layer is {d:.1f} mm from {n}, it must keep {gap:g}" for n, d in organic if n == f"drive_{side_name}" and not d >= gap]
 
 
 def cable_gap(strands, hardware, parts, side_name, reach=40.0):
@@ -325,15 +325,15 @@ def run(parts=None, hardware=None, field=None, strands=None, extra_blocks=()):
         lines.append(f"        (слои, у которых есть препятствия в карте {side}: " + ", ".join(f"{n} {int(m.sum())} клеток" for n, m in maps["layers"].items()) + f"; X воксели {cells[0]:.1f}..{cells[1]:.1f})")
         og = organic_gap(field, hardware, parts, side)
         fails += gap_failures(og, side)
-        lines.append(f"        органический слой до тел отсека, мм: " + ", ".join(f"{n} {d:.1f}" for n, d in og) + f" (слой держит {_pla_gap():g} мм от диска - ЦЕЛЬ плана; форму слоя этот проход не менял)")
+        lines.append(f"        органический слой до тел отсека, мм: " + ", ".join(f"{n} {d:.1f}" for n, d in og) + f" (слой держит {_hot_gap():g} мм от диска - ЦЕЛЬ плана; форму слоя этот проход не менял)")
         cg = cable_gap(strands, hardware, parts, side)
         lines.append(f"        ближайший кабель к телам отсека, мм: " + ", ".join(f"{b} {d:.1f} ({c})" for c, b, d in cg))
     return lines, fails, results
 
 
-def _pla_gap():
+def _hot_gap():
     import organic_frame
-    return organic_frame.PLA_GAP
+    return organic_frame.HOT_GAP
 
 
 def main():

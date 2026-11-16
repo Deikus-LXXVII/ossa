@@ -11,6 +11,9 @@ joints with a 3D fillet. build_frame(rounded=False) is the skeleton as it was be
 Revision 8a lets a rounding take contact area (a contact keeps 97 % of its unrounded area and 4 mm of flat contact round every screw).
 Revision 9 adds front_sill (the front sill for the I/O module and the light line, hardware front_io and light_strip are PLACEHOLDERS) and a
 material per part: ABS for the skeleton, PA6 for the two hose guides.
+Revision 12 puts every screw between printed parts on M3: an M3 socket head cap screw of the owner's kits into an M3 heat-set insert, a washer under the head
+(hardware.py has the stock, the pilot and the clearances; screw_fit picks the length; checks 15 and 16 measure it). The PSU's and the 360's own 6-32 screws stay,
+their heads in counterbores.
 
 Run from the repo root:  .venv/bin/python cad_b6/frame_v0.py
 Out: cad_b6/report_frame_v0.txt, cad_b6/b6_frame_v0.step,
@@ -52,7 +55,7 @@ ABS_DENSITY = 1.04      # g/cm^3
 PA6_DENSITY = 1.14      # g/cm^3, unfilled PA6 (1.13..1.15)
 DENSITY = {"ABS": ABS_DENSITY, "PA6": PA6_DENSITY}
 # material of every part in this file (revision 9): load-bearing parts are ABS, the two hose guides that snap over the hose are PA6.
-# The PLA layer (organic_frame.py, the light diffuser) is not in this file.
+# The organic layer (organic_frame.py; PETG, ABS as the fallback) and the light diffuser (translucent PLA) are not in this file.
 MATERIALS = ("ABS", "PA6")
 WALL_T = 1.6            # 4 perimeters x 0.4 mm
 INFILL = 0.20
@@ -402,11 +405,14 @@ def round_box(solid, bounds, axis, name, specs, *, place=None, rings=(), rmax=BO
 # checks can measure the solid at the hole instead of trusting the code that cut it.
 # ---------------------------------------------------------------------------
 OVERSHOOT = 0.5          # a cutter starts this far outside the face it enters
-# clearance hole kinds: (diameter, minimum wall around it). M5 has no insert in the plan; it takes the M4 wall.
+SLED_CB_PLAY = 0.8       # a counterbore's diameter = the screw's head + this (the drive sleds', the PSU bulkhead's and the visor arms')
+# clearance hole kinds: (diameter, minimum wall around it). "M3c" is an M3 screw's, "6-32c" the clearance of the 6-32 hardware screws (PSU, radiators, 3.5 inch drive), "M3r" the relief bore
+# under an insert's pilot (the insert is open at the bottom, so the screw may run on into it), "6-32cb" a counterbore for a 6-32 screw's head (a pan head plus SLED_CB_PLAY).
 CLEAR_KINDS = {
-    "M3c": (hw.M3_CLEAR_D, hw.M3_MIN_WALL),      # also 6-32
-    "M4c": (hw.M4_CLEAR_D, hw.M4_MIN_WALL),
-    "M5c": (hw.M5_CLEAR_D, hw.M4_MIN_WALL),
+    "M3c": (hw.M3_CLEAR_D, hw.M3_MIN_WALL),
+    "6-32c": (hw.UNC6_CLEAR_D, hw.M3_MIN_WALL),
+    "M3r": (hw.M3_CLEAR_D, hw.M3_MIN_WALL),
+    "6-32cb": (hw.UNC6_HEAD_D + SLED_CB_PLAY, hw.M3_MIN_WALL),
 }
 
 
@@ -418,7 +424,7 @@ def _unit(d):
 @dataclass
 class Hole:
     """A cylindrical cutter: starts at `start`, runs along unit vector `d` for `length`."""
-    kind: str                # "M3", "M4", "M4S" (insert pilots) or "M3c", "M4c", "M5c" (clearance)
+    kind: str                # "M3" (insert pilot) or "M3c", "6-32c", "M3r", "6-32cb" (clearance, relief, counterbore)
     start: tuple
     d: tuple
     r: float
@@ -427,6 +433,9 @@ class Hole:
     pilot: bool
     solid: object = None
     _spans: tuple = None     # (blank, spans) cache
+    stack: float = None      # a pilot only: the thickness the screw clamps, from its head's seat to the pilot's mouth; None where nothing is known (the I/O module's screws)
+    washer: bool = True      # a washer lies under the head (it bears on plastic; the board's screws bear on the PCB)
+    item: str = ""           # what the screw is, for the bill of fasteners
 
     def __post_init__(self):
         if self.solid is None:
@@ -438,16 +447,18 @@ class Hole:
     def screw_r(self):
         """Radius the 4 mm of flat contact around a screw (revision 8a) is measured from: the insert's pilot, which is what the screw's
         other half has, so both parts of a joint judge the same screw with the same reach."""
-        twin = {"M4c": hw.M4_PILOT_D / 2, "M3c": hw.M3_PILOT_D / 2}
+        twin = {"M3c": hw.M3_PILOT_D / 2}
         return max(self.r, twin.get(self.kind, 0.0))
 
     def mirrored(self):
         return Hole(self.kind, (-self.start[0], self.start[1], self.start[2]),
-                    (-self.d[0], self.d[1], self.d[2]), self.r, self.length, self.wall, self.pilot)
+                    (-self.d[0], self.d[1], self.d[2]), self.r, self.length, self.wall, self.pilot,
+                    stack=self.stack, washer=self.washer, item=self.item)
 
     def moved(self, dx, dy, dz):
         return Hole(self.kind, (self.start[0] + dx, self.start[1] + dy, self.start[2] + dz),
-                    self.d, self.r, self.length, self.wall, self.pilot)
+                    self.d, self.r, self.length, self.wall, self.pilot,
+                    stack=self.stack, washer=self.washer, item=self.item)
 
     def describe(self):
         p = self.point(OVERSHOOT)
@@ -455,17 +466,63 @@ class Hole:
                 f"along ({self.d[0]:.2f}, {self.d[1]:.2f}, {self.d[2]:.2f})")
 
 
-def pilot(org, d, kind):
-    """Insert pilot starting at the part face point `org`, going into the material along d."""
+def pilot(org, d, kind="M3", stack=None, washer=True, item=""):
+    """Insert pilot starting at the part face point `org`, going into the material along d. stack: what the screw clamps (see screw_fit); None for a screw nothing is known of."""
     dia, depth, wall = hw.INSERTS[kind]
     d = _unit(d)
     start = tuple(o - OVERSHOOT * c for o, c in zip(org, d))
-    return Hole(kind, start, d, dia / 2.0, depth + OVERSHOOT, wall, True)
+    return Hole(kind, start, d, dia / 2.0, depth + OVERSHOOT, wall, True, stack=stack, washer=washer, item=item)
 
 
 def clear_hole(kind, start, d, length):
     dia, wall = CLEAR_KINDS[kind]
     return Hole(kind, tuple(start), _unit(d), dia / 2.0, length, wall, False)
+
+
+HW_SCREW_FLOOR = 2.0     # material left under the head of a hardware 6-32 screw (the PSU's, the 360's), between its counterbore's floor and the part it screws into
+
+
+def stepped_bore(face_pt, d, thickness):
+    """[counterbore, bore] for a hardware 6-32 screw that comes in at the point `face_pt` on a face and goes `thickness` deep along d (into the part): a counterbore for the head
+    that leaves HW_SCREW_FLOOR under it, and the 6-32 clearance bore through that floor. The two do not overlap, so each keeps its own wall (check 7)."""
+    d = _unit(d)
+    depth = thickness - HW_SCREW_FLOOR
+    cb_dia, cb_wall = CLEAR_KINDS["6-32cb"]
+    bore_dia, bore_wall = CLEAR_KINDS["6-32c"]
+    cb = Hole("6-32cb", tuple(c - OVERSHOOT * k for c, k in zip(face_pt, d)), d, cb_dia / 2.0, depth + OVERSHOOT, cb_wall, False)
+    bore = Hole("6-32c", tuple(c + depth * k for c, k in zip(face_pt, d)), d, bore_dia / 2.0, HW_SCREW_FLOOR + OVERSHOOT, bore_wall, False)
+    return [cb, bore]
+
+
+FIT_EPS = 1e-6
+
+
+def screw_fit(stack, washer=True):
+    """(length, entry, relief) of the M3 screw for a joint that clamps `stack` mm (the head's seat to the pilot's mouth), from the owner's lengths. A screw goes at least
+    hw.SCREW_ENGAGE_MIN into its insert and stops at least hw.SCREW_BOTTOM_GAP short of the bottom of the hole: entry = length - stack - washer, and
+    SCREW_ENGAGE_MIN <= entry <= pilot depth - SCREW_BOTTOM_GAP. Among the lengths that do, the one furthest from both limits. When none does, the shortest length
+    that reaches the minimum, with the relief bore (clearance diameter, under the pilot) that gives it its bottom gap; relief is 0 otherwise."""
+    w = hw.M3_WASHER_T if washer else 0.0
+    lo = hw.SCREW_ENGAGE_MIN
+    hi = hw.M3_PILOT_DEPTH - hw.SCREW_BOTTOM_GAP
+    fits = [(min(L - stack - w - lo, hi - (L - stack - w)), -L, L) for L in hw.M3_SCREW_STOCK if lo - FIT_EPS <= L - stack - w <= hi + FIT_EPS]
+    if fits:
+        L = max(fits)[2]
+        return L, L - stack - w, 0.0
+    L = min(L for L in hw.M3_SCREW_STOCK if L - stack - w >= lo - FIT_EPS)       # raises when the stack is longer than the longest screw
+    entry = L - stack - w
+    return L, entry, entry + hw.SCREW_BOTTOM_GAP - hw.M3_PILOT_DEPTH
+
+
+def joint_pilots(org, d, stack, item, washer=True):
+    """The insert pilot of a screw that clamps `stack` mm, plus the relief bore under it when no length in the kit fits (screw_fit): a list of holes."""
+    h = pilot(org, d, "M3", stack, washer, item)
+    relief = screw_fit(stack, washer)[2]
+    if relief <= FIT_EPS:
+        return [h]
+    overlap = 0.2                                              # the relief starts this far inside the pilot, which is wider
+    start = tuple(c + (h.length - overlap) * k for c, k in zip(h.start, h.d))
+    return [h, Hole("M3r", start, h.d, hw.M3_CLEAR_D / 2, relief + overlap, hw.M3_MIN_WALL, False, item=item)]
 
 
 # ---------------------------------------------------------------------------
@@ -517,7 +574,7 @@ SHAPE_B = [
 # lap joints: (zone box Y0, Y1, Z0, Z1), A keeps inner half, B outer half where A is present
 LAP_ZONES = [(250.0, 300.0, 190.0, 245.0), (185.0, 225.0, -16.0, 10.0)]
 LAP_BOLTS = [(262.0, 205.0), (268.0, 210.0), (212.0, -5.0)]       # (Y, Z)
-LAP_KIND = "M4S"
+LAP_STACK = X_OUT - X_MID                                        # what a lap screw clamps: rib B's outer half, into rib A's inner half
 
 # cross-member end bolts (Y, Z)
 def _yz(u, n):
@@ -547,7 +604,7 @@ NECK_X = (180.0, 192.0)
 NECK_U1 = hw.RAD420_BS[2] - 3.0
 NECK_U = (NECK_U1 - 23.0, NECK_U1)                 # 284..307; plan 287..307 (centred on u = 297), see DEVIATIONS (the joint bolts need it)
 NECK_N = (-58.0, hw.RAD360_INNER_N - 2.0)          # plan: n -30..115; lower end moved to -58, upper end 120, see DEVIATIONS
-# Arm-to-neck joint (revision 6, no hinge): two M4 bolts along X, insert pilots (M4S) in the arm, clearance holes in the neck.
+# Arm-to-neck joint (revision 6, no hinge): two M3 bolts along X, insert pilots in the arm, clearance holes in the neck.
 # The arm's radiator screw at u = RAD360_HOLES_U[1] runs along n through the whole bar, so a bolt there would cross it:
 # the bolts keep 6.9 mm from it (pilot Ø5.6 + 2.1 wall + the screw hole's radius 2.0) and 4.35 mm inside the neck's u edge.
 # That leaves u 288.35..290.1 only, so the two bolts are spread along n instead: the arm gets a knee below its bar.
@@ -568,7 +625,6 @@ END_BOLTS = {
     "skid_rear":    [(330.5, -5.0), (339.5, -5.0)],
     "psu_bulkhead": [(hw.PSU_REAR_Y, 5.0), (hw.PSU_REAR_Y, 80.0)],
 }
-END_KIND = {"beam_mid": "M4S"}      # the gpu_post bolts need the short insert
 HOLDING_RIB = {      # which rib outline(s) the bolt must lie inside
     "beam_front": ("A",), "beam_low": ("A",),
     "beam_mid": ("A",), "beam_top": ("B",), "skid_front": ("A", "B"),
@@ -576,9 +632,11 @@ HOLDING_RIB = {      # which rib outline(s) the bolt must lie inside
 }
 
 NECK_BOLTS = [hw.bp_yz(sum(NECK_U) / 2, n) for n in (-34.0, -52.0)]      # (Y, Z), along X through pad + neck into rib_B's post
+NECK_PAD_STACK = NECK_X[1] - X_OUT                                       # the pad and the strut: 34 mm, the longest stack of the skeleton
 TONGUE_BOLTS = [hw.bp_yz(350.0, n) for n in (-30.0, -46.0)]               # (Y, Z), along X through the antler tongue into rib_B's post
 GPU_POST_U0 = hw.GPU_BS[2] - 2.6       # under the card's bracket end, 2.6 mm past its lower face
 GPU_POST_BS = (-20, -5.5, GPU_POST_U0, 146, hw.ATX_TRAY_N, hw.GPU_BRACKET_TAB_N)
+GPU_POST_STACK = hw.ATX_TRAY_N - BEAM_N0                       # what a card post's screw clamps: beam_mid's section along n
 GPU_POST_V = -10.5
 GPU_POST_U = (131.0, 139.0)
 
@@ -597,19 +655,19 @@ GUIDE_GPU_U = (166.0, 166.0 + GUIDE_LEN)       # on the up-slope run behind the 
 GUIDE_GPU_BOLT_N = -20.0                       # on rib_A's diagonal, whose axis is n = -20
 GUIDE_GPU_PLATE_N1 = -6.0
 
-# Side fans (revision 7). Each 140 mm fan is screwed to a printed bracket by its corner holes (M4S inserts in the bracket, screws
+# Side fans (revision 7). Each 140 mm fan is screwed to a printed bracket by its corner holes (M3 inserts in the bracket, screws
 # from the fan's outer face) and the bracket is bolted to that side's rib_A. The bracket lies on the fan's inner face (the
 # side towards the board) as a plate, BRACKET_T thick. Its outline is a C: a spine along n just outside the fan's open
 # circle on the low-u side, an ear under each screw it uses, a bar along the low-n edge when the fan's B corner is used,
 # and a leg that carries it across the gap to the rib's outer face. No part of it enters the circle (check 11).
 BRACKET_T = 10.0                                          # plate thickness along X
-BRACKET_EAR = hw.M4S_PILOT_D / 2 + hw.M4S_MIN_WALL        # half-side of the ear around a pilot: 4.9
+BRACKET_EAR = 4.9                                         # half-side of the ear around a pilot (the M4S insert's radius and wall until revision 12; the outline stays)
 _AP_R = hw.FAN_APERTURE_D / 2
 BRACKET_SPINE_U = (116.0, hw.FAN_CENTRE_UN[0] - _AP_R - 1.0)       # 116..122: 1 mm outside the circle, whose low-u point is u 123
 BAR_N = (hw.FAN_CENTRE_UN[1] - _AP_R - 0.5 - 7.5, hw.FAN_CENTRE_UN[1] - _AP_R - 0.5)   # -47..-39.5: 0.5 mm under the circle, 7.5 wide
 BRACKET_LEG_U = (116.0, 127.0)                            # the leg's footprint on the rib: u 116..127, n -34..-6 = the diagonal's full width
 BRACKET_LEG_N = (-34.0, -6.0)
-BRACKET_BOLT_U = 121.0                                    # two M4 along X through rib_A into the leg, stacked in n
+BRACKET_BOLT_U = 121.0                                    # two M3 along X through rib_A into the leg, stacked in n
 BRACKET_BOLT_N = (-26.0, -14.0)
 BRACKET_BOLTS = [hw.bp_yz(BRACKET_BOLT_U, n) for n in BRACKET_BOLT_N]      # (Y, Z), the same on both ribs
 # the corners each bracket screws to from the fan's inner face. A and C only on the right: B and D are within 4.1 mm of gpu_hoses
@@ -629,7 +687,8 @@ TAB_WALL = 4.0                                            # material around the 
 RAIL_GROUP = ("root", "rail", "knuckle", "tab")
 RAIL_CONVEX: dict = {"rail": 2.0}                         # the rail is 5.5 wide: a 6 mm radius would eat the whole end of it and the joint to the root block
 BRACKET_RAIL_X = hw.FAN_SIDE_INNER_X["fan_side_right"]              # |X| beyond the plate (X 191..201): the rail group
-FAN_PILOT_KIND = "M4S"
+FAN_STACK = hw.FAN_SIDE_X["fan_side_right"][1] - hw.FAN_SIDE_X["fan_side_right"][0]       # what a side fan's screw clamps: the fan's thickness (the right one's; both are the same)
+BOARD_STACK = hw.BOARD_BS[5] - hw.BOARD_BS[4]                   # what a board screw clamps: the board's thickness (no washer, the head bears on the PCB)
 FAN_MIN_SCREWS = 3                                        # revision 7: at least three of the four corner holes
 FASTENERS: list[dict] = []
 BOLT_CHECKS: list[tuple] = []     # (label, ok, detail)
@@ -637,6 +696,11 @@ BOLT_CHECKS: list[tuple] = []     # (label, ok, detail)
 
 def fastener(item, part, kind, count, note=""):
     FASTENERS.append(dict(item=item, part=part, kind=kind, count=count, note=note))
+
+
+def m3(stack, washer=True):
+    """The kind column of the fastener list for an M3 screw that clamps `stack` mm: its length from the owner's kit (screw_fit) and the insert it goes into."""
+    return f"M3 x {screw_fit(stack, washer)[0]} insert"
 
 
 # ---------------------------------------------------------------------------
@@ -674,17 +738,16 @@ def lap_cut_boxes(half: str, with_rest: bool = True):
     return out
 
 
-def x_clear(y, z, x0=X_IN - OVERSHOOT, x1=X_OUT + OVERSHOOT, kind="M4c"):
+def x_clear(y, z, x0=X_IN - OVERSHOOT, x1=X_OUT + OVERSHOOT, kind="M3c"):
     return clear_hole(kind, (x0, y, z), (1, 0, 0), x1 - x0)
 
 
 def end_pilot_holes(name):
     """Pilots in a cross member's end faces (X = +-142), along X."""
-    kind = END_KIND.get(name, "M4")
     holes = []
     for (y, z) in END_BOLTS[name]:
-        holes.append(pilot((X_IN, y, z), (-1, 0, 0), kind))
-        holes.append(pilot((-X_IN, y, z), (1, 0, 0), kind))
+        holes += joint_pilots((X_IN, y, z), (-1, 0, 0), RIB_T, f"{name} end")
+        holes += joint_pilots((-X_IN, y, z), (1, 0, 0), RIB_T, f"{name} end")
     return holes
 
 
@@ -694,11 +757,11 @@ def rib_a_holes(with_rest: bool):
         if "A" in HOLDING_RIB[name]:
             holes += [x_clear(y, z) for (y, z) in pts]
     for (y, z) in LAP_BOLTS:      # insert pilots in the inner half, from the X = 150 face
-        holes.append(pilot((X_MID, y, z), (-1, 0, 0), LAP_KIND))
+        holes += joint_pilots((X_MID, y, z), (-1, 0, 0), LAP_STACK, "lap A<->B")
     for (y, z) in BRACKET_BOLTS:  # fan bracket bolts: clearance through the rib, the insert is in the bracket's leg
         holes.append(x_clear(y, z))
     if with_rest:                 # right rib only: the GPU hose guide's bolt, into the outer face
-        holes.append(pilot((X_OUT, *guide_gpu_bolt()), (-1, 0, 0), "M4"))
+        holes += joint_pilots((X_OUT, *guide_gpu_bolt()), (-1, 0, 0), GUIDE_T, "hose_guide_gpu")
         holes += tie_pilots("rib_A_right")     # the cable tie points under the rail (the diagonal's underside)
     holes += organic_pilots("rib_A_right" if with_rest else "rib_A_left", mirrored=not with_rest)     # the organic layer's pads, on the outer face
     return holes
@@ -730,9 +793,9 @@ def build_rib_b(side=1):
     for (y, z) in LAP_BOLTS:      # clearance through the outer half
         holes.append(x_clear(y, z, X_MID - 0.3, X_OUT + OVERSHOOT))
     for (y, z) in TONGUE_BOLTS:   # antler tongue, along X into the post's outer face
-        holes.append(pilot((X_OUT, y, z), (-1, 0, 0), "M4"))
+        holes += joint_pilots((X_OUT, y, z), (-1, 0, 0), TONGUE_T, "antler tongue")
     for (y, z) in NECK_BOLTS:     # neck pad, along X into the post's outer face
-        holes.append(pilot((X_OUT, y, z), (-1, 0, 0), "M4"))
+        holes += joint_pilots((X_OUT, y, z), (-1, 0, 0), NECK_PAD_STACK, "neck pad")
     holes += organic_pilots(name, mirrored=side < 0)      # the organic layer's pads, on the outer face
     if side > 0:                  # right rib only, like the rail's: the cable tie points on the inner face (the PSU's cables run on the right)
         holes += tie_pilots("rib_B_right")
@@ -755,6 +818,7 @@ def all_corners(a0, a1, skip=None):
 
 
 BEAM_FRONT_Y, BEAM_FRONT_Z = (0.0, 40.0), (-10.0, 10.0)      # beam_front's section (the sill stands on its top face)
+SILL_STACK = BEAM_FRONT_Z[1] - BEAM_FRONT_Z[0]                  # what a sill screw clamps: beam_front's height
 
 # Front sill (revision 9): a bar across X -SILL_HALF_X..SILL_HALF_X on beam_front, its face a plane parallel to the board (45 deg), with a pocket
 # for hw front_io, a channel for hw light_strip and a slit from the channel to the face. Wall thicknesses are the part's own numbers; where the
@@ -766,7 +830,7 @@ SILL_REAR_WALL = 5.0          # behind the pocket
 SILL_POCKET_PLAY = 0.4        # the pocket is the module's box plus this on the ends, the rear and the top (it is open at the front and at the bottom)
 SILL_CHANNEL_PLAY = 0.3       # the channel is the strip's box plus this on every side, and runs through both ends of the sill
 SILL_RING_WALL = 3.0          # a rounding keeps this much material round the channel
-SILL_BOLTS = [(-105.0, 10.0), (-105.0, 30.0), (118.0, 10.0), (118.0, 30.0)]      # (X, Y): M4 from below, clearance through beam_front, pilot in the sill
+SILL_BOLTS = [(-105.0, 10.0), (-105.0, 30.0), (118.0, 10.0), (118.0, 30.0)]      # (X, Y): M3 from below, clearance through beam_front, pilot in the sill
 SILL_PROBE_DEPTH = 3.0        # check 5: the axis point of a module screw lies this far into the wall of the pocket
 # Cable window (skeleton pass 1): one opening through the rear wall for the module's front cables (USB 3, USB-C, power switch, audio). PLACEHOLDER like the
 # module it follows: its numbers are offsets from hw.FRONT_IO_W, so it moves with the module when the real one is measured. The light line's lead
@@ -806,10 +870,11 @@ def sill_geometry():
 
 
 def organic_pilots(name, mirrored=False):
-    """M3 insert pilots for the organic layer's pads on part `name` (hw.ORGANIC_PADS), along X into the part from the pad's centre on its outer face.
+    """M3 insert pilots for the organic layer's pads on part `name` (hw.ORGANIC_PADS), along X into the part from the pad's centre on its outer face; the screw clamps the pad (hw.ORGANIC_PAD_H).
     mirrored: the part is built right-handed and mirrored afterwards (the left ribs and neck), so the pilots go in its own coordinates."""
     k = -1.0 if mirrored else 1.0
-    return [pilot((k * x, y, z), (-k * s, 0.0, 0.0), "M3") for (part, (x, y, z), s) in hw.ORGANIC_PADS.values() if part == name]
+    return [h for (part, (x, y, z), s) in hw.ORGANIC_PADS.values() if part == name
+            for h in joint_pilots((k * x, y, z), (-k * s, 0.0, 0.0), hw.ORGANIC_PAD_H, "organic pad")]
 
 
 # ---------------------------------------------------------------------------
@@ -912,7 +977,7 @@ def build_tie_bridge(tp):
 def tie_pilot_wall(host, tp):
     """The wall left round the tie point's pilot in part `host`: the thickest ring round the bore that is all material (to the surface or to the next hole), up to 8 mm."""
     pt = tie_face_point(tp)
-    h = next(h for h in host.holes if h.pilot and h.kind == "M3" and math.dist(h.point(OVERSHOOT), pt) < 0.01 and max(abs(a + b) for a, b in zip(h.d, tp["normal"])) < 1e-6)
+    h = next(h for h in host.holes if h.pilot and math.dist(h.point(OVERSHOOT), pt) < 0.01 and max(abs(a + b) for a, b in zip(h.d, tp["normal"])) < 1e-6)
     spans = material_spans(host.blank, h)
     lo, hi = 0.0, 8.0
     for _ in range(9):
@@ -926,15 +991,17 @@ def tie_pilot_wall(host, tp):
 
 def tie_pilots(host):
     """The M3 insert pilots of the tie points on `host`, along n into the part from its underside."""
-    return [pilot(tie_face_point(tp), tuple(-c for c in tp["normal"]), "M3") for tp in TIE_POINTS if tp["host"] == host]
+    return [h for tp in TIE_POINTS if tp["host"] == host for h in joint_pilots(tie_face_point(tp), tuple(-c for c in tp["normal"]), TIE_FOOT_T, "tie bridge")]
 
 
 def sill_holes():
     g = sill_geometry()
-    holes = [pilot((x, y, g["z0"]), (0, 0, 1), "M4") for (x, y) in SILL_BOLTS]          # from beam_front's top face up into the sill
-    for (pt, d) in hw.FRONT_IO_SCREWS:                                                    # the module's screws, along X into the pocket's end walls
+    holes = []
+    for (x, y) in SILL_BOLTS:                                                             # from beam_front's top face up into the sill
+        holes += joint_pilots((x, y, g["z0"]), (0, 0, 1), SILL_STACK, "front_sill -> beam_front")
+    for (pt, d) in hw.FRONT_IO_SCREWS:                                                    # the module's screws, along X into the pocket's end walls (the module's own; no stack known)
         org = tuple(c + k * SILL_POCKET_PLAY for c, k in zip(pt, d))
-        holes.append(pilot(org, d, hw.FRONT_IO_SCREW_KIND))
+        holes.append(pilot(org, d, hw.FRONT_IO_SCREW_KIND, item="front_io"))
     holes += organic_pilots("front_sill")                                                 # the organic layer's two pads, on the end faces
     return holes
 
@@ -952,10 +1019,10 @@ def build_front_sill():
 
 def build_beam_front():
     """The tie between the two front feet. Revision 9: the front sill and the module stand on its top face, so the top edges stay sharp (a
-    contact face, as on the skids), and four M4 clearance holes from below carry the sill's bolts."""
+    contact face, as on the skids), and four M3 clearance holes from below carry the sill's bolts."""
     holes = end_pilot_holes("beam_front")
     z_lo, z_hi = BEAM_FRONT_Z
-    holes += [clear_hole("M4c", (x, y, z_lo - OVERSHOOT), (0, 0, 1), z_hi - z_lo + 2 * OVERSHOOT) for (x, y) in SILL_BOLTS]
+    holes += [clear_hole("M3c", (x, y, z_lo - OVERSHOOT), (0, 0, 1), z_hi - z_lo + 2 * OVERSHOOT) for (x, y) in SILL_BOLTS]
     lo, hi = (-X_IN, BEAM_FRONT_Y[0], z_lo), (X_IN, BEAM_FRONT_Y[1], z_hi)
     s = hw.wbox(lo[0], hi[0], lo[1], hi[1], lo[2], hi[2])
     top = "the top face carries the front sill and the I/O module: rounding its edges would take contact area"
@@ -970,12 +1037,12 @@ def beam_holes(name):
     holes = []
     for (v, u) in hw.ATX_HOLES:
         if u == row_u:      # M3 insert pilots from the board underside down into the boss
-            holes.append(pilot(hw.bp(v, u, hw.ATX_BOARD_N), [-c for c in hw.N_DIR], "M3"))
+            holes += joint_pilots(hw.bp(v, u, hw.ATX_BOARD_N), [-c for c in hw.N_DIR], BOARD_STACK, "board", washer=False)
     holes += end_pilot_holes(name)
     holes += tie_pilots(name)      # the cable tie points, from the underside up into the beam
     if name == "beam_mid":     # clearance for the gpu_post bolts, along n through the beam
         for u in GPU_POST_U:
-            holes.append(clear_hole("M4c", hw.bp(GPU_POST_V, u, BEAM_N0 - OVERSHOOT), hw.N_DIR, 22.0))
+            holes.append(clear_hole("M3c", hw.bp(GPU_POST_V, u, BEAM_N0 - OVERSHOOT), hw.N_DIR, 22.0))
     return holes
 
 
@@ -1026,25 +1093,24 @@ BULK_WINDOW = (-63.0, 63.0, 12.0, 74.0)      # X0, X1, Z0, Z1: IEC, switch and f
 
 # Drive sleds (docs/plans/cables-and-organic.md, "Drive bays, pass 1"). Where the drives stand and every hole pattern is hardware.py's (hw.drive_layout); what is here is
 # the sled's own: a 5 mm plate in the YZ plane, a boss round each drive screw hole, a counterbore from the far face under each head, and a flange at the rear end
-# that two M4 screws from behind (through the bulkhead's flank) hold. The foot is the plate's bottom face, flat, on skid_rear's top face.
+# that two M3 screws from behind (through the bulkhead's flank) hold. The foot is the plate's bottom face, flat, on skid_rear's top face.
 SLED_FLOOR = 3.0                  # material left under each screw head, between the counterbore's floor and the drive's board: the screw then enters screw_len - 3.0 (3.35 for 6-32 x 6.35, 2.0 for M3 x 5)
+THREAD_CLEAR = {"6-32": "6-32c", "M3": "M3c"}      # a drive's screw thread -> the clearance kind of its bore
 SLED_BOSS_R = 4.5                 # boss radius round a hole
-SLED_CB_PLAY = 0.8                # counterbore diameter = screw head + this
+# (SLED_CB_PLAY, the counterbore's play, is defined with the hole kinds above)
 SLED_FRONT = 4.0                  # the plate starts this far in front of the outer drive's side edge
 SLED_TOP_GAP = 5.0                # the plate stops this far under the drives' connector end (the plug zone is above that end)
-SLED_FLANGE_Y = 13.0              # the flange's depth against the bulkhead's front face: the M4 pilot is 9.1 deep, 3.9 mm of floor
+SLED_FLANGE_Y = 13.0              # the flange's depth against the bulkhead's front face (the pilot is hw.M3_PILOT_DEPTH deep, the rest is floor)
 SLED_FLANGE_Z = (18.0, 88.0)      # its height: the bulkhead's rounded top edge starts at Z 89.25
-SLED_FLANGE_HALF_X = 7.0          # its half width about the plate's mid-plane: the pilot's 5.6 plus 2 x 2.1 wall is 9.8
-SLED_BOLT_Z = (30.0, 76.0)        # the two M4 screws along Y through the bulkhead's flank, stacked in Z
-SLED_BOLT_KIND = "M4"
+SLED_FLANGE_HALF_X = 7.0          # its half width about the plate's mid-plane (it was set by the M4 pilot's 5.6 plus 2 x 2.1 wall; the outline stays)
+SLED_BOLT_Z = (30.0, 76.0)        # the two M3 screws along Y through the bulkhead's flank, stacked in Z
 SLED_BOLT_X = sum(hw.drive_layout()["plate_x"]) / 2     # on the plate's mid-plane (right bay; the left is the mirror image)
 SLED_ORDER = ("a sled that carries a 3.5 inch drive and an inner 2.5 inch drive takes the inner drive first: its screw heads end up under the 3.5 inch drive "
               "(the outer face's counterbores are covered by it, the heads stay below the face)")
 
 
 def sled_holes():
-    """(holes, counterbore cutters, probes) of one right-hand sled. holes: the clearance bores of the drive screws and the two M4 pilots in the flange. probes: per drive
-    hole (face, form, y, z, bore start x, direction from the far face into the sled)."""
+    """(holes, counterbore cutters) of one right-hand sled. holes: the clearance bores of the drive screws (the drive's own thread: 6-32 or M3) and the two M3 pilots in the flange."""
     lay = hw.drive_layout()
     px0, px1 = lay["plate_x"]
     holes, cuts = [], []
@@ -1054,10 +1120,10 @@ def sled_holes():
         d = fc["dir"]                                        # towards the drive's side: from the far face through the plate and the boss
         depth_cb = hw.DRIVE_PLATE_T + hw.DRIVE_BOSS_H - SLED_FLOOR
         for (y, z) in fc["holes"]:
-            holes.append(clear_hole("M3c", (far - d * OVERSHOOT, y, z), (d, 0, 0), hw.DRIVE_PLATE_T + hw.DRIVE_BOSS_H + 2 * OVERSHOOT))
+            holes.append(clear_hole(THREAD_CLEAR[F["thread"]], (far - d * OVERSHOOT, y, z), (d, 0, 0), hw.DRIVE_PLATE_T + hw.DRIVE_BOSS_H + 2 * OVERSHOOT))
             cuts.append(cyl((far - d * OVERSHOOT, y, z), (d, 0, 0), F["head_d"] + SLED_CB_PLAY, depth_cb + OVERSHOOT))
     for z in SLED_BOLT_Z:
-        holes.append(pilot((SLED_BOLT_X, hw.PSU_REAR_Y, z), (0, -1, 0), SLED_BOLT_KIND))
+        holes += joint_pilots((SLED_BOLT_X, hw.PSU_REAR_Y, z), (0, -1, 0), BULK_T, "drive sled flange")
     return holes, cuts
 
 
@@ -1098,11 +1164,11 @@ def build_psu_bulkhead():
     plate = hw.wbox(lo[0], hi[0], lo[1], hi[1], lo[2], hi[2])
     window = hw.wbox(BULK_WINDOW[0], BULK_WINDOW[1], hw.PSU_REAR_Y - 1.0, BULK_Y1 + 1.0, BULK_WINDOW[2], BULK_WINDOW[3])
     holes = []
-    for (x, z) in hw.PSU_HOLES:
-        holes.append(clear_hole("M3c", (x, hw.PSU_REAR_Y - OVERSHOOT, z), (0, 1, 0), 7.0))
+    for (x, z) in hw.PSU_HOLES:          # the PSU's own 6-32 screws, from behind: its screw is hw.PSU_SCREW_LEN long and the wall BULK_T, so each head sits in a counterbore from the rear face
+        holes += stepped_bore((x, BULK_Y1, z), (0, -1, 0), BULK_T)
     for sgn in hw.DRIVE_SIDES.values():          # the drive sleds' flange screws, through the flank, from behind
         for z in SLED_BOLT_Z:
-            holes.append(clear_hole("M4c", (sgn * SLED_BOLT_X, hw.PSU_REAR_Y - OVERSHOOT, z), (0, 1, 0), BULK_T + 2 * OVERSHOOT))
+            holes.append(clear_hole("M3c", (sgn * SLED_BOLT_X, hw.PSU_REAR_Y - OVERSHOOT, z), (0, 1, 0), BULK_T + 2 * OVERSHOOT))
     holes += end_pilot_holes("psu_bulkhead")
     desk = "the bottom face stands on the desk (a contact pad)"
     plate = round_box(plate, (lo, hi), 0, "psu_bulkhead", all_corners(-BULK_BLOCK_X, BULK_BLOCK_X, {(False, False): desk, (True, False): desk}),
@@ -1116,7 +1182,7 @@ def build_psu_bulkhead():
 # Revision 11: the 420's bracket is a plate clamped between the fans and the core, in the 3 mm gap hardware.py keeps there (RAD420_PLATE_U), one half
 # on each side of X 0. It takes the six fan screws of its half and leaves the three fan openings clear (hardware.rad420_fan_opening). Below the
 # fans' underside (n -16, the fans are 140 mm wide, 1 mm wider than the core) a chord, as wide in u as the foot, runs from rib_B's outer face to the radiator's
-# end and joins the foot on rib_B's outer face: the tongue with its two M4 bolts. The old 10 mm plate on the fans' outer face, its bar and its finger are gone.
+# end and joins the foot on rib_B's outer face: the tongue with its two M3 bolts. The old 10 mm plate on the fans' outer face, its bar and its finger are gone.
 # Second pass: the chord is out of |X| < CHORD_X0, where the drive bay's sled passes (drive_access.py), and keeps CHORD_FAN_GAP clear of the fans.
 ANTLER_U = hw.RAD420_PLATE_U                                            # the plate: between core and fans, 3 thick
 ANTLER_T = ANTLER_U[1] - ANTLER_U[0]
@@ -1177,8 +1243,8 @@ def build_antler_right(side=1):
     u0, u1 = ANTLER_U
     holes = []
     for (x, n) in antler_holes_xn(+1):      # 6-32 through the plate, along u: the screws go from the fan side through fan and plate into the core
-        holes.append(clear_hole("M3c", hw.bp(hw.x_to_v(x), u0 - OVERSHOOT, n), hw.U_DIR, ANTLER_T + 2 * OVERSHOOT))
-    for (y, z) in TONGUE_BOLTS:             # M4 clearance through the tongue, along X
+        holes.append(clear_hole("6-32c", hw.bp(hw.x_to_v(x), u0 - OVERSHOOT, n), hw.U_DIR, ANTLER_T + 2 * OVERSHOOT))
+    for (y, z) in TONGUE_BOLTS:             # M3 clearance through the tongue, along X
         holes.append(x_clear(y, z, TONGUE_X[0] - OVERSHOOT, TONGUE_X[1] + OVERSHOOT))
     rings = hole_rings(holes)
     sides = (1,) if side > 0 else (-1,)
@@ -1209,6 +1275,7 @@ def _rect_poly(u0, u1, n0, n1):
 
 
 JOINT_BOLTS = [hw.bp_yz(JOINT_U, n) for n in JOINT_N]      # (Y, Z), along X through neck and arm
+JOINT_STACK = NECK_X[1] - NECK_X[0]                        # what a joint screw clamps: the neck's strut
 
 
 def build_neck_right(guide_pilot=False, side=1):
@@ -1219,8 +1286,8 @@ def build_neck_right(guide_pilot=False, side=1):
     holes = [x_clear(y, z, NECK_X[0] - OVERSHOOT, NECK_X[1] + OVERSHOOT) for (y, z) in JOINT_BOLTS]
     for (y, z) in NECK_BOLTS:
         holes.append(x_clear(y, z, X_OUT - OVERSHOOT, X_OUT - OVERSHOOT + 35.0))
-    if guide_pilot:                         # the left neck carries the CPU hose guide: one M4S in its outer face
-        holes.append(pilot((NECK_X[1], *guide_cpu_geometry()[3]), (-1, 0, 0), "M4S"))
+    if guide_pilot:                         # the left neck carries the CPU hose guide: one pilot in its outer face
+        holes += joint_pilots((NECK_X[1], *guide_cpu_geometry()[3]), (-1, 0, 0), GUIDE_T, "hose_guide_cpu")
     holes += organic_pilots(name, mirrored=side < 0)      # the organic layer's pad on the strut's outer face
     rings = hole_rings(holes)
     sides = (1,) if side > 0 else (-1,)
@@ -1249,14 +1316,19 @@ def build_arm_right(notched=True):
     name = "visor_arm_right" if notched else "visor_arm_left"
     n0 = hw.RAD360_INNER_N - ARM_T
     x0, x1 = RAD360_X_ARM - ARM_HALF_T, NECK_X[0]
-    holes = [pilot((x1, y, z), (-1, 0, 0), "M4S") for (y, z) in JOINT_BOLTS]      # joint bolts, from the neck's side
+    holes = []
+    for (y, z) in JOINT_BOLTS:     # joint bolts, from the neck's side
+        holes += joint_pilots((x1, y, z), (-1, 0, 0), JOINT_STACK, "visor joint")
     v = hw.x_to_v(RAD360_X_ARM)
-    for u in hw.RAD360_HOLES_U:    # along n through the bar at the outer column
-        holes.append(clear_hole("M3c", hw.bp(v, u, hw.RAD360_INNER_N - 18.0), hw.N_DIR, 18.0))
+    for u in hw.RAD360_HOLES_U:    # the radiator's own 6-32 screws, along n through the bar at the outer column: the head sits in a counterbore from below, HW_SCREW_FLOOR under it
+        holes += stepped_bore(hw.bp(v, u, hw.RAD360_INNER_N - ARM_T), hw.N_DIR, ARM_T)
     notch = bsx(ARM_NOTCH_X, x1 + 1, ARM_NOTCH_U[0], ARM_NOTCH_U[1], n0 - 1, hw.RAD360_INNER_N + 1)
     s = bsx(x0, x1, ARM_U0, hw.BOARD_BS[3], n0, hw.RAD360_INNER_N)
     s = s.fuse(bsx(x0, x1, KNEE_U[0], KNEE_U[1], KNEE_N0, n0)).clean()
-    s = rounded_like(s, (1, 0, 0), name, sides=(1,) if notched else (-1,), own=(name,), rings=hole_rings(holes),
+    # the neck's own pad screw (the organic layer's) crosses the contact with this arm just beside the knee: the 4 mm of flat contact round it is the arm's rounding to keep too,
+    # so its axis goes into the rings (the ring's cylinder itself stays in the neck's X range and touches nothing of the arm)
+    neck_pads = organic_pilots("neck_right" if notched else "neck_left", mirrored=not notched)
+    s = rounded_like(s, (1, 0, 0), name, sides=(1,) if notched else (-1,), own=(name,), rings=hole_rings(holes + neck_pads),
                      post_cuts=[notch] if notched else ())
     if notched:
         s = s.cut(notch)
@@ -1381,8 +1453,8 @@ def fan_bracket_geometry(name):
 
 
 def build_fan_bracket(name):
-    """C-shaped plate on the fan's inner face plus a leg to the rib's outer face. Pilots: M4S under each used fan corner,
-    M4 in the leg's rib face for the two rib bolts."""
+    """C-shaped plate on the fan's inner face plus a leg to the rib's outer face. Pilots: one under each used fan corner,
+    and two in the leg's rib face for the rib bolts."""
     fan = BRACKET_FAN[name]
     plate, leg, rib_face, d = fan_bracket_geometry(name)
     corners = BRACKET_CORNERS[name]
@@ -1411,7 +1483,7 @@ def build_fan_bracket(name):
         x_tab = tuple(sorted((x_out, x_out - d * TAB_T)))
         x_knuckle = tuple(sorted((x_out + d * 1.0, x_out - d * 1.0)))    # 1 mm either side of the fan's outer face, fuses rail and tab
         tu, tn = hw.FAN_SIDE_HOLES_UN[BRACKET_TAB[name]]
-        t_half = hw.M4_CLEAR_D / 2 + TAB_WALL
+        t_half = hw.FAN_SIDE_HOLE_D / 2 + TAB_WALL
         layers.append(("root", bsx(*sorted((plate[0] if d < 0 else plate[1], x_out)), BRACKET_SPINE_U[0], BRACKET_SPINE_U[1], *RAIL_N)))   # root block: plate face to outer face
         layers.append(("rail", bsx(*sorted((x_rail_in, x_out)), BRACKET_SPINE_U[1] - 1.0, RAIL_U1, *RAIL_N)))
         layers.append(("knuckle", bsx(*x_knuckle, tu - t_half, RAIL_U1, RAIL_N[0], RAIL_N[1])))
@@ -1420,10 +1492,10 @@ def build_fan_bracket(name):
     holes = []
     for k, (u, n) in pos.items():       # fan screws: from the fan's inner face into the plate, away from the fan
         y, z = hw.bp_yz(u, n)
-        holes.append(pilot((hw.FAN_SIDE_INNER_X[fan], y, z), (d, 0, 0), FAN_PILOT_KIND))
+        holes += joint_pilots((hw.FAN_SIDE_INNER_X[fan], y, z), (d, 0, 0), FAN_STACK, "side fan")
     for (y, z) in BRACKET_BOLTS:        # rib bolts: insert pilots in the leg's face on the rib
-        holes.append(pilot((rib_face, y, z), (math.copysign(1.0, rib_face), 0, 0), "M4"))   # away from the rib: +X on the right, -X on the left
-    if tab_hole:                        # the tab's fan screw: Ø4.5 clearance from outside, the screw runs into the fan's own hole
+        holes += joint_pilots((rib_face, y, z), (math.copysign(1.0, rib_face), 0, 0), RIB_T, "fan bracket")   # away from the rib: +X on the right, -X on the left
+    if tab_hole:                        # the tab's fan screw: M3 clearance from outside, the screw runs into the fan's own hole
         tu, tn, (xa, xb) = tab_hole
         y, z = hw.bp_yz(tu, tn)
         holes.append(x_clear(y, z, xa - OVERSHOOT, xb + OVERSHOOT))
@@ -1460,7 +1532,7 @@ def build_gpu_post():
     s = hw.bs_box(*GPU_POST_BS)
     holes = []
     for u in GPU_POST_U:
-        holes.append(pilot(hw.bp(GPU_POST_V, u, hw.ATX_TRAY_N), hw.N_DIR, "M4"))
+        holes += joint_pilots(hw.bp(GPU_POST_V, u, hw.ATX_TRAY_N), hw.N_DIR, GPU_POST_STACK, "gpu_post")
     v0, v1, u0, u1, n0, n1 = GPU_POST_BS
     # the long edges run along n; the foot stands on beam_mid, so the first COLLAR mm keep the foot's outline; the top end is free
     s = round_box(s, ((v0, u0, n0), (v1, u1, n1)), 2, "gpu_post", all_corners(n0 + COLLAR, n1), place=bs_place,
@@ -1511,42 +1583,42 @@ def _build_frame():
     add("rib_B_right", build_rib_b(1), "right rib, rear post: runner, post, nose, tail post")
     add_mirror("rib_B_left", build_rib_b(-1), "left rib, rear post")
 
-    add("beam_front", build_beam_front(), "front beam, ties the front feet; carries the front sill (4 x M4 from below)")
+    add("beam_front", build_beam_front(), "front beam, ties the front feet; carries the front sill (4 x M3 from below)")
     add("front_sill", build_front_sill(),
-        "front sill X +-140: 45 deg face parallel to the board, pocket for the I/O module (PLACEHOLDER box), channel and slit for the light line, 4 x M4 into beam_front, 2 x M3 for the module (PLACEHOLDER)")
+        "front sill X +-140: 45 deg face parallel to the board, pocket for the I/O module (PLACEHOLDER box), channel and slit for the light line, 4 x M3 into beam_front, 2 x M3 for the module (PLACEHOLDER)")
     add("fan_bracket_right", build_fan_bracket("fan_bracket_right"),
-        "right side fan bracket: plate on the fan's inner face (corners A, C), leg to rib_A_right's outer face, 2 x M4")
+        "right side fan bracket: plate on the fan's inner face (corners A, C), leg to rib_A_right's outer face, 2 x M3")
     add("fan_bracket_left", build_fan_bracket("fan_bracket_left"),
-        "left side fan bracket: C-plate on the fan's inner face (corners A, B, C), leg to rib_A_left's outer face, 2 x M4")
+        "left side fan bracket: C-plate on the fan's inner face (corners A, B, C), leg to rib_A_left's outer face, 2 x M3")
     for name, row in BEAM_ROW.items():
         add(name, build_beam(name), f"ATX tray beam, row u = {row}, 3 standoff bosses")
     add("skid_front", build_skid("skid_front", 185, 205), "PSU skid, front")
     add("skid_rear", build_skid("skid_rear", 325, 345), "PSU skid, rear")
-    add("psu_bulkhead", build_psu_bulkhead(), "PSU bulkhead with IEC window, 4 PSU screw holes, M4 clearance holes for the drive sleds' flanges (only on the side that has a bay)")
+    add("psu_bulkhead", build_psu_bulkhead(), "PSU bulkhead with IEC window, 4 PSU screw holes (6-32, counterbored from behind), M3 clearance holes for the drive sleds' flanges (only on the side that has a bay)")
     for bay, sgn in hw.DRIVE_SIDES.items():          # hw.DRIVE_SIDES lists the bays that are built
         if sgn > 0:
             add(f"drive_sled_{bay}", build_drive_sled(sgn),
-                "right drive sled: 5 mm plate beside the PSU, bosses and counterbored 6-32 / M3 holes for a 3.5 inch drive (outer face) and a 2.5 inch drive (inner face), flange with 2 x M4 inserts against the bulkhead, foot on skid_rear")
+                "right drive sled: 5 mm plate beside the PSU, bosses and counterbored 6-32 / M3 holes for a 3.5 inch drive (outer face) and a 2.5 inch drive (inner face), flange with 2 x M3 inserts against the bulkhead, foot on skid_rear")
         else:
             add_mirror(f"drive_sled_{bay}", build_drive_sled(sgn),
-                       "left drive sled: the right one mirrored in X; flange with 2 x M4 inserts against the bulkhead, foot on skid_rear")
+                       "left drive sled: the right one mirrored in X; flange with 2 x M3 inserts against the bulkhead, foot on skid_rear")
 
     add("antler_right", build_antler_right(1), "420 bracket on the fan face + tongue on the rib's outer face, right")
     add_mirror("antler_left", build_antler_right(-1), "420 bracket on the fan face + tongue on the rib's outer face, left")
 
     *neck, neck_prims = build_neck_right(side=1)
-    add("neck_right", tuple(neck), "neck: strut along n + spacer pad, right; 2 x M4 clearance to the visor arm")
+    add("neck_right", tuple(neck), "neck: strut along n + spacer pad, right; 2 x M3 clearance to the visor arm")
     *neck_l, _ = build_neck_right(guide_pilot=True, side=-1)
-    add_mirror("neck_left", tuple(neck_l), "neck: strut along n + spacer pad, left; 2 x M4 clearance to the visor arm; carries the CPU hose guide")
-    add("visor_arm_right", build_arm_right(True), "360 visor arm, right (2 x M4S to the neck, knee below the bar), notched at the port tank")
-    add_mirror("visor_arm_left", build_arm_right(False), "360 visor arm, left (2 x M4S to the neck, knee below the bar)")
+    add_mirror("neck_left", tuple(neck_l), "neck: strut along n + spacer pad, left; 2 x M3 clearance to the visor arm; carries the CPU hose guide")
+    add("visor_arm_right", build_arm_right(True), "360 visor arm, right (2 x M3 to the neck, knee below the bar, radiator screws counterbored), notched at the port tank")
+    add_mirror("visor_arm_left", build_arm_right(False), "360 visor arm, left (2 x M3 to the neck, knee below the bar, radiator screws counterbored)")
 
     add("gpu_post", build_gpu_post(), "card bracket post, left side (PLACEHOLDER geometry)")
 
     g_cpu, _ = build_hose_guide_cpu()
-    add("hose_guide_cpu", g_cpu, "CPU hose guide: foot on the left neck, two channels open to -X, 1 x M4S", material="PA6")
+    add("hose_guide_cpu", g_cpu, "CPU hose guide: foot on the left neck, two channels open to -X, 1 x M3", material="PA6")
     g_gpu, _ = build_hose_guide_gpu()
-    add("hose_guide_gpu", g_gpu, "GPU hose guide: plate on rib_A_right's outer face, two channels open to +X, 1 x M4", material="PA6")
+    add("hose_guide_gpu", g_gpu, "GPU hose guide: plate on rib_A_right's outer face, two channels open to +X, 1 x M3", material="PA6")
 
     for tp in TIE_POINTS:
         add(tie_name(tp), build_tie_bridge(tp),
@@ -1555,46 +1627,46 @@ def _build_frame():
     # --- fastener registry: what the plan lists per hardware item. The counts below are written down by
     # hand; run_checks derives the real ones from the solids (derive_mounts) and fails if they differ.
     n_atx = len(hw.ATX_HOLES)
-    fastener("board", "beam_low/beam_mid/beam_top", "M3 insert", n_atx,
+    fastener("board", "beam_low/beam_mid/beam_top", m3(BOARD_STACK, washer=False), n_atx,
              "9 standoff bosses, 3 per beam; board underside n=-2 touches the bosses")
     fastener("rad420", "antler_left + antler_right", "6-32", 2 * len(antler_holes_xn(1)),
              f"{len(antler_holes_xn(1))} per antler along u: the fan screws, from the fans' outer face through the fan and the {ANTLER_T:g} mm plate into the core "
              f"(the four of the outer fan and the two nearer ones of the middle fan); {ANTLER_T:g} mm longer than the stock screw")
     fastener("rad360", "visor_arm_left + visor_arm_right", "6-32", 2 * len(hw.RAD360_HOLES_U),
-             "2 per arm along n at u = 192, 297")
+             f"2 per arm along n at u = 192, 297: the radiator's own screws, heads in counterbores from below ({HW_SCREW_FLOOR:g} mm of arm under each; the screw's {hw.RAD360_SCREW_LEN:g} mm is an ASSUMPTION)")
     fastener("psu", "psu_bulkhead (+ skid_front, skid_rear support)", "6-32", len(hw.PSU_PATTERN),
-             f"{len(hw.PSU_HOLES)} holes, standard pattern seen from behind (inlet at -X); PSU rests on the skids")
+             f"{len(hw.PSU_HOLES)} holes, standard pattern seen from behind (inlet at -X); PSU rests on the skids; heads in counterbores from behind ({HW_SCREW_FLOOR:g} mm of the {BULK_T:g} mm wall under each; the screw's {hw.PSU_SCREW_LEN:g} mm is an ASSUMPTION)")
     for fan, bracket in (("fan_side_left", "fan_bracket_left"), ("fan_side_right", "fan_bracket_right")):
         k = len(BRACKET_CORNERS[bracket]) + (bracket in BRACKET_TAB)
         tab = f"; corner {BRACKET_TAB[bracket]} through a tab over the fan's outer face (screw from outside, clearance hole)" if bracket in BRACKET_TAB else ""
-        fastener(fan, bracket, FAN_PILOT_KIND + " insert", k,
-                 f"corners {', '.join(BRACKET_CORNERS[bracket])} of 4 (needs >= {FAN_MIN_SCREWS}): screws from the fan's outer face into the plate{tab}")
+        fastener(fan, bracket, m3(FAN_STACK), k,
+                 f"corners {', '.join(BRACKET_CORNERS[bracket])} of 4 (needs >= {FAN_MIN_SCREWS}): screws from the fan's outer face through the {FAN_STACK:g} mm fan into the plate{tab}")
     fastener("front_io", "front_sill", hw.FRONT_IO_SCREW_KIND + " insert", len(hw.FRONT_IO_SCREWS),
              "PLACEHOLDER: 2 along X into the end walls of the sill's pocket; the module's screws are not known until it is measured")
-    fastener("gpu", "gpu_post (left) + rib_A_right gpu_rest (right)", "M4 insert", 2,
-             "post: 2 M4 into beam_mid; rest: bears the card edge, no screw")
+    fastener("gpu", "gpu_post (left) + rib_A_right gpu_rest (right)", m3(GPU_POST_STACK), 2,
+             "post: 2 M3 through beam_mid into the post; rest: bears the card edge, no screw")
     # structural
-    fastener("lap A<->B", "rib_A/rib_B x2", "M4 insert", 2 * len(LAP_BOLTS),
+    fastener("lap A<->B", "rib_A/rib_B x2", m3(LAP_STACK), 2 * len(LAP_BOLTS),
              "3 per side (2 top, 1 bottom); clearance in B, pilot in A")
     for name, pts in END_BOLTS.items():
-        fastener(f"{name} ends", "ribs", "M4 insert", 2 * len(pts),
+        fastener(f"{name} ends", "ribs", m3(RIB_T), 2 * len(pts),
                  f"{len(pts)} per end, pilots in the member")
-    fastener("antler tongue", "antler_L/R -> rib_B_L/R post", "M4 insert", 4, "2 per side along X into the post's outer face")
-    fastener("neck pad", "neck_L/R -> rib_B_L/R post", "M4 insert", 4, "2 per side along X")
-    fastener("visor joint", "visor_arm + neck", "M4S insert", 4,
+    fastener("antler tongue", "antler_L/R -> rib_B_L/R post", m3(TONGUE_T), 4, "2 per side along X into the post's outer face")
+    fastener("neck pad", "neck_L/R -> rib_B_L/R post", m3(NECK_PAD_STACK), 4, "2 per side along X")
+    fastener("visor joint", "visor_arm + neck", m3(JOINT_STACK), 4,
              "two per side, along X at u 289.2, n 114 and 93.5 (pilot in the arm, clearance in the neck); no hinge")
-    fastener("fan brackets", "fan_bracket_L/R -> rib_A_L/R", "M4 insert", 2 * len(BRACKET_BOLTS),
+    fastener("fan brackets", "fan_bracket_L/R -> rib_A_L/R", m3(RIB_T), 2 * len(BRACKET_BOLTS),
              "2 per side along X at u 121, n -26 and -14: clearance through the rib, pilot in the bracket's leg; heads on the rib's inner face")
-    fastener("hose_guide_cpu", "hose_guide_cpu -> neck_left", "M4S insert", 1, "1 along X into the left neck's outer face")
-    fastener("hose_guide_gpu", "hose_guide_gpu -> rib_A_right", "M4 insert", 1, "1 along X into the right rib's outer face")
-    fastener("gpu_post", "gpu_post -> beam_mid", "M4 insert", 2, "along n")
-    fastener("front_sill", "front_sill -> beam_front", "M4 insert", len(SILL_BOLTS),
+    fastener("hose_guide_cpu", "hose_guide_cpu -> neck_left", m3(GUIDE_T), 1, "1 along X into the left neck's outer face")
+    fastener("hose_guide_gpu", "hose_guide_gpu -> rib_A_right", m3(GUIDE_T), 1, "1 along X into the right rib's outer face")
+    fastener("gpu_post", "gpu_post -> beam_mid", m3(GPU_POST_STACK), 2, "along n")
+    fastener("front_sill", "front_sill -> beam_front", m3(SILL_STACK), len(SILL_BOLTS),
              "2 per end block along Z: clearance through beam_front from below, pilot in the sill's bottom face; heads under the beam")
     fastener("tie_pilot", "/".join(dict.fromkeys(t["host"] for t in TIE_POINTS)), "M3 insert", len(TIE_POINTS),
              "the cable tie points (TIE_POINTS): one pilot each, into the part's face along the face's inward normal (along n into an underside, along X into a rib's inner face, along Z into the skid's top); rows: " + ", ".join(
                  f"{r} {sum(1 for t in TIE_POINTS if t['row'] == r)}" for r in dict.fromkeys(t["row"] for t in TIE_POINTS)))
-    fastener("tie_bridge", "tie_bridge_* -> the tie points", "M3 screw", len(TIE_POINTS),
-             "one M3 x 10 through the bridge's foot (4 mm clearance hole) into the insert; the bridge is ABS, the same part at every point")
+    fastener("tie_bridge", "tie_bridge_* -> the tie points", m3(TIE_FOOT_T).replace(" insert", ""), len(TIE_POINTS),
+             f"one screw through the bridge's foot ({TIE_FOOT_T:g} mm, {hw.M3_CLEAR_D:g} mm clearance hole) and a washer into the insert; the bridge is ABS, the same part at every point")
     for side_name in hw.DRIVE_SIDES:
         faces = hw.drive_layout()["faces"]
         fastener(f"drive_{side_name}", f"drive_sled_{side_name}", "6-32 x 6.35 + M3 x 5", DRIVE_SCREWS,
@@ -1602,10 +1674,10 @@ def _build_frame():
                  f"opposite the drive, head in a counterbore, {SLED_FLOOR:g} mm of material under it, so the screw enters 6.35 - {SLED_FLOOR:g} = {faces['outer']['spec']['screw_len'] - SLED_FLOOR:.2f} mm "
                  f"(standard {faces['outer']['spec']['enter'][0]:g}..{faces['outer']['spec']['enter'][1]:g}) and 5 - {SLED_FLOOR:g} = {faces['inner']['spec']['screw_len'] - SLED_FLOOR:.2f} mm (at most {faces['inner']['spec']['enter'][1]:g}); "
                  f"assembly order: {SLED_ORDER}")
-    fastener("drive sled flanges", "drive_sled_* -> psu_bulkhead", SLED_BOLT_KIND + " insert", len(hw.DRIVE_SIDES) * len(SLED_BOLT_Z),
+    fastener("drive sled flanges", "drive_sled_* -> psu_bulkhead", m3(BULK_T), len(hw.DRIVE_SIDES) * len(SLED_BOLT_Z),
              f"{len(SLED_BOLT_Z)} per sled along Y at X {', '.join(f'{sg * SLED_BOLT_X:g}' for sg in hw.DRIVE_SIDES.values())}, Z {SLED_BOLT_Z[0]:g} and {SLED_BOLT_Z[1]:g}: clearance holes through the bulkhead's flank, pilots in the flange; screws from behind (heads on the bulkhead's rear face)")
-    fastener("organic", "rib_A_L/R, rib_B_L/R, neck_L/R, front_sill", "M3 insert", len(hw.ORGANIC_PADS),
-             "the PLA layer's pads (hw.ORGANIC_PADS): 6 a side, one pilot each along X into the outer face; the screw and the pad are in organic_frame.py")
+    fastener("organic", "rib_A_L/R, rib_B_L/R, neck_L/R, front_sill", m3(hw.ORGANIC_PAD_H), len(hw.ORGANIC_PADS),
+             f"the organic layer's pads (hw.ORGANIC_PADS): 6 a side, one pilot each along X into the outer face, through a {hw.ORGANIC_PAD_H:g} mm pad; the screw and the pad are in organic_frame.py")
     return parts, neck_prims
 
 
@@ -1615,49 +1687,49 @@ def _build_frame():
 def check_bolts(neck_prims):
     BOLT_CHECKS.clear()
     shapes = {"A": SHAPE_A, "B": SHAPE_B}
-    cr = hw.M4_CLEAR_D / 2
+    cr = hw.M3_CLEAR_D / 2
     for name, pts in END_BOLTS.items():
         for pt in pts:
             for r in HOLDING_RIB[name]:
                 # beam_top's bolts must also keep the insert wall (2.1 mm) around the clearance hole
-                m = cr + (hw.M4_MIN_WALL if name == "beam_top" else 0.0)
+                m = cr + (hw.M3_MIN_WALL if name == "beam_top" else 0.0)
                 ok = inside(shapes[r], pt, m)
                 BOLT_CHECKS.append((f"{name} end bolt ({pt[0]:.1f},{pt[1]:.1f}) in rib {r}", ok, ""))
     for pt in LAP_BOLTS:
         for r in "AB":
-            ok = inside(shapes[r], pt, hw.M4S_PILOT_D / 2 + hw.M4S_MIN_WALL if r == "A" else cr)
+            ok = inside(shapes[r], pt, hw.M3_PILOT_D / 2 + hw.M3_MIN_WALL if r == "A" else cr)
             BOLT_CHECKS.append((f"lap bolt ({pt[0]:.1f},{pt[1]:.1f}) in rib {r}", ok, ""))
-    pr = hw.M4_PILOT_D / 2 + hw.M4_MIN_WALL
+    pr = hw.M3_PILOT_D / 2 + hw.M3_MIN_WALL
     for pt in NECK_BOLTS:
-        ok = inside(neck_prims["strut"], pt, cr + hw.M4_MIN_WALL) and inside(neck_prims["pad"], pt, cr + hw.M4_MIN_WALL) \
+        ok = inside(neck_prims["strut"], pt, cr + hw.M3_MIN_WALL) and inside(neck_prims["pad"], pt, cr + hw.M3_MIN_WALL) \
             and inside(SHAPE_B, pt, pr)
         BOLT_CHECKS.append((f"neck bolt ({pt[0]:.1f},{pt[1]:.1f}) in neck + pad + rib_B", ok, ""))
     arm_prims = [_rect_poly(ARM_U0, hw.BOARD_BS[3], hw.RAD360_INNER_N - ARM_T, hw.RAD360_INNER_N),
                  _rect_poly(KNEE_U[0], KNEE_U[1], KNEE_N0, hw.RAD360_INNER_N - ARM_T)]
     for pt in JOINT_BOLTS:     # clearance wall in the strut, pilot wall in the arm (bar or knee), and 20 mm between the two bolts
-        ok = inside(neck_prims["strut"], pt, cr + hw.M4_MIN_WALL) and inside(arm_prims, pt, hw.M4S_PILOT_D / 2 + hw.M4S_MIN_WALL)
+        ok = inside(neck_prims["strut"], pt, cr + hw.M3_MIN_WALL) and inside(arm_prims, pt, hw.M3_PILOT_D / 2 + hw.M3_MIN_WALL)
         BOLT_CHECKS.append((f"joint bolt ({pt[0]:.1f},{pt[1]:.1f}) in neck strut + visor arm", ok, ""))
     gap = math.dist(JOINT_BOLTS[0], JOINT_BOLTS[1])
     BOLT_CHECKS.append((f"joint bolts {gap:.1f} mm apart (>= {JOINT_MIN_SPACING:g})", gap >= JOINT_MIN_SPACING, ""))
     leg = [_rect_poly(*BRACKET_LEG_U, *BRACKET_LEG_N)]
     for pt in BRACKET_BOLTS:       # clearance wall in rib_A, pilot wall in the bracket's leg
-        ok = inside(SHAPE_A, pt, cr + hw.M4_MIN_WALL) and inside(leg, pt, pr)
+        ok = inside(SHAPE_A, pt, cr + hw.M3_MIN_WALL) and inside(leg, pt, pr)
         BOLT_CHECKS.append((f"fan bracket bolt ({pt[0]:.1f},{pt[1]:.1f}) in rib_A + bracket leg", ok, ""))
     gap = math.dist(BRACKET_BOLTS[0], BRACKET_BOLTS[1])
-    BOLT_CHECKS.append((f"fan bracket bolts {gap:.1f} mm apart (>= 2 x pilot + wall = {hw.M4_PILOT_D + hw.M4_MIN_WALL:.1f})",
-                        gap >= hw.M4_PILOT_D + hw.M4_MIN_WALL, ""))
+    BOLT_CHECKS.append((f"fan bracket bolts {gap:.1f} mm apart (>= 2 x pilot + wall = {hw.M3_PILOT_D + hw.M3_MIN_WALL:.1f})",
+                        gap >= hw.M3_PILOT_D + hw.M3_MIN_WALL, ""))
     for pt in TONGUE_BOLTS:
-        ok = inside([TONGUE_OUTLINE], pt, cr + hw.M4_MIN_WALL) and inside(SHAPE_B, pt, pr)
+        ok = inside([TONGUE_OUTLINE], pt, cr + hw.M3_MIN_WALL) and inside(SHAPE_B, pt, pr)
         BOLT_CHECKS.append((f"tongue bolt ({pt[0]:.1f},{pt[1]:.1f}) in antler tongue + rib_B", ok, ""))
     # front sill (revision 9): the four bolts inside beam_front's top face and inside the sill's section, clear of the pocket; the module's two screws inside the wall
     g = sill_geometry()
     sill_section = [Poly(g["pts"])]
-    pr4 = hw.M4_PILOT_D / 2 + hw.M4_MIN_WALL
+    pr3 = hw.M3_PILOT_D / 2 + hw.M3_MIN_WALL
     io = hw.FRONT_IO_W
     for (x, y) in SILL_BOLTS:
-        in_beam = BEAM_FRONT_Y[0] + cr + hw.M4_MIN_WALL <= y <= BEAM_FRONT_Y[1] - cr - hw.M4_MIN_WALL and abs(x) <= X_IN - cr - hw.M4_MIN_WALL
-        in_sill = inside(sill_section, (y, g["z0"] + pr4 + 0.1), pr4)        # the pilot opens in the bottom face, so only the sides count
-        in_block = (-SILL_HALF_X + pr4 <= x <= io[0] - SILL_POCKET_PLAY - pr4) or (io[1] + SILL_POCKET_PLAY + pr4 <= x <= SILL_HALF_X - pr4)
+        in_beam = BEAM_FRONT_Y[0] + cr + hw.M3_MIN_WALL <= y <= BEAM_FRONT_Y[1] - cr - hw.M3_MIN_WALL and abs(x) <= X_IN - cr - hw.M3_MIN_WALL
+        in_sill = inside(sill_section, (y, g["z0"] + pr3 + 0.1), pr3)        # the pilot opens in the bottom face, so only the sides count
+        in_block = (-SILL_HALF_X + pr3 <= x <= io[0] - SILL_POCKET_PLAY - pr3) or (io[1] + SILL_POCKET_PLAY + pr3 <= x <= SILL_HALF_X - pr3)
         BOLT_CHECKS.append((f"sill bolt (X {x:.1f}, Y {y:.1f}) inside beam_front's top face, the sill's section and an end block", in_beam and in_sill and in_block, ""))
     pr_io = hw.INSERTS[hw.FRONT_IO_SCREW_KIND][0] / 2 + hw.INSERTS[hw.FRONT_IO_SCREW_KIND][2]
     for (pt, d) in hw.FRONT_IO_SCREWS:
@@ -1670,29 +1742,29 @@ def check_bolts(neck_prims):
             # back to (u, n)
             a, b = (y - hw.ORIGIN[1]) / hw.C, (z - hw.ORIGIN[2]) / hw.C
             u, n = (a + b) / 2, (b - a) / 2
-            m = hw.INSERTS[END_KIND.get(name, "M4")]
+            m = hw.INSERTS["M3"]
             r = m[0] / 2 + m[2]
             ok = (row + lo + r <= u <= row + hi - r) and (BEAM_N0 + r <= n <= hw.ATX_TRAY_N - r)
             BOLT_CHECKS.append((f"{name} bolt (u={u:.1f}, n={n:.1f}) pilot inside section", ok, ""))
     # drive sleds: the flange screws' X, Z in the bulkhead's flank, clear of the PSU's screws, the window and the end blocks; the pilots inside the flange's section
-    m4 = hw.INSERTS[SLED_BOLT_KIND]
+    m3p = hw.INSERTS["M3"]
     flange = Rect(SLED_BOLT_X - SLED_FLANGE_HALF_X, SLED_BOLT_X + SLED_FLANGE_HALF_X, *SLED_FLANGE_Z)
     for z in SLED_BOLT_Z:
         x = SLED_BOLT_X
-        wall = cr + hw.M4_MIN_WALL
+        wall = cr + hw.M3_MIN_WALL
         in_flank = BULK_WINDOW[1] + wall <= x <= BULK_BLOCK_X - wall and BULK_Z[0] + wall <= z <= BULK_Z[1] - wall - BULK_R
-        gap_psu = min(math.dist((x, z), px) for px in hw.PSU_HOLES) - cr - hw.M3_CLEAR_D / 2
-        BOLT_CHECKS.append((f"drive sled bolt (X {x:.1f}, Z {z:.1f}) in the bulkhead's flank: outside the window (|X| {BULK_WINDOW[1]:g}) and the end blocks (|X| {BULK_BLOCK_X:g}) by the M4 wall, "
-                            f"{gap_psu:.1f} mm of wall to the PSU's screw holes (needs {hw.M4_MIN_WALL:g})", in_flank and gap_psu >= hw.M4_MIN_WALL, ""))
-        ok = flange.contains((x, z), m4[0] / 2 + m4[2])
-        BOLT_CHECKS.append((f"drive sled bolt (X {x:.1f}, Z {z:.1f}) pilot inside the flange's section (X, Z) with the {SLED_BOLT_KIND} wall", ok, ""))
+        gap_psu = min(math.dist((x, z), px) for px in hw.PSU_HOLES) - cr - CLEAR_KINDS["6-32cb"][0] / 2
+        BOLT_CHECKS.append((f"drive sled bolt (X {x:.1f}, Z {z:.1f}) in the bulkhead's flank: outside the window (|X| {BULK_WINDOW[1]:g}) and the end blocks (|X| {BULK_BLOCK_X:g}) by the M3 wall, "
+                            f"{gap_psu:.1f} mm of wall to the PSU's screw holes (needs {hw.M3_MIN_WALL:g})", in_flank and gap_psu >= hw.M3_MIN_WALL, ""))
+        ok = flange.contains((x, z), m3p[0] / 2 + m3p[2])
+        BOLT_CHECKS.append((f"drive sled bolt (X {x:.1f}, Z {z:.1f}) pilot inside the flange's section (X, Z) with the M3 wall", ok, ""))
     gap = abs(SLED_BOLT_Z[1] - SLED_BOLT_Z[0])
-    BOLT_CHECKS.append((f"drive sled bolts {gap:.1f} mm apart (>= pilot + wall = {m4[0] + m4[2]:.1f})", gap >= m4[0] + m4[2], ""))
+    BOLT_CHECKS.append((f"drive sled bolts {gap:.1f} mm apart (>= pilot + wall = {m3p[0] + m3p[2]:.1f})", gap >= m3p[0] + m3p[2], ""))
     sections = {"beam_front": Rect(0, 40, -10, 10),
                 "skid_front": Rect(185, 205, -10, 0), "skid_rear": Rect(325, 345, -10, 0),
                 "psu_bulkhead": Rect(BULK_Y0, BULK_Y1, BULK_Z[0], BULK_Z[1])}
     for name, sec in sections.items():
-        m = hw.INSERTS[END_KIND.get(name, "M4")]
+        m = hw.INSERTS["M3"]
         for pt in END_BOLTS[name]:
             ok = sec.contains(pt, m[0] / 2 + m[2])
             BOLT_CHECKS.append((f"{name} bolt ({pt[0]:.1f},{pt[1]:.1f}) pilot inside section", ok, ""))
@@ -1918,7 +1990,7 @@ ORGANIC_PROBE_DEPTH = 3.0      # check 5: the axis point of a pad's pilot lies t
 MIN_MOUNTS = {"fan_side_left": FAN_MIN_SCREWS, "fan_side_right": FAN_MIN_SCREWS}     # at least this many of the four corner holes
 FAN_HOLDER = {"fan_side_left": "fan_bracket_left", "fan_side_right": "fan_bracket_right"}
 DRIVE_PROBE_DEPTH = 1.5        # check 5: the axis point of a drive screw lies this far into the boss and plate from the drive's board (the boss is 1 mm high, the bore is empty to the head)
-FAN_PROBE_DEPTH = 1.5          # axis point inside the pilot, from the fan face: the pilot is 5.0 deep, so at 1.5 the bore wall (r 2.8) is the nearest material
+FAN_PROBE_DEPTH = 1.5          # axis point inside the pilot, from the fan face: at 1.5 the bore wall (r 2.0) is the nearest material
 
 
 def mount_points():
@@ -1930,12 +2002,12 @@ def mount_points():
         out.append(("board", holder, hw.bp(v, u, hw.ATX_BOARD_N - 3.0), hw.M3_PILOT_D / 2, None))
     for side, holder in ((1, "antler_right"), (-1, "antler_left")):
         for (x, n) in antler_holes_xn(side):
-            out.append(("rad420", holder, hw.bp(hw.x_to_v(x), ANTLER_U[0] + ANTLER_T / 2, n), hw.M3_CLEAR_D / 2, None))
+            out.append(("rad420", holder, hw.bp(hw.x_to_v(x), ANTLER_U[0] + ANTLER_T / 2, n), hw.UNC6_CLEAR_D / 2, None))
     for holder, x in (("visor_arm_right", max(hw.RAD360_HOLES_X)), ("visor_arm_left", min(hw.RAD360_HOLES_X))):
         for u in hw.RAD360_HOLES_U:
-            out.append(("rad360", holder, hw.bp(hw.x_to_v(x), u, ARM_MID_N), hw.M3_CLEAR_D / 2, None))
+            out.append(("rad360", holder, hw.bp(hw.x_to_v(x), u, hw.RAD360_INNER_N - HW_SCREW_FLOOR / 2), hw.UNC6_CLEAR_D / 2, None))      # in the floor under the counterbore
     for (x, z) in hw.PSU_HOLES:
-        out.append(("psu", "psu_bulkhead", (x, hw.PSU_REAR_Y + BULK_T / 2, z), hw.M3_CLEAR_D / 2, None))
+        out.append(("psu", "psu_bulkhead", (x, hw.PSU_REAR_Y + HW_SCREW_FLOOR / 2, z), hw.UNC6_CLEAR_D / 2, None))      # in the floor under the counterbore
     for (pt, d) in hw.FRONT_IO_SCREWS:      # the module's screws: the axis point inside the pocket's end wall, which must be an empty bore of the insert's radius
         probe = tuple(c + k * (SILL_POCKET_PLAY + SILL_PROBE_DEPTH) for c, k in zip(pt, d))
         out.append(("front_io", "front_sill", probe, hw.INSERTS[hw.FRONT_IO_SCREW_KIND][0] / 2, None))
@@ -1948,7 +2020,7 @@ def mount_points():
     for item, side in zip(hw.DRIVES, hw.DRIVE_SIDES.values()):      # the drives' screws: an empty clearance bore on the axis, 1.5 mm into the sled from the drive's board
         for fc in hw.drive_layout()["faces"].values():
             for (y, z) in fc["holes"]:
-                out.append((item, "drive_sled_" + item.split("_")[1], (side * (fc["pb_x"] - fc["dir"] * DRIVE_PROBE_DEPTH), y, z), hw.M3_CLEAR_D / 2, None))
+                out.append((item, "drive_sled_" + item.split("_")[1], (side * (fc["pb_x"] - fc["dir"] * DRIVE_PROBE_DEPTH), y, z), CLEAR_KINDS[THREAD_CLEAR[fc["spec"]["thread"]]][0] / 2, None))
     for fan, holder in FAN_HOLDER.items():
         x = hw.FAN_SIDE_INNER_X[fan] + hw.FAN_SIDE_IN[fan] * FAN_PROBE_DEPTH
         x_out = hw.FAN_SIDE_X[fan][0 if hw.FAN_SIDE_IN[fan] > 0 else 1]
@@ -1956,8 +2028,8 @@ def mount_points():
         for corner, (u, n) in hw.FAN_SIDE_HOLES_UN.items():
             # inner face: an insert pilot in the plate. Outer face: a clearance hole in a tab (revision 7a), looked for at every corner
             # of every fan; a corner counts once if either has a hole. The fan's flat outer face has no material at the probe.
-            out.append((fan, holder, hw.bp(hw.x_to_v(x), u, n), hw.M4S_PILOT_D / 2, corner))
-            out.append((fan, holder, hw.bp(hw.x_to_v(x_tab), u, n), hw.M4_CLEAR_D / 2, corner))
+            out.append((fan, holder, hw.bp(hw.x_to_v(x), u, n), hw.M3_PILOT_D / 2, corner))
+            out.append((fan, holder, hw.bp(hw.x_to_v(x_tab), u, n), hw.M3_CLEAR_D / 2, corner))
     return out
 
 
@@ -2003,9 +2075,9 @@ def derive_mounts(parts, contacts, failures, memo=None):
             try:
                 pt_post, pt_beam = hw.bp(GPU_POST_V, u, hw.ATX_TRAY_N + 4.0), hw.bp(GPU_POST_V, u, BEAM_N_MID)
                 why_post = memo_call(memo, (byname["gpu_post"].solid,), "mount", hole_at, byname["gpu_post"], pt_post,
-                                     hw.M4_PILOT_D / 2, extra=(tuple(pt_post), hw.M4_PILOT_D / 2))
+                                     hw.M3_PILOT_D / 2, extra=(tuple(pt_post), hw.M3_PILOT_D / 2))
                 why_beam = memo_call(memo, (byname["beam_mid"].solid,), "mount", hole_at, byname["beam_mid"], pt_beam,
-                                     hw.M4_CLEAR_D / 2, extra=(tuple(pt_beam), hw.M4_CLEAR_D / 2))
+                                     hw.M3_CLEAR_D / 2, extra=(tuple(pt_beam), hw.M3_CLEAR_D / 2))
             except BooleanFailure as e:
                 failures.append(f"CHECK5 gpu_post screw at u = {u}: BOOLEAN FAILED: {e}")
                 continue
@@ -2575,14 +2647,14 @@ def check_drive_bays(parts, hardware, failures, contacts=(), pp_contact=()):
         for other, what in (("skid_rear", "stand on"), ("psu_bulkhead", "stand against")):
             if (sled.name, other) not in touching:
                 failures.append(f"CHECK13 {sled.name} does not {what} {other}: no zero-gap contact")
-        recorded = [h for h in sled.holes if h.kind == "M3c"]
+        recorded = [h for h in sled.holes if h.kind in THREAD_CLEAR.values()]
         n_table = 0
         for face, fc in hw.drive_layout()["faces"].items():
             F = fc["spec"]
             into = (-side * fc["dir"], 0.0, 0.0)                    # from the drive's board into the sled
             far_into = (side * fc["dir"], 0.0, 0.0)                 # from the face the screw comes in from, towards the drive
             r_head = F["head_d"] / 2
-            r_bore = hw.M3_CLEAR_D / 2
+            r_bore = CLEAR_KINDS[THREAD_CLEAR[F["thread"]]][0] / 2
             rho = (r_bore + r_head + SLED_CB_PLAY / 2) / 2          # between the bore and the counterbore's wall: on the floor under the head
             far_x = side * (hw.drive_layout()["plate_x"][0] if face == "outer" else hw.drive_layout()["plate_x"][1])
             runs, heads = [], []
@@ -2622,6 +2694,157 @@ def check_drive_bays(parts, hardware, failures, contacts=(), pp_contact=()):
             failures.append(f"CHECK13 {side_name} bay (sled, drives, plug zones) is X {row['box'][0]:.1f}..{row['box'][1]:.1f}, Y {row['box'][2]:.1f}..{row['box'][3]:.1f}, "
                             f"Z {row['box'][4]:.1f}..{row['box'][5]:.1f}: outside the envelope |X| {ex[0]:g}..{ex[1]:g}, Y {ey[0]:g}..{ey[1]:g}, Z {ez[0]:g}..{ez[1]:g}")
         rows.append(row)
+    return rows
+
+
+# ---------------------------------------------------------------------------
+# Check 15: the owner's screws. Every insert pilot that carries a stack is a screw: the thickness it clamps is measured on the solids (the clearance holes
+# on its axis and the material round them, or the hardware it clamps), the length is the owner's that fits (screw_fit), and the counts stay inside the stock.
+# ---------------------------------------------------------------------------
+STACK_TOL = 0.1          # mm: the measured stack against the one the pilot was made for
+STACK_GAP = 0.5          # mm: a gap this small between two clamped parts does not break the stack
+CLAMPS_HARDWARE = {"board": ("board",), "side fan": hw.FAN_SIDE_NAMES}      # the screws that clamp a hardware solid, by their item: the board's, the side fans'
+HARDWARE_PROBE_LEN = 40.0            # mm: how far behind a pilot's mouth the hardware is looked for
+WASHER_SEAT_DEPTH = 0.1              # mm: the washer's rim is probed this far inside the face it bears on
+WASHER_RIM_POINTS = 24
+
+
+def axis_run(h, solids_spans):
+    """From the pilot `h`'s mouth towards its screw head: the end of the unbroken run of material given as (s0, s1) intervals along the axis (s = distance from the mouth)."""
+    end = 0.0
+    for a, b in sorted(solids_spans):
+        if a <= end + STACK_GAP:
+            end = max(end, b)
+    return end
+
+
+def measured_stack(h, parts, hardware):
+    """(stack, what) of the screw whose pilot is `h`: the run of material on the axis behind the pilot's mouth, from the clearance holes of the other parts and from the hardware.
+    None when nothing is there to measure (the organic layer's pad is not in this file)."""
+    mouth = h.point(OVERSHOOT)
+    back = tuple(-c for c in h.d)
+    spans, names = [], []
+
+    def along(p):
+        return sum((a - b) * c for a, b, c in zip(p, mouth, back))
+
+    for q in parts:
+        for g in q.holes:
+            if g.pilot or g.kind != "M3c" or abs(abs(sum(a * b for a, b in zip(g.d, h.d))) - 1.0) > 1e-6:
+                continue
+            off = [a - b for a, b in zip(g.start, mouth)]
+            t = sum(a * b for a, b in zip(off, h.d))
+            if math.sqrt(max(0.0, sum(a * a for a in off) - t * t)) > 0.01:
+                continue
+            for (a, b) in material_spans(q.blank, g):
+                s0, s1 = sorted((along(g.point(a)), along(g.point(b))))
+                spans.append((s0 - SPAN_MARGIN, s1 + SPAN_MARGIN))
+                names.append(q.name)
+    for k in CLAMPS_HARDWARE.get(h.item, ()):
+        probe = Hole("probe", mouth, back, 0.1, HARDWARE_PROBE_LEN, 0.0, False)
+        for (a, b) in material_spans(hardware[k], probe):
+            spans.append((a - SPAN_MARGIN, b + SPAN_MARGIN))
+            names.append(k)
+    end = axis_run(h, spans)
+    seat = next((n for (a, b), n in zip(spans, names) if abs(b - end) < 1e-9 and n in {q.name for q in parts}), None)       # the part the head's washer bears on
+    return (end, sorted(set(names)), seat) if end > 0 else None
+
+
+def washer_on_face(h, stack, seat, parts):
+    """True if the washer (hw.M3_WASHER_D across) under the head of the screw whose pilot is `h` lies on the face of the part `seat` it bears on: points on the washer's rim, just
+    inside the face, are material (the face has the flat for it: not an edge, a rounding or another hole)."""
+    q = next(x for x in parts if x.name == seat)
+    mouth = h.point(OVERSHOOT)
+    d = np.array(h.d, float)
+    a = np.cross(d, [1.0, 0.0, 0.0])
+    if np.linalg.norm(a) < 0.1:
+        a = np.cross(d, [0.0, 1.0, 0.0])
+    a /= np.linalg.norm(a)
+    b = np.cross(d, a)
+    centre = np.array(mouth) - (stack - WASHER_SEAT_DEPTH) * d
+    for k in range(WASHER_RIM_POINTS):
+        t = 2 * math.pi * k / WASHER_RIM_POINTS
+        if not q.solid.isInside(Vector(*(centre + hw.M3_WASHER_D / 2 * (math.cos(t) * a + math.sin(t) * b)))):
+            return False
+    return True
+
+
+def check_screws(parts, hardware, failures):
+    """Check 15. Returns dict(rows, bill, inserts, washers, tightest): one row per insert pilot that carries a stack (part, item, position, stack, length, entry, depth, margin,
+    relief, what is clamped), the bill {length: (count, items)}, the number of inserts (every pilot) and of washers."""
+    rows, inserts, washers = [], 0, 0
+    for p in parts:
+        for h in p.holes:
+            if not h.pilot:
+                continue
+            inserts += 1
+            if h.stack is None:
+                continue
+            got = measured_stack(h, parts, hardware)
+            where = f"{p.name}: {h.describe()}"
+            if got is None:
+                stack, what = h.stack, ["not measured here (the pad is the organic layer's)"]
+                if h.item != "organic pad":
+                    failures.append(f"CHECK15 {where}: nothing clamped on the screw's axis, the pilot was made for {h.stack:g} mm")
+            else:
+                stack, what, seat = got
+                if h.washer and seat is not None and not washer_on_face(h, h.stack, seat, parts):
+                    failures.append(f"CHECK15 {where}: the {hw.M3_WASHER_D:g} mm washer under the head does not lie on the face of {seat}")
+                if abs(stack - h.stack) > STACK_TOL:
+                    failures.append(f"CHECK15 {where}: the screw clamps {stack:.2f} mm ({', '.join(what)}), the pilot was made for {h.stack:g} mm")
+                else:
+                    stack = h.stack          # agreed within STACK_TOL: the length is chosen for the design figure, not for the sampling noise
+            try:
+                length, entry, relief_needed = screw_fit(stack, h.washer)
+            except ValueError:
+                failures.append(f"CHECK15 {where}: no screw in the kit is long enough for {stack:.2f} mm")
+                continue
+            relief = sum(g.length - 0.2 for g in p.holes if g.kind == "M3r" and g.item == h.item and math.dist(g.start, h.start) < h.length + 1e-6
+                         and abs(abs(sum(a * b for a, b in zip(g.d, h.d))) - 1.0) < 1e-6)
+            depth = hw.M3_PILOT_DEPTH + relief
+            if entry < hw.SCREW_ENGAGE_MIN - FIT_EPS:
+                failures.append(f"CHECK15 {where}: M3 x {length} enters the insert {entry:.2f} mm, needs {hw.SCREW_ENGAGE_MIN:g}")
+            if entry > depth - hw.SCREW_BOTTOM_GAP + FIT_EPS:
+                failures.append(f"CHECK15 {where}: M3 x {length} stops {depth - entry:.2f} mm from the bottom of the hole ({hw.M3_PILOT_DEPTH:g} deep, relief {relief:.1f}), needs {hw.SCREW_BOTTOM_GAP:g}")
+            washers += 1 if h.washer else 0
+            margin = min(entry - hw.SCREW_ENGAGE_MIN, depth - hw.SCREW_BOTTOM_GAP - entry)
+            rows.append(dict(part=p.name, item=h.item, pos=h.point(OVERSHOOT), stack=stack, length=length, entry=entry, depth=depth, margin=margin, relief=relief, what=what, washer=h.washer))
+    bill = {}
+    for r in rows:
+        n, items = bill.get(r["length"], (0, {}))
+        items[r["item"]] = items.get(r["item"], 0) + 1
+        bill[r["length"]] = (n + 1, items)
+    for length, (n, _) in sorted(bill.items()):
+        if n > hw.STOCK_SHARE * hw.M3_SCREW_STOCK[length] + FIT_EPS:
+            failures.append(f"CHECK15 M3 x {length}: {n} needed, the owner has {hw.M3_SCREW_STOCK[length]} and the model may use {hw.STOCK_SHARE:g} of them ({hw.STOCK_SHARE * hw.M3_SCREW_STOCK[length]:g})")
+    if inserts > hw.STOCK_SHARE * hw.M3_INSERT_STOCK + FIT_EPS:
+        failures.append(f"CHECK15 {inserts} M3 inserts needed, the owner has {hw.M3_INSERT_STOCK} and the model may use {hw.STOCK_SHARE:g} of them ({hw.STOCK_SHARE * hw.M3_INSERT_STOCK:g})")
+    if washers > hw.STOCK_SHARE * hw.M3_WASHER_STOCK + FIT_EPS:
+        failures.append(f"CHECK15 {washers} M3 washers needed, the owner has {hw.M3_WASHER_STOCK} and the model may use {hw.STOCK_SHARE:g} of them ({hw.STOCK_SHARE * hw.M3_WASHER_STOCK:g})")
+    tightest = min(rows, key=lambda r: r["margin"]) if rows else None
+    return dict(rows=rows, bill=bill, inserts=inserts, washers=washers, tightest=tightest)
+
+
+COUNTERBORE_TOL = 0.1    # mm: the material measured under a hardware screw's head against the floor the counterbore was made to leave
+
+
+def check_counterbores(parts, failures):
+    """Check 16. Under the head of each hardware 6-32 screw that sits in a counterbore (the PSU's on psu_bulkhead, the 360's on the visor arms) HW_SCREW_FLOOR mm of material is left,
+    measured on the solid beside the bore. Returns [(part, position, floor, screw length, entry)]."""
+    screw_len = {"psu_bulkhead": hw.PSU_SCREW_LEN, "visor_arm_right": hw.RAD360_SCREW_LEN, "visor_arm_left": hw.RAD360_SCREW_LEN}
+    rows = []
+    for p in parts:
+        for h in p.holes:
+            if h.kind != "6-32cb":
+                continue
+            rho = (hw.UNC6_CLEAR_D / 2 + h.r) / 2
+            side = (1.0, 0.0, 0.0)
+            probe = Hole("probe", tuple(c + rho * k for c, k in zip(h.start, side)), h.d, 0.1, h.length + 12.0, 0.0, False)
+            floor = sum(b - a + 2 * SPAN_MARGIN for a, b in material_spans(p.solid, probe))      # material_spans stops SPAN_MARGIN short of each face
+            pos = h.point(OVERSHOOT)
+            rows.append((p.name, pos, floor, screw_len[p.name], screw_len[p.name] - floor))
+            if abs(floor - HW_SCREW_FLOOR) > COUNTERBORE_TOL:
+                failures.append(f"CHECK16 {p.name}: {h.describe()} leaves {floor:.2f} mm under the head, the plan leaves {HW_SCREW_FLOOR:g}")
     return rows
 
 
@@ -2823,6 +3046,10 @@ def run_checks(hardware, parts, memo=None):
 
     # 13. the drive bays: hole patterns, screw penetration, head room, envelope
     res["drives"] = check_drive_bays(parts, hardware, failures, contacts, pp_contact)
+
+    # 15. the owner's screws: stack, length, entry, counts against the stock; 16. the counterbores for the hardware's own screws
+    res["screws"] = check_screws(parts, hardware, failures)
+    res["counterbores"] = check_counterbores(parts, failures)
 
     # 7. extra sanity: one connected solid per part, bolt positions inside outlines, every hole drilled
     #    with the wall its insert or screw needs
@@ -3085,7 +3312,7 @@ def drive_bay_lines(parts, hardware, res):
             b = bbox_of(byname[nm].solid)
             L.append(f"  {nm}: X {b[0]:.1f}..{b[1]:.1f}  Y {b[2]:.1f}..{b[3]:.1f}  Z {b[4]:.1f}..{b[5]:.1f}; пластина Y {b[2]:.1f}..{hw.PSU_REAR_Y:g}, Z {b[4]:g}..{lay['z_top'] - SLED_TOP_GAP:g}; "
                      f"фланец у стенки {SLED_FLANGE_Y:g} мм (Y {hw.PSU_REAR_Y - SLED_FLANGE_Y:g}..{hw.PSU_REAR_Y:g}, Z {SLED_FLANGE_Z[0]:g}..{SLED_FLANGE_Z[1]:g}, X +-{SLED_BOLT_X - SLED_FLANGE_HALF_X:g}..{SLED_BOLT_X + SLED_FLANGE_HALF_X:g}); "
-                     f"2 x M4 вдоль Y в X {sg * SLED_BOLT_X:g}, Z {SLED_BOLT_Z[0]:g} и {SLED_BOLT_Z[1]:g} (проходные Ø{hw.M4_CLEAR_D:g} в стенке psu_bulkhead, вставки {SLED_BOLT_KIND} во фланце); ступня - нижняя грань на skid_rear (Z 0)")
+                     f"2 x M3 x {screw_fit(BULK_T)[0]} вдоль Y в X {sg * SLED_BOLT_X:g}, Z {SLED_BOLT_Z[0]:g} и {SLED_BOLT_Z[1]:g} (проходные Ø{hw.M3_CLEAR_D:g} в стенке psu_bulkhead, вставки M3 во фланце, шайба под головкой); ступня - нижняя грань на skid_rear (Z 0)")
     for nm in hw.DRIVES:
         b = bbox_of(hardware[nm])
         L.append(f"  {nm}: X {b[0]:.1f}..{b[1]:.1f}  Y {b[2]:.1f}..{b[3]:.1f}  Z {b[4]:.1f}..{b[5]:.1f} (3.5: Y {o['body'][2]:g}..{o['body'][3]:g}, Z {o['body'][4]:g}..{o['body'][5]:g}; "
@@ -3134,19 +3361,43 @@ def format_report(hardware, parts, res, memo=None):
           f"  | {vol:7.1f} см³  {m100:6.1f} г / {m20:6.1f} г")
         w(f"      {p.note}")
     w(f"  ИТОГО {len(parts)} деталей: {tvol:.0f} см³   100 % {t100:.0f} г   4 стенки/20 % ~ {t20:.0f} г")
-    w("Масса по материалам (слой PLA оболочки и диффузор света - не в этом файле):")
+    w("Масса по материалам (слой оболочки из PETG и диффузор света - не в этом файле):")
     for m in MATERIALS:
         n, v, m100, m20 = per_material[m]
         w(f"  {m:4s} {n:2d} деталей: {v:7.1f} см³   100 % {m100:7.1f} г   4 стенки/20 % ~ {m20:7.1f} г")
     w("  ABS: каркас, всё несущее. PA6 (нейлон yxpolyer, не наполненный, чёрный): две направляющие шлангов (горловина защёлкивается на шланге). "
-      "PLA: органическая оболочка (organic_frame.py) и диффузор светлой линии из прозрачного PLA; PLA не несёт нагрузки и держится "
+      "PETG: органическая оболочка (organic_frame.py, запасной вариант ABS); диффузор светлой линии из прозрачного PLA. Оболочка не несёт нагрузки и держится "
       "не ближе 10 мм к видеокарте и БП, 4 мм к радиаторам и вентиляторам (в этом файле таких деталей нет).")
     w("")
     w("Крепёж железа (держатель, количество)")
     for f in FASTENERS:
-        w(f"  {f['item']:22s} {f['part']:48s} {f['kind']:13s} x{f['count']:<2d} {f['note']}")
+        w(f"  {f['item']:22s} {f['part']:48s} {f['kind']:22s} x{f['count']:<2d} {f['note']}")
     w("")
-    w(f"Подпорки GPU: gpu_post (левый торец, M4 в beam_mid) + gpu_rest (палец правого ребра A, плоскость u = {hw.GPU_BS[2]:.1f}).")
+    sc, cbs = res["screws"], res["counterbores"]
+    w("Ведомость винтов M3 (ревизия 12; цилиндрическая головка из набора владельца, шайба под головкой, кроме винтов платы: они на текстолите; вставки M3 в каждом стыке)")
+    w(f"  Правило: винт входит во вставку не меньше {hw.SCREW_ENGAGE_MIN:g} мм и не доходит до дна отверстия (глубина {hw.M3_PILOT_DEPTH:g} мм) не меньше {hw.SCREW_BOTTOM_GAP:g} мм; шайба {hw.M3_WASHER_D:g} x {hw.M3_WASHER_T:g} мм, головка {hw.M3_HEAD_D:g} x {hw.M3_HEAD_H:g} мм; "
+      f"длина = зажимаемая толщина + шайба + вход. Из подходящих длин берётся та, что дальше от обоих пределов. Количество каждой длины не больше {hw.STOCK_SHARE:g} запаса (запас - числа этикеток наборов, не остаток в коробках).")
+    w(f"  {'длина':8s} {'нужно':>6s} {'у владельца':>12s} {'допустимо':>10s}  где")
+    for length, (n, items) in sorted(sc["bill"].items()):
+        w(f"  M3 x {length:<3d} {n:6d} {hw.M3_SCREW_STOCK[length]:12d} {hw.STOCK_SHARE * hw.M3_SCREW_STOCK[length]:10.0f}  " + ", ".join(f"{k} {c}" for k, c in sorted(items.items())))
+    nscrew = sum(n for n, _ in sc["bill"].values())
+    w(f"  Всего {nscrew} винтов M3, {sc['washers']} шайб M3 (у владельца {hw.M3_WASHER_STOCK}, допустимо {hw.STOCK_SHARE * hw.M3_WASHER_STOCK:.0f}), "
+      f"{sc['inserts']} вставок M3 (у владельца {hw.M3_INSERT_STOCK}, допустимо {hw.STOCK_SHARE * hw.M3_INSERT_STOCK:.0f}): {nscrew} под винты с известной длиной и {sc['inserts'] - nscrew} под винты модуля front_io (PLACEHOLDER, свои).")
+    reliefs = [r for r in sc["rows"] if r["relief"] > 0]
+    w(f"  Рассверловки под вставкой (диаметр проходного, вставка открыта снизу): {len(reliefs)}" + (": " + ", ".join(f"{r['part']} {r['relief']:.1f} мм" for r in reliefs) if reliefs else " (ни одна длина набора не потребовала)")
+      + "; утопленные головки в стыках скелета: 0 (ни один стык не потребовал).")
+    t = sc["tightest"]
+    if t:
+        w(f"  Самый тугой стык: {t['part']}, {t['item']}, M3 x {t['length']} через {t['stack']:g} мм: вход {t['entry']:.2f} мм (нужно >= {hw.SCREW_ENGAGE_MIN:g}), до дна {t['depth'] - t['entry']:.2f} мм (нужно >= {hw.SCREW_BOTTOM_GAP:g}), "
+          f"запас до ближайшего предела {t['margin']:.2f} мм; таких стыков с запасом {min(r['margin'] for r in sc['rows']):.2f} мм: {sum(1 for r in sc['rows'] if abs(r['margin'] - t['margin']) < 1e-6)} (все через ребро 16 мм, M3 x 20 - единственная длина набора, которая подходит).")
+    w(f"  Штатные винты железа остаются: 6-32 у БП, радиаторов и диска 3.5 дюйма, M3 у платы и диска 2.5 дюйма. Стенка там, где она толще штатного винта, получает зенковку с тыла, под головкой {HW_SCREW_FLOOR:g} мм материала:")
+    for nm in ("psu_bulkhead", "visor_arm_right", "visor_arm_left"):
+        rr = [r for r in cbs if r[0] == nm]
+        if rr:
+            w(f"    {nm}: {len(rr)} зенковки Ø{CLEAR_KINDS['6-32cb'][0]:g} (головка 6-32 {hw.UNC6_HEAD_D:g} + {SLED_CB_PLAY:g}), под головкой {min(r[2] for r in rr):.2f} мм, штатный винт {rr[0][3]:g} мм входит {rr[0][4]:.1f} мм")
+    w(f"    ПРЕДПОЛОЖЕНИЯ, не измерены: штатный винт БП {hw.PSU_SCREW_LEN:g} мм (\"около 6 мм\") и штатный винт радиатора 360 {hw.RAD360_SCREW_LEN:g} мм (владелец радиатор не измерял); головка 6-32 {hw.UNC6_HEAD_D:g} x {hw.UNC6_HEAD_H:g} мм (как в DRIVE_FORMS).")
+    w("")
+    w(f"Подпорки GPU: gpu_post (левый торец, M3 x {screw_fit(GPU_POST_STACK)[0]} через beam_mid) + gpu_rest (палец правого ребра A, плоскость u = {hw.GPU_BS[2]:.1f}).")
     w("")
     w("Намеренные контакты с нулевым зазором, деталь x железо:")
     for a, b in sorted(res["contacts"]):
@@ -3219,7 +3470,7 @@ def format_report(hardware, parts, res, memo=None):
     w(f"  6. нижняя точка >= -15: минимум {lz:.2f}                      "
       + ("PASS" if not any(f.startswith('CHECK6') for f in res['failures']) else "FAIL"))
     w(f"  7. (доп.) связность, болты внутри контуров, {res['n_holes']} отверстий: полость пуста и стенка до поверхности "
-      f"и до соседних отверстий >= 2.1 мм (M4/M4S/M4 проходное/M5) или 1.6 мм (M3, 6-32)   "
+      f"и до соседних отверстий >= {hw.M3_MIN_WALL:g} мм (вставка M3, проходные M3 и 6-32, зенковки и рассверловки)   "
       + ("PASS" if not any(f.startswith('CHECK7') for f in res['failures']) else "FAIL"))
     ev = res["envelope"]
     w(f"  8. огибающая |X| <= {hw.ENVELOPE_X:g}, Y >= {hw.ENVELOPE_Y0:g}: детали max |X| {ev['parts'][0]:.1f} ({ev['parts'][1]}), "
@@ -3275,6 +3526,13 @@ def format_report(hardware, parts, res, memo=None):
           f"n {min(p4['webs'], key=lambda r: r[1])[3][0]:.0f}..{min(p4['webs'], key=lambda r: r[1])[3][1]:.0f}); под низом вентиляторов (n {hw.RAD420_FAN_N[0]:g}) на {CHORD_FAN_GAP:g} мм материала антлеров нет "
           f"(наибольший объём {max(v for _, v in p4['underside']):.2f} мм³)   "
           + ("PASS" if not any(f.startswith('CHECK14') for f in res['failures']) else "FAIL"))
+    sc, cbs = res["screws"], res["counterbores"]
+    w(f"  15. (доп., ревизия 12) винты M3 владельца: у каждого из {len(sc['rows'])} пилотов со стеком зажатая толщина измерена по телам (проходные отверстия на оси и материал вокруг них, или железо: плата, вентилятор), "
+      f"длина из набора (вход >= {hw.SCREW_ENGAGE_MIN:g} мм, до дна >= {hw.SCREW_BOTTOM_GAP:g} мм), шайба Ø{hw.M3_WASHER_D:g} лежит на грани детали целиком, каждая длина не больше {hw.STOCK_SHARE:g} запаса, вставок {sc['inserts']} из {hw.M3_INSERT_STOCK} (не больше {hw.STOCK_SHARE * hw.M3_INSERT_STOCK:.0f}), "
+      f"шайб {sc['washers']} из {hw.M3_WASHER_STOCK}   "
+      + ("PASS" if not any(f.startswith('CHECK15') for f in res['failures']) else "FAIL"))
+    w(f"  16. (доп., ревизия 12) зенковки под штатные винты 6-32: {len(cbs)} (БП {sum(1 for r in cbs if r[0] == 'psu_bulkhead')}, 360 {sum(1 for r in cbs if r[0] != 'psu_bulkhead')}), под головкой измерено {min((r[2] for r in cbs), default=0):.2f}..{max((r[2] for r in cbs), default=0):.2f} мм (нужно {HW_SCREW_FLOOR:g})   "
+      + ("PASS" if not any(f.startswith('CHECK16') for f in res['failures']) else "FAIL"))
     w("")
     w("Скругление (ревизии 8 и 8a)")
     ref = reference_parts()
@@ -3337,7 +3595,7 @@ def format_report(hardware, parts, res, memo=None):
           f"u {ls[2]:g}..{ls[3]:g}, n {ls[4]:.2f}..{ls[5]:.2f}) плюс {SILL_CHANNEL_PLAY:g} мм, насквозь через оба торца порога (дышит); щель {hw.LIGHT_LINE_W:g} мм от канала к лицу "
           f"(диффузор {hw.LIGHT_DIFFUSER_T:g} мм из прозрачного PLA сядет в неё; посадочного места под диффузор пока нет). Ленка до {hw.LIGHT_STRIP_W_MAX:g} мм стоит на ABS, "
           f"от светодиодов до диффузора не меньше {hw.LIGHT_LED_TO_DIFFUSER_MIN:g} мм (в канале глубиной {hw.LIGHT_STRIP_SECTION[1]:g} мм это держится только при диффузоре в щели стенки, не в канале).")
-        w(f"  Крепление к beam_front: {len(SILL_BOLTS)} x M4 снизу (проходные Ø{hw.M4_CLEAR_D:g} в beam_front, вставки M4 в нижней грани порога), по 2 в каждом концевом блоке: "
+        w(f"  Крепление к beam_front: {len(SILL_BOLTS)} x M3 x {screw_fit(SILL_STACK)[0]} снизу (проходные Ø{hw.M3_CLEAR_D:g} в beam_front, вставки M3 в нижней грани порога, шайба под головкой), по 2 в каждом концевом блоке: "
           + ", ".join(f"(X {x:g}, Y {y:g})" for x, y in SILL_BOLTS) + ".")
         wx0, wx1, wz0, wz1 = g["window_xz"]
         w(f"  Окно для кабелей в задней стенке (PLACEHOLDER, как модуль): X {wx0:g}..{wx1:g}, Z {wz0:g}..{wz1:g} насквозь через стенку {SILL_REAR_WALL:g} мм (Y {g['y_rear'] - SILL_REAR_WALL:g}..{g['y_rear']:g}), углы R {SILL_WINDOW_R:g}. "
@@ -3750,20 +4008,38 @@ DEVIATIONS: list[str] = [
     "(4) Контур и скругление: вырезы вентиляторов в контур не входят (галтели в углах лыска-круг ограничены вырезом: r 2, не 8; 0.01 мм³ в вырезе); углы языка на u 338 и 388 у хорды не скругляются (одна грань с хордой); галтель язык-хорда r 4 (больше закрыла бы подход к головке винта M4). Буттресс ревизии 10 и звено языка убраны вместе со старой пластиной 10 мм.",
     "(5) КОНЦЕВОЕ РЕБРО, которого нет в спецификации: полоса X 222..228, u 351..378, n -17..124 на задней грани пластины у конца радиатора (за концом вентиляторов, X > 210; со стороны сердцевины концевой бачок). Измерено, зачем: без него (strength.py, радиатор как жёсткое тело, среднее по пятну 9.5 мм, шаг 7 и 1.5 мм) концевая полоса пластины 3 x 20 мм несёт вес верхних винтов как консоль: 7.9 МПа при допустимых 6.7 (запас 0.8), прогиб у верхнего внешнего винта 15.8 мм, у тела радиатора 6.5 мм. С ребром (сечение уголком, момент инерции в 220 раз больше) наибольшее напряжение в пластине, хорде и языке 2.3 МПа (мелкая сетка 2.4), прогиб 2.4 и 1.1 мм. Ребро доходит до u 378 (задняя грань вентиляторов) и не выше n 124: по Z оно вровень с верхом 420 (385.0), не выше. Масса антлера 71.5 г при 20 % (первый проход 84.9 г, без ребра 56.5 г).",
     "(6) strength.py, ревизия 11 проход 2: радиатор стал телом в модели (E 10000 МПа, паяная алюминиевая сборка; чувствительность к E в отчёте), связанным с пластинами в 12 винтах по пятну Ø9.5 мм (RAD420_SCREW_PATCH_D, ДОПУЩЕНИЕ: шайба #6), вес вдоль уклона - объёмная сила на теле (центр масс), кредл как раньше. Судится случай «stiff» (среднее перемещение по пятну с весами по площади): прямая жёсткая привязка узлов давала у края пятна напряжение, растущее с измельчением сетки (7.1 -> 12.4 МПа при 2.5 -> 1.5 мм до ребра), поэтому она осталась как проверка чувствительности («stiff-rigid»: 2.8 МПа, прогиб 2.1 мм). Случай «point» (старая модель, 12 точечных нагрузок, радиатор без жёсткости) на этой геометрии даёт 42 МПа на нижней кромке пластины и прогиб 90 мм: без хорды при |X| < 158 восемь из двенадцати винтов тянут консоль без опоры. Это и есть довод в пользу тела: настоящий радиатор передаёт вес на внешние винты. Первый проход (хорда на всю длину, точки): перемычка 15.7 МПа, прогиб 12.2 мм.",
+    "Ревизия 12, всё на M3 (docs/plans/fasteners-m3.md, «Revision 12: spec»). Каждый винт между печатными деталями - M3 с цилиндрической головкой из набора владельца во вставку M3, шайба под головкой (на плате без шайбы: головка на текстолите); "
+    "M4 и M4S нет нигде. Виды отверстий: M3 (пилот вставки), M3c (проходное Ø3.4), 6-32c (проходное Ø4.0 для штатных винтов БП, радиаторов, диска 3.5 дюйма; прежнее M3c было общим для M3 и 6-32), M3r (рассверловка под пилотом, диаметр проходного), "
+    "6-32cb (зенковка под головку штатного винта 6-32). Hole получил поля stack, washer, item: у пилота записана зажатая толщина, длина винта выбирается screw_fit (из hardware.M3_SCREW_STOCK, из подходящих длин берётся дальше от обоих пределов: вход >= 3.5, до дна >= 0.5). "
+    "Проверка 15 измеряет зажатую толщину по телам (проходные отверстия на оси и материал вокруг, или железо: плата, вентилятор) и считает остатки: каждая длина <= 4/5 запаса, вставки <= 176 из 220, шайбы <= 304 из 380. Проверка 16 измеряет дно под зенковками. "
+    "Результат: 95 винтов M3 (M3 x 6 9, x 8 11, x 10 12, x 12 2, x 14 6, x 16 6, x 18 4, x 20 30, x 25 6, x 30 5, x 40 4), 86 шайб, 97 вставок M3 (95 под винты с известной длиной и 2 под винты модуля front_io). Рассверловка под вставкой и утопленная головка не понадобились ни в одном стыке "
+    "(механизм есть: joint_pilots строит M3r, когда длины набора не хватает, test_checks.py его проверяет).",
+    "Ревизия 12, отступления и последствия, каждое измерено. (1) Контуры не менялись. Числа, которые выводились из размеров M4, оставлены числами: BRACKET_EAR 4.9 (ушко кронштейна), полуширина лапки 6.25 (теперь FAN_SIDE_HOLE_D / 2 + TAB_WALL, "
+    "FAN_SIDE_HOLE_D = 4.5 - собственное отверстие вентилятора, прежнее M4_CLEAR_D), SLED_FLANGE_HALF_X 7.0. (2) Стенка вокруг проходного отверстия была 2.1 мм (M4), стала 1.6 (M3). (3) СКРУГЛЕНИЕ ПОМЕНЯЛОСЬ САМО: кольца вокруг отверстий "
+    "стали меньше (пилот M4 R 2.8 + стенка 2.1 -> M3 R 2.0 + 1.6; четыре мм плоскости вокруг винта считаются от радиуса пилота, 6.8 -> 6.0 мм), поэтому скруглению разрешено больше: детали стали тяжелее на 0.1..1.4 см³ (ребро B +1.4, ребро A +1.2, beam_front +1.1; "
+    "общий объём 3089.8 -> 3100.8 см³), острых рёбер на плитах 64 из 156 (было 66). Плечи визора легче на 0.7 и 0.6 см³: зенковки. (4) Первая сборка не прошла CONTACT: у плеча визора (колено, u 294.5, n 88) в 4.0 мм от оси органического пилота шеи; "
+    "прежде колено держало кольцо болта соединения M4S (досягаемость 6.8 мм), теперь 6.0, и скругление колена съело 1.34 мм² из 9.08 плоского контакта в пределах 4 мм от этого винта. Исправление: build_arm_right передаёт скруглению оси органических пилотов шеи (hole_rings(holes + neck_pads)); "
+    "кольцо этого пилота лежит в X шеи и плеча не касается. Правило не ослаблено. (5) Зенковки под штатные винты: psu_bulkhead (4 шт., с тыла Y 381, Ø7.5, глубина 4.0, под головкой 2.0 мм; винт 6.0 мм входит в БП 4.0 мм) и плечи визора (по 2, снизу, глубина 12.0, под головкой 2.0 мм, в 14 мм плече). "
+    "ПРЕДПОЛОЖЕНИЯ: штатные винты 6.0 мм (hardware.PSU_SCREW_LEN, RAD360_SCREW_LEN), головка 6-32 6.7 x 2.5 (UNC6_HEAD_D, UNC6_HEAD_H). Проходное и зенковка стали двумя отверстиями (одно начинается на дне другого), чтобы проверка 7 мерила стенку каждого: "
+    "всего отверстий 207, было 199. (6) Пробные точки проверки 5 для БП и 360 стоят в дне под зенковкой (раньше на середине толщины). (7) Угол D правого бокового вентилятора (винт через лапку) по-прежнему без резьбы на дальнем конце, см. «Открыто». "
+    "(8) Салазки: отверстия под винты дисков теперь по резьбе диска (3.5 дюйма 6-32c Ø4.0, 2.5 дюйма M3c Ø3.4); зенковки не менялись. (9) beam_mid: торцевые пилоты M4S (5.0 мм) стали M3 (6.7 мм), стенка до проходных отверстий болтов gpu_post держится (проходные Ø4.5 стали Ø3.4); "
+    "нахлёст: пилот M4S в 8 мм половине A стал M3 6.7 мм, дна 1.3 мм (было 3.0); печать дна в 1.3 мм из 4 периметров по 0.4 держится, но запаса нет. (10) fit_gauges.py: G1, G2, G3 на UNC6_CLEAR_D, G6 на FAN_SIDE_HOLE_D, C2 только M3 (пилоты 3.8..4.6 и проходные 3.2..3.8 шагом 0.1, ABS).",
+    "Ревизия 12, органическая оболочка: материал PETG, запасной вариант ABS. organic_frame.py: PLA_RHO -> LAYER_RHO = 1.27 г/см³, PLA_GAP -> HOT_GAP (зазор 10 мм до карты и БП), толщина площадки PAD_H = hardware.ORGANIC_PAD_H (5.0, то, что зажимает винт); organic_strength.py: E 2000 МПа и 20 МПа поперёк слоёв, цифры ABS из strength.py, "
+    "запас 2 как прежде, допустимое 10 МПа (запускает главная сессия, здесь не запускался); drive_access.py: _pla_gap -> _hot_gap, сообщение «it must keep»; shell_concepts.py, render_full.py (LAYER_RGB): комментарии и имена. Ни один элемент оболочки не сдвинут (165 элементов), "
+    "но её поле считается вырезанием из каркаса, а каркас чуть другой (скругление, п. 3): объём слоя 1843 -> 1842 см³, крошек 1 -> 0.",
 ]
 OPEN_ITEMS: list[str] = [
     "Отсеки под диски: глубина штекера и изгиба кабеля за диском 25 мм (DRIVE_PLUG_ZONE) - ПРЕДПОЛОЖЕНИЕ, источника нет. Головки винтов, нижний предел входа 2.5 дюйма, резиновые втулки (нет размеров), кабели SATA (данные от платы, питание от БП), "
     "задняя органическая панель - не в этом проходе. Салазки весят около 100 г при 100 % и 75 г при 4 стенках и 20 %; устойчивость на ребре 5 x 20 мм скида (диск 3.5 дюйма около 0.7 кг на плече 16 мм от плоскости пластины) и крепление двумя M4 на сдвиг "
     "не считались. Запас прохода в левом отсеке 2° (28° из 30° с зоной штекеров).",
-    "ПРАВЫЙ боковой вентилятор: три винта из четырёх (A, C с внутренней грани в штифты M4S, D с внешней через лапку Ø4.5; ревизия 7a), угол B без винта: на внутренней грани "
+    "ПРАВЫЙ боковой вентилятор: три винта из четырёх (A, C с внутренней грани во вставки M3, D с внешней через лапку, проходное Ø3.4; ревизия 7a), угол B без винта: на внутренней грани "
     "он в 4.10 мм от шланга GPU (нужно 5), с внешней планка до него не достаёт. Винт лапки идёт снаружи, головка выйдет за |X| = 229 на 2-3 мм: владелец принял это как допуск 15.11.2026 "
     "(потайная головка не нужна, лапка 2.5 мм для неё тонка). Планка в 1.00 мм от бокса rad360_ports (воротники с запасом): если запас нужен больше, RAIL_INSET (1.0) можно увеличить: планка станет тоньше по X и уйдёт дальше от rad360_ports.",
-    "Боковые вентиляторы: винты идут с внешней грани через вентилятор 25 мм в вставки M4S кронштейна (глубина 5.0 мм, плита 10 мм), штатные винты вентиляторов коротки: "
-    "нужны M4 около 35 мм. Прочность хребта 6 мм и ног кронштейна, вибрация и вес вентилятора не считались. Кабели вентиляторов не проложены.",
+    "Боковые вентиляторы: винты M3 x 30 идут с внешней грани через вентилятор 25 мм (с шайбой) во вставки M3 кронштейна (глубина 6.7 мм, плита 10 мм), 5 штук (3 слева, 2 справа), штатные винты вентиляторов коротки и не нужны. Прочность хребта 6 мм и ног кронштейна, вибрация и вес вентилятора не считались. Кабели вентиляторов не проложены.",
     "Фронт: передних вентиляторов нет, плоскость Y = 0 теперь задают лапы рёбер A и beam_front, а не вентиляторы; ближайшее железо (угол карты) на Y 7.4, "
     "то есть передние лапы можно было бы убрать назад примерно на 7 мм, если порог Y >= 0 не нужен. Не менялось.",
     "Обслуживание (RAM, блок CPU): откидывать 360 нельзя, шарнира нет (visor_swing.py: с осью за верхней кромкой 360 упирается в 420 через 15-20°, "
-    "с осью на внешнем углу нижняя губа проходит через шланги CPU уже на 15°). Порядок: отвернуть 4 болта M4 (два на сторону, соединение плеча с шеей), "
+    "с осью на внешнем углу нижняя губа проходит через шланги CPU уже на 15°). Порядок: отвернуть 4 болта M3 x 18 (два на сторону, соединение плеча с шеей), "
     "поднять 360 вперёд; шланги дают около 100 мм (трасса GPU сжимается примерно до 331 и 352 мм из 450). Не проверено руками на настоящих шлангах.",
     "Опрокидывающая нагрузка: вес 420 разлагается на 0.71 вдоль n (прижим к кредлу) и 0.71 вдоль уклона (в сторону -u, вниз к плате); вдоль уклона и момент (центр масс n = 54, плоскость кредла n = -18, плечо 72 мм) держат только антлеры: 6 винтов 6-32 в пластине 3 мм между сердцевиной и вентиляторами, концевое ребро и язычок на двух болтах M4 каждый. strength.py 7 2, радиатор как жёсткое тело, 20 %: язык 2.05, хорда 2.31, корень пластины над хордой 2.21, перемычка между вентиляторами 0.16 МПа при допустимых 6.7; прогиб 420 2.4 мм у верхнего внешнего винта (случай точечных нагрузок: 42 МПа, 90 мм, он не судится). Не считалось: ползучесть пластины 3 мм под постоянной нагрузкой у тёплого радиатора, проскальзывание зажима плиты (трение зажатой между сердцевиной и рамкой), пятно Ø9.5 мм взято допущением.",
     "Длинные винты через вентиляторы (ревизия 11): винты идут с внешней грани через вентилятор 27 мм и пластину 3 мм в резьбу сердцевины, то есть на 3 мм длиннее штатных (6-32 x 34.9 мм, если штатные 32). Длину штатных винтов, резьбу (по отзывам 6-32 UNC) и полезную глубину резьбы в радиаторе ARCTIC не указывает: это замеры владельца. Вентиляторы нужно перенести на ту грань, где у радиатора воронки портов (чертёж ARCTIC), владелец подтвердил, что радиатор нарезан с обеих сторон.",
@@ -3783,7 +4059,7 @@ OPEN_ITEMS: list[str] = [
     "болты соединения шея-плечо; без него 41 ребро): владелец принял это 15.11.2026, ушки остаются острыми; 4 по доле 97 %; остальные стенка отверстия, не помещается 2 мм, группа рельса, ступени галтели.",
     "Скругление: концы коробчатых деталей (4 мм) остаются острыми ступеньками у торца; верх beam_front, верх полозьев и низ пластины БП остаются острыми (контакты); галтель ноги кронштейна 5.5 / 3.0 мм (ядро не берёт 8); "
     "beam_mid не скруглён у двух рёбер; направляющие шлангов (PA6) не скруглены (стенка канала); передний нижний угол порога острый (контакт с beam_front). Острые углы объяснены в списке 'Оставлено острым'. "
-    "Прочность на изгиб после скруглений не считалась.",
+    "Прочность на изгиб после скруглений не считалась. (Ревизия 12: острых рёбер 64 из 156, было 66.)",
     "ПОРОГ И МОДУЛЬ ВВОДА (ревизия 9), всё PLACEHOLDER до обмера модуля Fractal North XL: бокс front_io, два винта M3 в торцевые стенки кармана, положение канала light_strip, шаги портов (таблица в hardware.py, +-1 мм). "
     "Нужно обмерить: плату модуля (контур, толщину), крепёжные отверстия и винты, высоту разъёмов и на сколько они выступают, переключатель и выходит ли колпачок кнопки вместе с модулем, длины четырёх кабелей. "
     "Вырезов под порты в пороге нет: они режутся в коже 5 мм по грани после обмера.",
@@ -3793,7 +4069,14 @@ OPEN_ITEMS: list[str] = [
     "Винты порога к beam_front ставятся снизу, зазор до стола 5 мм (собирать до постановки на стол). Порог выступает на 7.4 мм за заднюю грань beam_front (Y 40 -> 47.4), до платы 12.6 мм. "
     "Порог не входит в проверку 12.",
     "PA6 (только две направляющие шлангов; мостики кабелей с 16.11.2026 из ABS, оболочка крепится винтами M3): сушить и печатать из сухой коробки, CFS при 65 % влажности для нейлона не годится; плотность 1.14 г/см³ принята по справочному значению, не по катушке. "
-    "PLA оболочка: держать не ближе 10 мм к видеокарте и БП и 4 мм к радиаторам и вентиляторам, нести только свой вес, крепиться к каркасу несколькими точками с зазором (разная усадка ABS и PLA): в этом файле её нет.",
+    "Ревизия 12, открыто: (1) вставка M3: наружный диаметр и длина вставок владельца (20 штук и 200 заказанных) не известны, пилот 4.0 x 6.7 со стенкой 1.6 - ПРЕДПОЛОЖЕНИЕ (hardware.M3_PILOT_D, M3_PILOT_DEPTH, M3_MIN_WALL), одно место; "
+    "длины винтов выбраны под глубину 6.7, при другой вставке их надо пересчитать (screw_fit), 30 стыков через ребро 16 мм сидят ровно на нижнем пределе входа 3.5 мм (M3 x 20 - единственная длина набора, которая подходит). "
+    "(2) Штатные винты 6-32 БП (6.0 мм) и радиатора 360 (6.0 мм) - ПРЕДПОЛОЖЕНИЯ (hardware.PSU_SCREW_LEN, RAD360_SCREW_LEN): владелец винт БП назвал как около 6 мм, винт 360 не измерял; от них зависит только глубина зенковок (под головкой 2.0 мм), "
+    "при другой длине зенковку надо пересчитать (HW_SCREW_FLOOR, ARM_T, BULK_T). Головка 6-32 6.7 x 2.5 - тоже предположение (как у винта диска 3.5 дюйма). "
+    "(3) Угол D правого бокового вентилятора: винт идёт с внешней грани через лапку (2.5 мм) и вентилятор (25 мм) и заканчивается в воздухе: во вставку ему некуда, внутри кронштейна в этом углу нет (шланги GPU в 4.10 мм). Это было так и с M4; "
+    "решение за владельцем: гайка M3 (их около 700) с внутренней стороны вентилятора или два винта вместо трёх (вентилятор держат A и C, проверка 5 требует три из четырёх). В ведомость этот винт не внесён. "
+    "(4) Винты 6-32 для вентиляторов 420 (по 6 на половину, 12 штук) и штатные винты 6-32 и M3 дисков и платы в ведомость не входят: они штатные.",
+    "Оболочка (PETG, запасной вариант ABS): держать не ближе 10 мм к видеокарте и БП и 4 мм к радиаторам и вентиляторам, нести только свой вес, крепиться к каркасу несколькими точками с зазором (разная усадка ABS и PETG): в этом файле её нет.",
 ]
 
 

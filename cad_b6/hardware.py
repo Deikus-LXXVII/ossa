@@ -359,19 +359,28 @@ PSU_HOLES = list(PSU_PATTERN)
 # PLACEHOLDER: n of the surface the card bracket's tab screws onto
 GPU_BRACKET_TAB_N = 108.0
 
-# Heat-set insert pilots (ruthex RX): diameter, depth, minimum wall around the pilot
+# Screws, washers and inserts (revision 12: every screw between printed parts is an M3 socket head cap screw into an M3 heat-set insert).
+# Pilot of an M3 insert: diameter, depth, minimum wall around it. ASSUMPTION until the owner gives the insert's outer diameter and length: ruthex's figures for its
+# M3 x 5.7 insert. This is the only place the pilot is written down.
 M3_PILOT_D, M3_PILOT_DEPTH, M3_MIN_WALL = 4.0, 6.7, 1.6
-M4_PILOT_D, M4_PILOT_DEPTH, M4_MIN_WALL = 5.6, 9.1, 2.1
-M4S_PILOT_D, M4S_PILOT_DEPTH, M4S_MIN_WALL = 5.6, 5.0, 2.1     # short RX-M4Sx4.0
-INSERTS = {
-    "M3": (M3_PILOT_D, M3_PILOT_DEPTH, M3_MIN_WALL),
-    "M4": (M4_PILOT_D, M4_PILOT_DEPTH, M4_MIN_WALL),
-    "M4S": (M4S_PILOT_D, M4S_PILOT_DEPTH, M4S_MIN_WALL),
-}
-M4_CLEAR_D = 4.5
-M3_CLEAR_D = 4.0                            # also 6-32
-M5_CLEAR_D = 5.5
-
+INSERTS = {"M3": (M3_PILOT_D, M3_PILOT_DEPTH, M3_MIN_WALL)}
+M3_CLEAR_D = 3.4                            # clearance hole of an M3 screw
+UNC6_CLEAR_D = 4.0                          # clearance hole of the 6-32 screws that come with the PSU, the radiators and a 3.5 inch drive
+FAN_SIDE_HOLE_D = 4.5                       # the side fans' own corner holes (the fit gauge G6 and the bracket's tab are drawn round them), not a screw's clearance
+M3_HEAD_D, M3_HEAD_H = 5.5, 3.0             # socket head cap screw (ISO 4762)
+M3_WASHER_D, M3_WASHER_T = 7.0, 0.5         # flat washer
+SCREW_ENGAGE_MIN = 3.5                      # a screw goes at least this deep into its insert
+SCREW_BOTTOM_GAP = 0.5                      # and stops at least this far short of the bottom of the hole
+# The owner's stock, M3 socket head cap screws by length in mm: count (docs/printer-and-materials.md, "Fasteners on hand": the counts are the kits' labels, not what is left in the boxes).
+M3_SCREW_STOCK = {4: 55, 5: 55, 6: 105, 8: 105, 10: 105, 12: 105, 14: 30, 16: 80, 18: 50, 20: 80, 25: 50, 30: 50, 35: 20, 40: 20}
+M3_WASHER_STOCK = 380                       # flat washers (80 + 300)
+M3_INSERT_STOCK = 220                       # 20 on hand at most + 200 ordered (owner's word, 16 Nov 2026)
+STOCK_SHARE = 0.8                           # a model may use at most this share of the stock of any length and of the inserts, a fifth stays spare
+ORGANIC_PAD_H = 5.0                         # the organic layer's pad under each screw head, thick along the screw
+# Hardware screws that stay: 6-32 for the PSU, the radiators and a 3.5 inch drive, M3 for the board and a 2.5 inch drive. Their head and length under the head.
+UNC6_HEAD_D, UNC6_HEAD_H = 6.7, 2.5         # ASSUMPTION: a pan head, the figure DRIVE_FORMS uses for the 3.5 inch drive's screw
+PSU_SCREW_LEN = 6.0                         # ASSUMPTION ("about 6 mm"): the PSU's 6-32 screw under its head; the bulkhead's 6 mm wall is counterbored to match
+RAD360_SCREW_LEN = 6.0                      # ASSUMPTION, not measured: the 360's 6-32 screw under its head; the owner has not measured the radiator's stock screw
 # Rear I/O aperture plus 50 mm for plugs and cable bend. Keep-out volume, not a component.
 IO_ZONE_BS = (-50, 0, 148.49, 307.24, -3.81, 40.64)
 # The port collars on the core face of the 420 (left-hand end) and on the inner face of the 360 (right-hand end),
@@ -448,7 +457,7 @@ SLAB_BEND = 15.0
 
 
 # ---------------------------------------------------------------------------
-# Fixings of the organic outer layer (PLA): twelve pads, six a side, each one M3 screw into a heat-set insert in an ABS part
+# Fixings of the organic outer layer: twelve pads, six a side, each one M3 screw into a heat-set insert in an ABS part
 # (docs/plans/cables-and-organic.md, "Skeleton pass 1"). name -> (part name, centre of the pad = the mouth of the insert pilot on the part's
 # outer face, world (X, Y, Z), sign along X of the face's outward normal). The pilot is cut by frame_v0.py along -sign * X into the part;
 # organic_frame.py puts its pads here and checks that each screw axis lies on a pilot. The rows are organic_frame.py's pads of the first

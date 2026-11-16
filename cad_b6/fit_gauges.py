@@ -52,8 +52,9 @@ NOTCH_W, NOTCH_D = 4.0, 6.0  # G4's notch at the PCIe slot line
 # coupons (plan, "Coupons")
 C1_LEG, C1_HOLE_D, C1_PITCH = 200.0, 4.0, 50.0
 C2_BLOCK_T = 8.0             # the plan's block thickness; a pilot deeper than it makes the block thicker (see build_c2)
-C2_PITCH, C2_ROW, C2_LABEL_W, C2_HEAD = 10.0, 10.0, 26.0, 9.0
-C2_STEPS = (-0.2, -0.1, 0.0, 0.1, 0.2)
+C2_PITCH, C2_ROW, C2_LABEL_W, C2_HEAD = 10.0, 10.0, 34.0, 9.0
+C2_PILOT_STEPS = tuple(round(-0.2 + 0.1 * k, 1) for k in range(9))      # added to the M3 pilot's diameter: 3.8 to 4.6 mm while the pilot is 4.0
+C2_CLEAR_STEPS = tuple(round(-0.2 + 0.1 * k, 1) for k in range(7))      # added to the M3 clearance diameter: 3.2 to 3.8 mm while it is 3.4
 C2_HORIZ_H, C2_HORIZ_LABEL = 10.0, 8.0
 C3_LEN = 20.0                # slice length along the hose
 
@@ -306,8 +307,8 @@ def build_g1():
     ports = [hoses.world_to_bs(h["pts"][-1]) for h in hoses.routes()["cpu"][0]]
     ports_xy = [(p[0] - v0, p[2] - n0) for p in ports]
     length = max(h[0] for h in holes) + STRIP / 2
-    s, log = end_plate(length, n1 - n0, holes, hw.M3_CLEAR_D, ports_xy, "G1 rad420_ports_end", (62.0, 24.0))
-    it = Item("G1_rad420_ports_end", "G1 rad420_ports_end", "PLA", s, frame, (hw.M3_CLEAR_D / 2,), log)
+    s, log = end_plate(length, n1 - n0, holes, hw.UNC6_CLEAR_D, ports_xy, "G1 rad420_ports_end", (62.0, 24.0))
+    it = Item("G1_rad420_ports_end", "G1 rad420_ports_end", "PLA", s, frame, (hw.UNC6_CLEAR_D / 2,), log)
     it.notes.append(f"port slots from the last points of the CPU hoses: x = {ports_xy[0][0]:.2f} (RAD420_PORT_INSET {hw.RAD420_PORT_INSET}), "
                     f"y = {ports_xy[0][1]:.2f} and {ports_xy[1][1]:.2f}, {ports_xy[1][1] - ports_xy[0][1]:.2f} apart "
                     f"(2 x RAD420_PORT_HALF_SPACING = {2 * hw.RAD420_PORT_HALF_SPACING:.2f}); slot radius {hw.RAD420_PORT_D / 2 + CLEARANCE:g}")
@@ -323,8 +324,8 @@ def build_g2():
     ports = [hoses.world_to_bs(h["pts"][-1]) for h in hoses.routes()["gpu"][0]]
     ports_xy = [(v1 - p[0], p[1] - u0) for p in ports]
     length = max(h[0] for h in holes) + STRIP / 2
-    s, log = end_plate(length, u1 - u0, holes, hw.M3_CLEAR_D, ports_xy, "G2 rad360_ports_end", (50.0, 24.0))
-    it = Item("G2_rad360_ports_end", "G2 rad360_ports_end", "PLA", s, frame, (hw.M3_CLEAR_D / 2,), log)
+    s, log = end_plate(length, u1 - u0, holes, hw.UNC6_CLEAR_D, ports_xy, "G2 rad360_ports_end", (50.0, 24.0))
+    it = Item("G2_rad360_ports_end", "G2 rad360_ports_end", "PLA", s, frame, (hw.UNC6_CLEAR_D / 2,), log)
     it.notes.append(f"port slots from the last points of the GPU hoses: x = {ports_xy[0][0]:.2f} (RAD360_PORT_INSET {hw.RAD360_PORT_INSET}), "
                     f"y = {ports_xy[0][1]:.2f} and {ports_xy[1][1]:.2f}, {ports_xy[1][1] - ports_xy[0][1]:.2f} apart "
                     f"(hoses.GPU_PORT_PITCH x 2 = {2 * hoses.GPU_PORT_PITCH:.2f}; the 420's 2 x RAD420_PORT_HALF_SPACING = {2 * hw.RAD420_PORT_HALF_SPACING:.2f}); slot radius {hw.RAD420_PORT_D / 2 + CLEARANCE:g}")
@@ -339,14 +340,14 @@ def build_g3():
     w, h = hw.PSU_W[1] - hw.PSU_W[0], hw.PSU_W[5] - hw.PSU_W[4]
     frame = Frame(Vector(hw.PSU_W[1], hw.PSU_REAR_Y, hw.PSU_W[4]), Vector(-1, 0, 0), Vector(0, 0, 1))      # seen from behind: x to the right = world -X
     strips = [(0, STRIP, 0, h), (w - STRIP, w, 0, h), (0, w, 0, STRIP), (0, w, h - STRIP, h)]
-    d = hw.M3_CLEAR_D                                     # 6-32, the clearance the skeleton's own PSU holes use
+    d = hw.UNC6_CLEAR_D                                   # 6-32, the clearance the skeleton's own PSU holes use
     for (x, y) in hw.PSU_PATTERN_FACE:
         assert on_strips(strips, x, y, d / 2), f"PSU hole ({x}, {y}) is not on a strip"
     s = fuse_rects(strips)
     s = one_solid(s.cut(*[disc(x, y, d / 2) for (x, y) in hw.PSU_PATTERN_FACE]), "G3")
     s, log = engrave(s, texts=[("G3 psu_rear", 16.0, STRIP / 2)], arrows=[(w - STRIP / 2, 40.0, -90.0, 14.0)])
     it = Item("G3_psu_rear", "G3 psu_rear", "PLA", s, frame, (d / 2,), log)
-    it.notes.append(f"outline {w:g} x {h:g} from PSU_W; hole pattern PSU_PATTERN_FACE from the lower-left corner seen from behind; holes at M3_CLEAR_D ({d:g}), the 6-32 clearance of psu_bulkhead")
+    it.notes.append(f"outline {w:g} x {h:g} from PSU_W; hole pattern PSU_PATTERN_FACE from the lower-left corner seen from behind; holes at UNC6_CLEAR_D ({d:g}), the 6-32 clearance of psu_bulkhead")
     return it
 
 
@@ -429,14 +430,14 @@ def build_g6():
     holes = [(u - u0, n - n0) for (u, n) in hw.FAN_SIDE_HOLES_UN.values()]
     tab = (20.0, size - 20.0, -STRIP, 1.0)
     s = rect(0, size, 0, size).fuse(rect(*tab)).clean()
-    d = hw.M4_CLEAR_D
+    d = hw.FAN_SIDE_HOLE_D
     for (x, y) in holes:
         assert on_strips([(0, size, 0, size)], x, y, d / 2), "fan hole is outside the plate"
     cuts = [disc(size / 2, size / 2, hw.FAN_APERTURE_D / 2)] + [disc(x, y, d / 2) for (x, y) in holes]
     s = one_solid(s.cut(*cuts), "G6")
     s, log = engrave(s, texts=[("G6 fan140", 26.0, -STRIP / 2 + 0.5)], arrows=[(size - 26.0, -STRIP / 2 + 0.5, 180.0, 28.0)])
     it = Item("G6_fan140", "G6 fan140", "PLA", s, frame, (d / 2,), log)
-    it.notes.append(f"outer {size:g} x {size:g} (FAN_SIDE_U/N), holes at FAN_SIDE_HOLES_UN (pitch {hw.FAN_PITCH}) at M4_CLEAR_D {d:g}, open circle {hw.FAN_APERTURE_D:g}; label tab below the plate; arrow towards low u")
+    it.notes.append(f"outer {size:g} x {size:g} (FAN_SIDE_U/N), holes at FAN_SIDE_HOLES_UN (pitch {hw.FAN_PITCH}) at FAN_SIDE_HOLE_D {d:g}, open circle {hw.FAN_APERTURE_D:g}; label tab below the plate; arrow towards low u")
     return it
 
 
@@ -482,37 +483,33 @@ def build_c1():
 
 
 def build_c2():
-    """Pilot ladders for each insert, clearance ladders for each screw, and a small block with the nominal pilots horizontal."""
-    keys = list(hw.INSERTS)
-    clears = [("M3c", hw.M3_CLEAR_D), ("M4c", hw.M4_CLEAR_D), ("M5c", hw.M5_CLEAR_D)]
-    floor = C2_BLOCK_T - hw.M3_PILOT_DEPTH                    # what the plan leaves under the shortest-but-one pilot (M3)
-    depth_max = max(d for (_, d, _) in hw.INSERTS.values())
-    thick = max(C2_BLOCK_T, depth_max + floor)
-    nrows = len(keys) + len(clears)
-    width = C2_LABEL_W + len(C2_STEPS) * C2_PITCH
-    height = C2_HEAD + nrows * C2_ROW
-    col_x = [C2_LABEL_W + C2_PITCH * (k + 0.5) for k in range(len(C2_STEPS))]
+    """The M3 insert's ladders: a row of pilot diameters (blind, to the pilot's depth) and a row of clearance holes for the M3 screw, round the model's own figures, and a small
+    block with the nominal pilot horizontal. The rows hold the steps C2_PILOT_STEPS and C2_CLEAR_STEPS added to hw.M3_PILOT_D and hw.M3_CLEAR_D."""
+    dia, depth, _ = hw.INSERTS["M3"]
+    rows = [("pilot", dia, C2_PILOT_STEPS, depth), ("clear", hw.M3_CLEAR_D, C2_CLEAR_STEPS, None)]
+    floor = C2_BLOCK_T - depth                                 # what the plan leaves under the pilot
+    thick = max(C2_BLOCK_T, depth + floor)
+    ncols = max(len(steps) for _, _, steps, _ in rows)
+    row_h = C2_ROW + C2_HEAD                                   # holes, then the row of diameters over them
+    width = C2_LABEL_W + ncols * C2_PITCH
+    height = len(rows) * row_h
     block = Solid.makeBox(width, height, thick, Vector(0, 0, 0))
     cuts, texts, marks, specs = [], [], [], []
-    for r, key in enumerate(keys):                             # pilots: blind, from the top face, to the table's depth
-        dia, depth, _ = hw.INSERTS[key]
-        y = C2_ROW * (nrows - 1 - r) + C2_ROW / 2
-        for k, dd in enumerate(C2_STEPS):
-            cuts.append(Solid.makeCylinder((dia + dd) / 2, depth + 1.0, Vector(col_x[k], y, thick - depth), Vector(0, 0, 1)))
-            specs.append((f"pilot {key}", col_x[k], y, dia + dd, depth))
-        texts.append((f"{key} {dia:.1f}", 2.0, y, 0.0))
-        marks.append((col_x[C2_STEPS.index(0.0)], y + 3.9))
-    for r, (key, dia) in enumerate(clears):
-        y = C2_ROW * (len(clears) - 1 - r) + C2_ROW / 2
-        for k, dd in enumerate(C2_STEPS):
-            if dd in (-0.1, 0.1):
-                continue
-            cuts.append(Solid.makeCylinder((dia + dd) / 2, thick + 2.0, Vector(col_x[k], y, -1.0), Vector(0, 0, 1)))
-            specs.append((f"clear {key}", col_x[k], y, dia + dd, None))
-        texts.append((f"{key} {dia:.1f}", 2.0, y, 0.0))
-        marks.append((col_x[C2_STEPS.index(0.0)], y + 3.9))
-    for k, dd in enumerate(C2_STEPS):
-        texts.append(("0" if dd == 0 else f"{dd:+.1f}".replace("0.", "."), col_x[k] - 2.5, height - C2_HEAD / 2))
+    for r, (what, nominal, steps, hole_depth) in enumerate(rows):
+        y0 = row_h * (len(rows) - 1 - r)
+        y = y0 + C2_ROW / 2
+        for k, dd in enumerate(steps):
+            x = C2_LABEL_W + C2_PITCH * (k + 0.5)
+            d_k = nominal + dd
+            if hole_depth is not None:                         # pilots: blind, from the top face, to the table's depth
+                cuts.append(Solid.makeCylinder(d_k / 2, hole_depth + 1.0, Vector(x, y, thick - hole_depth), Vector(0, 0, 1)))
+            else:                                              # clearance holes go through
+                cuts.append(Solid.makeCylinder(d_k / 2, thick + 2.0, Vector(x, y, -1.0), Vector(0, 0, 1)))
+            specs.append((f"{what} M3", x, y, d_k, hole_depth))
+            texts.append((f"{d_k:.1f}", x - 3.0, y0 + C2_ROW + C2_HEAD / 2))
+            if abs(dd) < 1e-9:
+                marks.append((x, y + 3.9))
+        texts.append((f"M3 {what} {nominal:.1f}", 2.0, y))
     block = block.cut(*cuts)
     block, log = engrave(block, texts=texts, z_top=thick)
     tri = []
@@ -521,26 +518,24 @@ def build_c2():
         tri.append(t.translate(Vector(x, y, 0)))
     block = block.cut(*tri)
     log.append(f"{len(tri)} nominal-hole triangles")
-    # second block: the three nominal pilots, axes along +Y, blind from the y = 0 face
+    # second block: the nominal pilot, axis along +Y, blind from the y = 0 face
     pitch = 12.0
-    wx = pitch * len(keys)
-    ylen = depth_max + floor + C2_HORIZ_LABEL
+    wx = pitch
+    ylen = depth + floor + C2_HORIZ_LABEL
     small = Solid.makeBox(wx, ylen, C2_HORIZ_H, Vector(width + 8.0, 0, 0))
-    hcuts = []
-    for i, key in enumerate(keys):
-        dia, depth, _ = hw.INSERTS[key]
-        hcuts.append(Solid.makeCylinder(dia / 2, depth + 1.0, Vector(width + 8.0 + pitch * (i + 0.5), -1.0, C2_HORIZ_H / 2), Vector(0, 1, 0)))
-        specs.append((f"horizontal {key}", width + 8.0 + pitch * (i + 0.5), 0.0, dia, depth))
-    small = small.cut(*hcuts)
-    small_texts = [(key, width + 8.0 + pitch * (i + 0.5) - 4.5, depth_max + floor + C2_HORIZ_LABEL / 2) for i, key in enumerate(keys)]
-    small, log2 = engrave(small, texts=small_texts, z_top=C2_HORIZ_H)
+    small = small.cut(Solid.makeCylinder(dia / 2, depth + 1.0, Vector(width + 8.0 + pitch / 2, -1.0, C2_HORIZ_H / 2), Vector(0, 1, 0)))
+    specs.append(("horizontal M3", width + 8.0 + pitch / 2, 0.0, dia, depth))
+    small, log2 = engrave(small, texts=[("M3", width + 8.0 + pitch / 2 - 4.5, depth + floor + C2_HORIZ_LABEL / 2)], z_top=C2_HORIZ_H)
     solid = cq.Compound.makeCompound([one_solid(block, "C2 block"), one_solid(small, "C2 small block")])
     it = Item("C2_insert_ladder", "C2 insert_ladder", "ABS", solid, None, (), log + log2)
     it.specs = specs
     it.thick = thick
-    it.notes.append(f"main block {width:g} x {height:g} x {thick:g}: the plan says 8 mm but the M4 pilot is {hw.M4_PILOT_DEPTH} deep, so the block is {depth_max:g} + {floor:g} (the floor the plan leaves under the M3 pilot) = {thick:g} thick; holes vertical")
-    it.notes.append(f"rows top to bottom: {', '.join(keys)} pilots (blind, table depth), then {', '.join(k for k, _ in clears)} through holes (-0.2, 0, +0.2); columns -0.2 -0.1 0 +0.1 +0.2; a triangle marks the nominal hole of each row")
-    it.notes.append(f"small block {wx:g} x {ylen:g} x {C2_HORIZ_H:g} at x {width + 8:g}: the nominal pilots of {', '.join(keys)} along +Y from its y = 0 face; print both blocks flat")
+    pil = [dia + dd for dd in C2_PILOT_STEPS]
+    clr = [hw.M3_CLEAR_D + dd for dd in C2_CLEAR_STEPS]
+    it.notes.append(f"main block {width:g} x {height:g} x {thick:g}: the plan's 8 mm block with the M3 pilot {depth:g} deep (hardware.M3_PILOT_DEPTH, an assumption until the owner gives the insert's length), {floor:g} mm of floor under it")
+    it.notes.append(f"rows top to bottom: M3 pilots {pil[0]:.1f} to {pil[-1]:.1f} mm in steps of 0.1 (blind, {depth:g} deep), then M3 clearance holes {clr[0]:.1f} to {clr[-1]:.1f} mm in steps of 0.1 (through); "
+                    f"the diameter is engraved over each hole and a triangle marks the nominal one ({dia:g} and {hw.M3_CLEAR_D:g})")
+    it.notes.append(f"small block {wx:g} x {ylen:g} x {C2_HORIZ_H:g} at x {width + 8:g}: the nominal pilot along +Y from its y = 0 face; print both blocks flat")
     return it
 
 
@@ -641,7 +636,7 @@ def coupon_checks(items: dict, parts_by_name: dict):
             c_in, c_out = Vector(x + r - 0.03, y, z), Vector(x + r + 0.03, y, z)
         if inside(c2.solid, c_in) or not inside(c2.solid, c_out) or not inside_at_floor or not empty_above:
             bad.append(f"{what} {dia:.2f}")
-    c2.checks.append((not bad, f"{len(c2.specs)} holes probed (diameter and blind depth against hardware.INSERTS / clearance table)" + (f"; FAILED: {bad}" if bad else "")))
+    c2.checks.append((not bad, f"{len(c2.specs)} holes probed (diameter and blind depth against hardware.INSERTS and M3_CLEAR_D)" + (f"; FAILED: {bad}" if bad else "")))
     c3 = items["C3"]
     part = parts_by_name["hose_guide_cpu"]
     r_ch = hw.CPU_HOSE_R + fv.GUIDE_PLAY

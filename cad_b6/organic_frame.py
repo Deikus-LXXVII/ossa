@@ -5,7 +5,7 @@ Run:  .venv/bin/python cad_b6/organic_frame.py
 Out:  previews/b6_shell_organic_<view>.png, cad_b6/report_organic.txt, out/organic/field.npz
 
 The skeleton in frame_v0.py holds every component and is shown in light grey. The organic layer
-(dark, PLA) is decoration fixed to the skeleton: bones that frame the fans and trace the outer form,
+(dark, PETG, ABS the fallback) is decoration fixed to the skeleton: bones that frame the fans and trace the outer form,
 and films of strands pulled across the open spaces. The fans set its level: it lies in the planes of
 their outer faces. It carries no component.
 
@@ -37,7 +37,7 @@ import frame_v0                                # after shell_concepts: cadquery 
 
 K = 15.0                                   # blend radius at the joints
 VOX = 1.5                                  # grid step of the one field, mm
-PLA_RHO = 1.24                             # g/cm3
+LAYER_RHO = 1.27                           # g/cm3, PETG (ABS, the fallback, is 1.04)
 
 # Strength rules (docs/plans/cables-and-organic.md): nothing thinner than these.
 STRAND_R_MID = (3.0, 3.6)                  # film strand radius at mid-span (was 1.7..2.3)
@@ -52,7 +52,7 @@ CRUMB_CM3 = 6.0                            # loose pieces smaller than this (one
 MIN_THICK = 4.5                            # carving leaves slivers; whatever is thinner than this is removed
 
 # Fixings to the skeleton
-PAD_R, PAD_H = 8.0, 5.0                    # pad disc on a skeleton face
+PAD_R, PAD_H = 8.0, hw.ORGANIC_PAD_H      # pad disc on a skeleton face; its thickness is what the screw clamps, so it is hardware.py's
 SCREW_R, HEAD_R, HEAD_REACH = 1.75, 3.6, 45.0   # M3 clearance through the pad; head and driver channel above it
 KNOT_R = 10.0                              # a knot of material round every pad, so the driver channel leaves walls even where a bone lies on the pad
 DRIVER_FREE = 11.0                         # beyond the knot no bone's centre line may come this close to the screw axis (the channel would cut it)
@@ -76,8 +76,8 @@ FAN360_N = hw.RAD360_BS[5]                 # outer face of the 360's fans
 FACE_N = FAN360_N - 6.5                    # centre line of a bone lying flush with that face
 LIP_U = hw.RAD360_BS[2] - 6.5              # just below the 360's lower edge
 CARD_N = hw.GPU_BS[5]                      # the card's outer edge
-PLA_GAP = 10.0                             # PLA keeps this far from the graphics card and the PSU
-CARD_BONE_U, CARD_BONE_N = 118.0, CARD_N + PLA_GAP + 8.0   # a bone over the card's top edge, clear of it
+HOT_GAP = 10.0                             # the layer keeps this far from the graphics card and the PSU, which run hot
+CARD_BONE_U, CARD_BONE_N = 118.0, CARD_N + HOT_GAP + 8.0   # a bone over the card's top edge, clear of it
 SWEEP_X = 170.0                            # the flank sweeps pass this far out, clear of the card's ends
 TOP_FILM_L_U0 = 186.0                      # left fan, film from the ring's top to the side bone: first thread past the CPU hoses (hose b at u 170 + 6.2 + GAP_HW + a thread's radius)
 SILL = frame_v0.sill_geometry()            # the skeleton's front sill: section (Y, Z), the light slit's cutter
@@ -264,7 +264,7 @@ def film_list():
 # ---------------------------------------------------------------------------
 # Fixings: pads on skeleton faces. Their places are hardware.ORGANIC_PADS (name -> part, centre on the part's outer face, side), the
 # single source: the skeleton cuts an M3 insert pilot at each. Here is only what ties a pad to its bone: the bone's name (None takes the nearest).
-# A pad also keeps clear of every other part, the hardware (PLA_GAP from the card and the PSU) and the hoses, and has a free line for the driver;
+# A pad also keeps clear of every other part, the hardware (HOT_GAP from the card and the PSU) and the hoses, and has a free line for the driver;
 # place_anchors fails if a pad of the table does not. (The right rib's upper front arm cannot take one: it is 2 mm from the card. Tried and
 # dropped: the visor arms, whose outward face is a 10 mm edge, and the neck's lower half, which hoses, the 420 and the rib close in.)
 # ---------------------------------------------------------------------------
@@ -335,7 +335,7 @@ def pad_clear(part, q, s, parts, hware):
         if p is not part and p.solid.distance(pad) < 1.0:
             return f"less than 1 mm from {p.name}"
     for k, solid in hware.items():
-        need = 5.0 if k in hw.HOSES else PLA_GAP if k in ("gpu", "psu") else GAP_HW
+        need = 5.0 if k in hw.HOSES else HOT_GAP if k in ("gpu", "psu") else GAP_HW
         if k in hw.KEEP_OUT and k not in hw.HOSES:
             continue
         if solid.distance(pad) < need:
@@ -528,8 +528,8 @@ def build(parts, hware, vox=VOX):
     # carve back from everything that is not the layer
     for b in (hw.RAD360_BS, hw.RAD420_ENV_BS, hw.BOARD_BS):
         F.carve_bs_box(b, GAP_HW)
-    F.carve_bs_box(hw.GPU_BS, PLA_GAP)
-    F.carve_world_box(hw.PSU_W, PLA_GAP)
+    F.carve_bs_box(hw.GPU_BS, HOT_GAP)
+    F.carve_world_box(hw.PSU_W, HOT_GAP)
     for name in hw.FAN_SIDE_NAMES:
         F.carve_bs_box(hw.fan_side_bs(name), GAP_HW)
     for b in (hw.DIMMS_BS, hw.IO_ZONE_BS, hw.ATX24_BS, hw.EPS_BS):
@@ -605,7 +605,7 @@ def check(F, anchors, parts, hware, lines):
     sizes = ndimage.sum(solid, lab, index=np.arange(1, n + 1)) * F.vox ** 3 / 1000.0
     order = np.argsort(sizes)[::-1]
     main = int(order[0]) + 1
-    out.append(f"Объём слоя {sizes.sum():.0f} см³, {sizes.sum() * PLA_RHO:.0f} г сплошного PLA; связных кусков {n}: "
+    out.append(f"Объём слоя {sizes.sum():.0f} см³, {sizes.sum() * LAYER_RHO:.0f} г сплошного PETG; связных кусков {n}: "
                + ", ".join(f"{sizes[i]:.1f}" for i in order[:8]) + " см³" + (" ..." if n > 8 else ""))
     if n > 1:
         loose = []
@@ -629,7 +629,7 @@ def check(F, anchors, parts, hware, lines):
         off = min((float(np.linalg.norm(np.array(h.point(frame_v0.OVERSHOOT)) - q)) for h in by_part[a["part"]].holes if h.kind == "M3" and h.pilot), default=float("nan"))
         out.append(f"{a['name']:14} {a['part']:18} {q[0]:8.1f} {q[1]:8.1f} {q[2]:8.1f} {off:11.2f} мм {a['bone']:>9} {a['stub_len']:11.0f} "
                    f"{near[0]:8.1f} мм {near[1]:>10} {hose:8.1f} мм" + ("" if joined else "   НЕ СОЕДИНЕНО С ТЕЛОМ"))
-        hot = PLA_GAP if near[1] in ("gpu", "psu") else GAP_HW
+        hot = HOT_GAP if near[1] in ("gpu", "psu") else GAP_HW
         if near[0] < hot:
             fails.append(f"{a['name']}: площадка в {near[0]:.1f} мм от {near[1]} (нужно {hot:g})")
         if hose < 5.0:
@@ -659,13 +659,13 @@ def main():
     lines, fails = check(F, anchors, parts, hware, info['lines'])
     b = np.argwhere(F.d < 0)
     lo, hi = b.min(axis=0), b.max(axis=0)
-    head = [f"ОРГАНИЧЕСКИЙ СЛОЙ (PLA), одно поле с шагом {F.vox:g} мм, элементов {info['members']}, время {time.time() - t0:.0f} с",
+    head = [f"ОРГАНИЧЕСКИЙ СЛОЙ (PETG, запасной вариант ABS), одно поле с шагом {F.vox:g} мм, элементов {info['members']}, время {time.time() - t0:.0f} с",
             f"Габарит X {F.xs[lo[0]]:.0f}..{F.xs[hi[0]]:.0f}, Y {F.ys[lo[1]]:.0f}..{F.ys[hi[1]]:.0f}, Z {F.zs[lo[2]]:.0f}..{F.zs[hi[2]]:.0f}",
             f"Правила прочности: нить плёнки в середине Ø{2 * STRAND_R_MID[0]:g}..{2 * STRAND_R_MID[1]:g} мм, у кости Ø{2 * STRAND_R_END[0]:g}..{2 * STRAND_R_END[1]:g}; "
             f"поперечная нить Ø{2 * LINK_R[1]:g}..{2 * LINK_R[0]:g}; стойка крепления Ø{2 * STUB[1]:g}..{2 * STUB[0]:g}",
-            f"Крепления: {len(anchors)} площадок Ø{2 * PAD_R:g} x {PAD_H:g} мм на гранях каркаса, винт M3 в резьбовую вставку в ABS "
+            f"Крепления: {len(anchors)} площадок Ø{2 * PAD_R:g} x {PAD_H:g} мм на гранях каркаса, винт M3 x {frame_v0.screw_fit(PAD_H)[0]} с шайбой в резьбовую вставку в ABS "
             f"(места из hw.ORGANIC_PADS; пилот M3 под каждую вырезан в каркасе, ось винта лежит на оси пилота). Зазоры слоя: каркас {GAP_SKEL:g}, запретные зоны платы {GAP_KEEP:g}, железо и шланги {GAP_HW:g}, "
-            f"видеокарта и БП {PLA_GAP:g} мм."]
+            f"видеокарта и БП {HOT_GAP:g} мм."]
     head.append(f"Крошки после вырезания зазоров (отдельные куски меньше {CRUMB_CM3:g} см³) удалены: {info['crumbs']} шт., {info['crumb_cm3']:.1f} см³. Перемычки тоньше {MIN_THICK:g} мм удалены: {info['thin_cm3']:.1f} см³.")
     text = "\n".join(head + [""] + lines + [""] + (["ПРОВЕРКИ НЕ ПРОЙДЕНЫ:"] + ["  - " + f for f in fails] if fails else ["Все проверки пройдены."]))
     with open(os.path.join(os.path.dirname(os.path.abspath(__file__)), "report_organic.txt"), "w", encoding="utf-8") as fh:

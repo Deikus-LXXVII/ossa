@@ -30,7 +30,7 @@ VOX = 3.0
 X_LIM, Y0, Y1, Z0, Z1 = 252.0, -8.0, 394.0, -18.0, 400.0
 FLANK = 238.0                # centre plane of the shell on each side; radiator ends are at 229
 CLEAR = 4.0                  # shell stays this far from hardware
-HOT_CLEAR = None             # if set: distance kept from the graphics card and the PSU (PLA parts)
+HOT_CLEAR = None             # if set: distance kept from the graphics card and the PSU (the organic layer)
 SMOOTH = 12.0                # blend radius where members meet
 
 

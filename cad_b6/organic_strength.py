@@ -7,12 +7,12 @@ Out:  cad_b6/report_organic_strength.txt, out/organic/strength.npz
 step = 1 uses the field's own grid (1.5 mm), 2 uses every second point (3 mm, quick, too stiff for thin strands).
 
 Method (linear static finite elements on the voxels of the field):
-- every voxel inside the layer is one 8-node cube of solid PLA; all cubes are identical, so one element matrix serves all;
+- every voxel inside the layer is one 8-node cube of solid PETG, taken with the ABS figures of strength.py (the fallback material); all cubes are identical, so one element matrix serves all;
 - fixed at the fixing pads (the first 2 mm above each skeleton face, inside the pad's radius);
 - load cases: the layer's own weight, and a push of PUSH_N newtons at each of N_POINTS places spread over the surface, once
   straight into the surface and once straight down, spread over a fingertip (FINGER_R).
 For every push it records the largest movement and the largest stress away from the fingertip itself, and the force each
-fixing screw has to hold. What it does not cover: layer direction and infill of the print (the model is solid, isotropic PLA),
+fixing screw has to hold. What it does not cover: layer direction and infill of the print (the model is solid, isotropic, with ABS figures),
 creep near warm parts, impact, and anyone lifting the PC by the organic layer, which it is not made for.
 """
 from __future__ import annotations
@@ -28,8 +28,8 @@ from scipy.spatial import cKDTree
 HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.dirname(HERE)
 
-E, NU, RHO = 2800.0, 0.35, 1.24e-9          # PLA: MPa, -, tonne/mm3
-STRENGTH_LAYER = 25.0                       # MPa across layers, the weak direction of a print
+E, NU, RHO = 2000.0, 0.35, 1.27e-9          # ABS figures of strength.py (E, nu), PETG's density: MPa, -, tonne/mm3
+STRENGTH_LAYER = 20.0                       # MPa across layers, the weak direction of a print (strength.py's ABS figure)
 SAFETY = 2.0                                # for a rare hand load
 ALLOW = STRENGTH_LAYER / SAFETY
 PUSH_N = 30.0                               # a firm push with a hand
@@ -120,7 +120,7 @@ def main():
     X = P[used]
     held = held[used]
     ne, nn = len(conn), len(used)
-    out = [f"ПРОЧНОСТЬ ОРГАНИЧЕСКОГО СЛОЯ: воксели {h:g} мм, {ne} элементов, {nn} узлов; сплошной PLA, E {E:g} МПа",
+    out = [f"ПРОЧНОСТЬ ОРГАНИЧЕСКОГО СЛОЯ: воксели {h:g} мм, {ne} элементов, {nn} узлов; сплошной PETG (цифры ABS из strength.py), E {E:g} МПа",
            f"Объём в расчёте {ne * h ** 3 / 1000:.0f} см³ ({ne * h ** 3 * RHO * 1e6:.0f} г); не связано с креплениями и отброшено {dropped:.1f} см³",
            f"Закреплено у {len(pads)} площадок: {int((held >= 0).sum())} узлов"]
     assert all((held == a).any() for a in range(len(pads))), "a pad holds no node: " + ", ".join(names[a] for a in range(len(pads)) if not (held == a).any())
@@ -203,7 +203,7 @@ def main():
     out.append("")
     lab_, _, sag, s, where = res[0]
     out.append(f"Собственный вес: наибольшее смещение {sag:.3f} мм, напряжение {s:.2f} МПа у X {where[0]:.0f}, Y {where[1]:.0f}, Z {where[2]:.0f}")
-    out.append(f"Допустимое напряжение {ALLOW:g} МПа (прочность PLA поперёк слоёв {STRENGTH_LAYER:g} МПа, запас {SAFETY:g} для редкой нагрузки рукой)")
+    out.append(f"Допустимое напряжение {ALLOW:g} МПа (прочность поперёк слоёв, цифра ABS {STRENGTH_LAYER:g} МПа, запас {SAFETY:g} для редкой нагрузки рукой)")
     pushes = res[1:]
     over = [r_ for r_ in pushes if r_[3] > ALLOW]
     out.append(f"Толчки {PUSH_N:g} Н: напряжение выше допустимого в {len(over)} случаях из {len(pushes)}; "
