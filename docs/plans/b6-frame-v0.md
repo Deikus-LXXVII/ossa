@@ -506,3 +506,22 @@ It does not change the decision. Fans on the board side would need 27 mm where t
 - `organic_frame.py`, then `organic_strength` is not rerun here (the gaming PC is down); `cables.py`, `fit_gauges.py`, `drive_access.py`, `render_full.py` rerun. Say how much the organic field changed.
 
 **Report's open items:** the fan screws must be 3 mm longer than stock (6-32 x 34.9 mm if the stock ones are 32); the stock length, the thread and the usable thread depth in the radiator are the owner's measurements.
+
+### Revision 11, first pass: built, strength not passed (16 Nov 2026)
+
+`cad-implementer` built the plate and every geometric check passes (177 of 177 test cases). Not committed. Its numbers, not yet rerun in the main session:
+
+- **Strength fails under the present load case.** The 4 x 3 mm web between two fans reaches 15.7 MPa (18 to 19 with a fine mesh) against 6.7 allowed, and the 420 sags 12.2 mm (1.7 before). The roots are fine: 1.0 MPa where the tongue meets the chord, 1.6 to 2.6 where the plate meets the chord.
+- **Why, main session's reading:** `strength.py` puts the radiator's weight on the twelve screws as point loads and gives the radiator no stiffness. The plate then has to carry the load of its upper screws down through the webs between the openings by itself. In the case the plate is clamped to the radiator's core, an aluminium body far stiffer than 3 mm of ABS, so the radiator and the plate move as one and the webs carry next to nothing. The old 10 mm plate hid this simplification; the thin plate does not.
+- **The fans are wider than the radiator.** The frame is 140 mm, the radiator 138 mm, so a fan stands 1 mm proud on each long side (n -16 and n 124). The model has both at 138. This is why the web over an opening came out 1 mm, not 2, and it means the chord touches the fans' lower edge.
+- **The drive bay lost its margin.** The chord under the radiator (u 338..388, the half's whole length) lies in the path a drive takes: the least tilt went from 26 and 28 degrees to 30 and 30, the limit. Without the chord in |X| 78..120 it is 26 and 28 again.
+
+### Revision 11, second pass: spec for `cad-implementer`
+
+1. **Hardware.** The 420's fans are 140 mm in n: n -16..124 about the same middle. The core stays 138. Everything derived from the fans' outline follows; report what moved, the height rule (`ENVELOPE_N`) included. The plate may use the fans' outline, so the web over an opening is 2 mm.
+2. **No sliver.** No part of the plate is narrower than 2 mm. A web that cannot be 2 mm is left out; the plate does not have to close round an opening.
+3. **The chord keeps clear of the drive bay's path.** No chord in |X| below about 122, or whatever restores the bay's least tilt to 28 degrees or less in `drive_access.py`. Inboard of that the plate hangs from the radiator. Under the fans the chord keeps clear of their lower edge at n -16.
+4. **`strength.py`: the 420 as a stiff body.** The radiator's core becomes a body in the model, stiff against ABS (say what modulus and why; it is a brazed aluminium assembly, so a low figure for aluminium is on the safe side), tied to the two plates only at the twelve screws, each over a patch the size of a screw's washer, not over the whole face. Its weight acts at its centre of mass. The cradle on rib B carries what it carried. The other hardware keeps its present load model.
+   - Report both results side by side for the plate: the old point-load case and the stiff-body case. The stiff-body case is the one the allowable is judged on; the report says so and says why.
+   - If the root or the chord goes over the allowable with the shorter chord, make the chord thicker where there is room, or longer, and say which.
+5. Everything else as in the first pass: no check weakened, nothing committed, the same "done means" list and the same report, plus the 420's sag in both load cases.
