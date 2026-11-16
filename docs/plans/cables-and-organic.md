@@ -406,6 +406,18 @@ The owner proposes an organic panel at the rear, where the PSU is, and places fo
 - **SATA cables.** Two more cable kinds (data from the board, power from the PSU) to route and tie.
 - **How many drives the owner has** decides nothing in the concept above, only which holes get used.
 
+### Correction: the right side is not free (16 Nov 2026)
+
+The measurement above was wrong on the right side. My scratch grid held no cables at all: a route's solid is `None` until `build()` is called, so every route was skipped, not five thin leads. `cad-implementer` found it when `cables.py` failed against the right drive; the main session measured again with the cables in the grid (as polylines thickened by their radius, the way `drive_access.py` does it).
+
+- **Right of the PSU:** ATX, EPS 1 and EPS 2 run through the pocket (X 62..153, Y 200..356, Z 21..288). No drive fits there without rerouting three cables.
+- **Left of the PSU:** free as measured; the left bay is more than 40 mm from every cable.
+- **Above the PSU**, with 30 mm kept over its fan and the left bay taken: a 3.5 inch drive still fits flat (within X -75..115, Y 188..377, Z 117..169) or standing across the very rear (within Y 342..377, from Z 117 up). 2.5 inch drives fit flat there too.
+
+Decision, main session: **one bay, on the left.** It holds one 3.5 inch or one 2.5 inch drive on its outer face and one 2.5 inch drive on its inner face. The cables took several passes to settle and their smallest spare length is 30 mm, so they are not rerouted for a second bay. A second 3.5 inch place above the PSU's rear end is possible and is the owner's call.
+
+Lesson for the next measurement: assert that every layer of an occupancy grid is non-empty before trusting it.
+
 ### Drive bays: research result (16 Nov 2026)
 
 Grok, `web-research`, checked in the main session against the numbers of the standards.
@@ -434,6 +446,8 @@ Checked with a sweep in three degrees of freedom (Y, Z, tilt about X) on the vox
 Decision, main session: **the drive stands on its far end with the connector end up.** The plugs are then at the top, next to the rear opening, and can be put in after the sled is seated.
 
 ### Drive bays, pass 1: spec for `cad-implementer` (skeleton and hardware)
+
+**Changed after the correction above: one sled, on the left only.** The text below is the spec as it was given.
 
 **Goal.** Two drive sleds, one on each side of the PSU, each holding one 3.5 inch drive or one 2.5 inch drive on its outer face and one 2.5 inch drive on its inner face. Capacity: two HDDs and two SSDs, or four SSDs.
 
