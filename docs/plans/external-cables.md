@@ -30,3 +30,17 @@ Both the board's rear connectors and the card's video outputs face the left flan
 3. **Asymmetric:** the right fan stays, the left one goes or drops below the board.
 
 In every case `gpu_post` becomes a frame with an opening for the outputs, and the layer in front of the outputs moves out so that a DisplayPort plug with its bend (about 80 mm) fits and the cables can run to the rear.
+
+## Study: both side fans raised, mirrored (16 Nov 2026)
+
+The owner asked to look at raising the radiators so the fans could go up, then at 120 mm fans. `cad-implementer` ran a study (`cad_b6/study_side_fans.py`, `cad_b6/report_study_side_fans.txt`, pictures `previews/b6_study_fans_*`); the main session looked at the pictures and has not rerun the script.
+
+- **The radiators do not have to move.** The right fan can go up as it is. On the left the only thing in the way is the CPU hoses' run down the flank. Raising the 360 itself is not possible: 68 mm would be needed and the card's hoses have 15 mm spare.
+- **Result: a mirrored raised place exists for 140 mm and for 120 mm fans,** lower edge at n 41 (the whole connector aperture open to the side), fans at X -229..-204 and 204..229.
+  - **140 mm:** u 96..236, n 41..181. Its front corner touches the front plane (Y -0.1). The right fan moves 3 mm out and the card's hoses are rerouted as well. It stands in front of 41 % of the card's bracket, 80 mm away.
+  - **120 mm:** u 114..234, n 41..161. The card's hoses and the right fan's X stay. It stands in front of 17 % of the bracket.
+- **What both cost:**
+  - The straight in front of each port of the 420 goes from 40 mm to 10 mm. Whether the hose ends accept that is not known.
+  - The CPU hoses run inside, under the 360, with 8 to 12 bends in free air at the 35 mm radius, and sit on the 5 mm clearance limit in several places (card, `gpu_post`, visor arm, 360, the fan).
+  - Both fan brackets are new parts; both hose guides are redrawn or dropped; the fans' leads are rerouted; `gpu_post` becomes a frame; the organic layer is redrawn on both flanks.
+- **Not verified:** hoses are rigid centre lines in the model (stiffness, twist and sag are not modelled); the search is not exhaustive; the 120 mm route was not rerun after the script's last edits.
