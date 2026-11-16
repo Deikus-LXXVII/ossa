@@ -406,7 +406,68 @@ The owner proposes an organic panel at the rear, where the PSU is, and places fo
 - **SATA cables.** Two more cable kinds (data from the board, power from the PSU) to route and tie.
 - **How many drives the owner has** decides nothing in the concept above, only which holes get used.
 
-Research running (Grok, `web-research`): SFF-8301 and SFF-8201 hole patterns, SATA plug depths, the board's SATA ports, the PSU's SATA cables, drive temperature limits.
+### Drive bays: research result (16 Nov 2026)
+
+Grok, `web-research`, checked in the main session against the numbers of the standards.
+
+- **3.5 inch, SFF-8301 Rev 1.9:** 101.60 wide, 147.00 long at most, 26.10 high at most. Bottom holes 6-32 UNC: two columns 3.18 from each side edge (95.25 apart), at 41.28, 85.73 and 117.48 from the connector end; the pair at 41.28 is always there, and one of the other two. Side holes at 28.50 and 130.10 from the connector end, 6.35 above the bottom face. A screw enters 2.39 to 3.56 mm.
+- **2.5 inch, SFF-8201 Rev 3.4:** 69.85 wide, 100.45 long at most, 7.00, 9.50 or 15.00 high. Bottom holes M3: two columns 4.07 from the side edge (61.72 apart), at 14.00 and 90.60 from the connector end. Side holes at the same stations, 3.00 above the bottom face. A bottom screw enters 2.50 mm at most. The standard lets a 7 mm drive leave its bottom holes out; drives on sale have them.
+- **SATA connector, SFF-8323 and SFF-8223:** on the connector end, starts 13.43 from one side edge, 42.73 long, about 3.5 above the bottom face.
+- **Plug depth and cable bend behind a drive:** not found. 25 mm is this plan's assumption.
+- **Board:** four SATA ports. Read off `refs/board_scan_overlay.png` in the main session: two stacked pairs on the right edge (v 229..244) at u 23..57, openings facing off the edge. Four M.2 slots.
+- **PSU:** the Noctua Edition sheet lists 16 SATA connectors on 950 mm cables. Two reviews give 510 mm to the first connector and 155 mm between connectors, four per cable. The socket each cable uses is not documented.
+- **Temperature:** 3.5 inch drives 60 to 65 C at most, 2.5 inch SSD 70 C. Seagate allows any mounting orientation and asks for four screws.
+- **Rubber grommets:** nothing dimensioned found.
+
+### Drive bays: which way the drive goes in (16 Nov 2026)
+
+Checked with a sweep in three degrees of freedom (Y, Z, tilt about X) on the voxel grid, 1.5 mm margin. The bulkhead's top is at Z 92, the board's underside rises at 45 degrees from the front, and `beam_mid` closes the pocket's front top corner.
+
+| Sled with drive, seen from the side | Result, both sides |
+|---|---|
+| Lying on its long edge, plugs forward, 181 x 108 | no path |
+| Lying, 171 x 105 | left: path with 30 degrees of tilt; right: the seat is blocked by cables |
+| Standing on its far end, plugs up, 120 x 150, in X 78.5..120 | path, tilt up to 30 degrees |
+| The same with plugs attached, 120 x 175 | path, tilt up to 30 degrees |
+| Standing, a plate 150 or 160 long for two 2.5 inch drives side by side | no path |
+
+Decision, main session: **the drive stands on its far end with the connector end up.** The plugs are then at the top, next to the rear opening, and can be put in after the sled is seated.
+
+### Drive bays, pass 1: spec for `cad-implementer` (skeleton and hardware)
+
+**Goal.** Two drive sleds, one on each side of the PSU, each holding one 3.5 inch drive or one 2.5 inch drive on its outer face and one 2.5 inch drive on its inner face. Capacity: two HDDs and two SSDs, or four SSDs.
+
+**Hardware facts, into `hardware.py` only**, with the standard named beside each: the two form factors (body, bottom holes, side holes, screw penetration), the connector's place, the plug zone of 25 mm marked as an assumption.
+
+**Envelope.** Everything of a bay (sled, drives, plug zones) stays inside |X| 78.5..120, Y 248..375, Z 0..178. This is the volume the sweep proved free and reachable. The left bay is the right one mirrored in X.
+
+**Arrangement, right side** (outer face looks to +X):
+
+- The drive's bottom face (its board) lies against the sled. Connector ends of all drives are at the same height, at the top.
+- From the PSU's side (X 75) outwards: 4 mm of air, the inner 2.5 inch drive (7 mm), the sled, the outer drive (26.1 mm for a 3.5 inch).
+- The outer face takes the 3.5 inch pattern (all six bottom holes) and a 2.5 inch pattern. The inner face takes a 2.5 inch pattern.
+
+**Part `drive_sled_right`, `drive_sled_left`, ABS.**
+
+- **Plate** 5 mm, in the YZ plane. A boss 1 mm high round every drive screw hole, on the face where that drive sits, so the drive's board does not lie on the plate.
+- **Drive screw holes:** clearance for 6-32 and for M3, each counterbored from the opposite face so that 3.0 mm of material is left under the screw's head. A 6-32 x 6.35 mm drive screw then enters the drive 3.35 mm (allowed 2.39 to 3.56). An M3 x 5 enters 2.0 mm (allowed up to 2.5). The heads sit below the face, so a drive on that face can lie over them. Counterbores of different patterns keep a wall between them; place the patterns so that they do.
+- **Rear flange:** a block at the plate's rear end against the bulkhead's front face (Y 375). Two M4 screws from behind, through two new clearance holes in `psu_bulkhead`, into inserts in the flange. The holes sit in the bulkhead's flank (|X| 80..118), clear of the PSU's screws, the window and the end blocks, by the skeleton's own wall rules.
+- **Foot:** the plate's lower end stands on `skid_rear`'s top face (Z 0) with a face, not an edge.
+- Rounded by the skeleton's rules; what stays sharp is listed in the report as usual.
+
+**Assembly order, into the report's notes:** on a sled that carries both a 3.5 inch drive and an inner 2.5 inch drive, the inner drive is screwed on first, because its screw heads end up under the 3.5 inch drive.
+
+**Hardware entries.** `drive_right`, `drive_left`: the largest occupants (a 3.5 inch body on the outer face and a 7 mm 2.5 inch body on the inner face). The plug zones above them are keep-outs. They are drawn in the previews and take part in every check: parts, cables (3 mm), and the organic layer keeps `PLA_GAP` (10 mm) from a drive, as from the card and the PSU.
+
+**Checks.**
+
+- The existing clearance, contact and fastener checks, with the new intended contacts (sled on `skid_rear`, flange on the bulkhead, drive on the sled's bosses) and the new fastener rows.
+- New: every hole pattern on a sled agrees with the table in `hardware.py`, and the material under each head gives a screw penetration inside the standard's limits.
+- New script `cad_b6/drive_access.py`: the sweep above as a check. Obstacles are the skeleton without the sled, the hardware without that bay's drive, the cable solids and the organic field, grown by 1.5 mm. The moving body is the bay's envelope seen from the side, once without and once with the plug zone. It fails if the seat cannot be reached from behind the case with at most 30 degrees of tilt. Working reference code is in the main session's scratch folder (named in the task).
+- `test_checks.py` gains cases that prove the new checks bite (a hole pattern shifted, a seat too thin, an obstacle in the way of the sweep).
+- `cables.py`, `organic_frame.py`, `fit_gauges.py` still pass. If the organic field changes, say by how much and why.
+
+**Not in this pass:** SATA cable routes, the rear organic panel, rubber grommets.
 
 ### Next
 
