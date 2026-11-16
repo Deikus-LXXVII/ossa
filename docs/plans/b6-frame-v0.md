@@ -444,3 +444,26 @@ The owner's reason: neither will get in the way during assembly or show in the l
 - The graphics card's power cable may stand up to 11 mm in front of the front plane Y 0 (measured 10.4 mm). Details: `docs/plans/cables-and-organic.md`.
 
 **ARCTIC hose length: 450 mm.** ARCTIC's spec sheet says 450 mm and its product page says 500 mm. The owner decided to use the spec sheet's number. `hoses.CPU_HOSE` is 450 now (it was 500 from Revision 5 on). Measured after the change: the CPU hoses use 432 of 450 mm, every bend is 35 mm, and the run below the visor's lip sits at n 131 and 140 (it was 161 and 169). Hose a now passes 7.7 mm from the graphics card; the keep-out check allows it. `frame_v0.py` passes every check, `test_checks.py` 92 of 92, the gauges and the organic layer rebuild clean. The numbers "482 of 500" in the Revision 5 text above are history.
+
+## Revision 11 — the 420's bracket moves between the fans and the radiator (16 Nov 2026, to build after the drive bays)
+
+Owner's observation: the 420's mount sits where its fans are. Either it has to cover every fan hole and lie between the fans and the radiator, or the mount has to be redone.
+
+**What the model has now.** Each antler is a 10 mm plate on the outer face of the fans (u 378..388). Three 6-32 screws per antler pass through the plate and the 27 mm fans into the radiator. Two things are wrong with it:
+
+- The bar (20 mm tall along the lower screw row, X 68..212) and the finger (X 193..212) lie across the blades of the outer fan, on its intake side.
+- The screws have to be about 41 mm long (10 + 27 + thread), which is not a stock length.
+
+**Why not the other face.** Measured on the voxel grid: in front of the core face (u 310) there are 5 mm to `beam_top`, the board's edge and the 360's upper edge at the inner holes, and the organic layer and the 360's ends at the outer holes. No bracket and no screwdriver fit there.
+
+**Decision, main session: the owner's first option.** A plate between the fans and the radiator that takes all twelve fan holes, so the three fans stand on one plane.
+
+- Two mirrored halves that meet at X 0, since 456 mm does not fit the 300 mm bed. Each half takes six holes: all four of its outer fan and the two nearer ones of the middle fan.
+- The plate follows the fan frames: a round opening per fan, material only where the frames are. Nothing lies across the blades on either side.
+- Thickness 3 mm, which is the 3 mm the model already keeps between core (u 310..348) and fans (u 351..378). ARCTIC's drawing gives 38 + 27 = 65 mm and 68 mm over the screw heads, so the fans end up at u 351..378 and the heads behind them.
+- Below the radiator's underside (n -15) each half grows into the present foot: the tongue on rib B's outer face with its two M4 bolts and the buttress. The root is the place Revision 10 had to strengthen, so `strength.py` is rerun.
+- The fan screws become 3 mm longer than stock. Length and thread of the stock screws are being researched and go on the owner's check sheet.
+
+**Also found, from ARCTIC's drawing (`refs/arctic_lf3_pro_420_2d_drawing.pdf`, page 1, side view):** the fans come mounted on the face the hose collars stand on. The model has the collars on the core face towards the board and the fans on the opposite face, so the fans have to be moved to the other face when the case is built. Whether the radiator is threaded on that face and whether the fans' lead reaches is in the same research.
+
+The spec for `cad-implementer` follows when the research is back.
