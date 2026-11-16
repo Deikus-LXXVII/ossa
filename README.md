@@ -92,7 +92,7 @@ A separate check keeps each contact face at 97 % of its area or more after round
 ## Materials
 
 - **Skeleton:** ABS. It carries every component.
-- **Organic layer:** ABS (it was PLA until 16 Nov 2026). It keeps the 10 mm from the graphics card and the power supply it was drawn with.
+- **Organic layer:** PETG, with ABS as the fallback (it was PLA until 16 Nov 2026). It keeps the 10 mm from the graphics card and the power supply it was drawn with.
 - **Light line diffuser:** translucent PLA, 10 mm from the LED strip.
 - **Hose guides:** PA6 nylon (their mouths snap over the hose). The cable tie bridges are ABS: a hook-and-loop strap holds the cable, nothing snaps.
 

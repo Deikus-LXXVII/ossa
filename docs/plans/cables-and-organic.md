@@ -493,6 +493,13 @@ The owner prints the organic layer in black ABS as well, because ABS costs less 
 - **To do in the code after Revision 11:** `organic_frame.py` and `organic_strength.py` name PLA, use its density and modulus, and call the gap `PLA_GAP`; the skeleton report's material paragraph; the mass of the layer (1843 cm3 is 1.92 kg of solid ABS).
 - The light line's diffuser stays translucent PLA, with its 10 mm air gap to the LED strip.
 
+### PETG for the organic layer (16 Nov 2026)
+
+The owner asked about PETG and ordered 4 kg of black SUNLU Rapid PETG. Main session's reading of that: the organic layer is printed in PETG, and ABS stays the fallback if a trial piece with long threads strings too much. The skeleton stays ABS for heat and creep next to the radiators and the PSU.
+
+- Strength is judged with the ABS figures (E 2000 MPa, 20 MPa across the layers, safety 2, allowable 10 MPa). They are on the safe side for PETG, whose layers bond better.
+- The gaming PC answers again (`ssh gamepc-linux`, 20 cores, 125 GB). The organic strength run follows Revision 11's second pass, which may move the field by the millimetre the 420's fans gain.
+
 ### Next
 
 Drive sleds and the rear panel, once the research is back: spec, then `cad-implementer`. Split the organic layer into printable pieces (the rear panel is one of them). Rerun `strength.py` with the bridges. Rerun the organic strength check when the gaming PC is back in Linux.
