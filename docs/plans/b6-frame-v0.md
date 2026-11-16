@@ -525,3 +525,37 @@ It does not change the decision. Fans on the board side would need 27 mm where t
    - Report both results side by side for the plate: the old point-load case and the stiff-body case. The stiff-body case is the one the allowable is judged on; the report says so and says why.
    - If the root or the chord goes over the allowable with the shorter chord, make the chord thicker where there is room, or longer, and say which.
 5. Everything else as in the first pass: no check weakened, nothing committed, the same "done means" list and the same report, plus the 420's sag in both load cases.
+
+## Revision 13 — side fans moved outwards; the card's post becomes a frame (16 Nov 2026)
+
+**Why.** The board's rear connectors and the card's video outputs face the left flank, and nothing could be plugged in (`docs/plans/external-cables.md`). The owner chose on 16 Nov 2026: 140 mm side fans stay at their height and stand further out, so that the cables have room behind the left fan; the case becomes 520 mm wide. The owner also agreed to rebuild the card's post so that the outputs are open and the cables can bend and leave to the rear.
+
+**Measured before the spec** (main session, 1.5 mm grid, see `external-cables.md`): in the left fan's footprint the CPU hoses lie at X -228..-213; a fan whose inner face is at X -235.5 or further is 6 mm clear of them; nothing stands in the right fan's way; nothing but the CPU hoses stands between today's place and the new one on the left.
+
+### Revision 13: spec for `cad-implementer`
+
+The radiators, both pairs of hoses, both hose guides and the 40 mm straight at the 420's ports do not change. If a requirement below cannot be met without moving one of them, stop and report.
+
+**hardware.py**
+1. `FAN_SIDE_X`: left (-260, -235), right (235, 260). `FAN_SIDE_INNER_X` follows. `FAN_SIDE_U` and `FAN_SIDE_N` stay. If the exact model puts the left fan closer than 5 mm to `cpu_hoses`, move both fans out together in 1 mm steps and report the number.
+2. The envelope. `ENVELOPE_X` (229, the 420's half length) stays the limit for everything except the side fans, their brackets and their leads. For those the limit is the fans' outer face (a new constant derived from `FAN_SIDE_X`). Check 8 and the cables' envelope check use the right limit for each part; no test of the limit is dropped.
+3. A new keep-out `gpu_out_zone` for the video plugs and their bend, drawn like `io_zone`: 80 mm out from the card's bracket (v -82..-2), the card's whole thickness in u, n 10..100. Assumption to mark in the file: which part of the bracket carries the outputs is not known, so the whole face is kept open. No printed part and no cable may stand in it. If anything other than `gpu_post` stands in it today, report it and do not move it.
+
+**frame_v0.py**
+4. Fan brackets. Both brackets become one design, the right one a mirror of the left (`add_mirror`). The plate lies on the fan's inner face as now, with ears under the three corner holes other than the one at high u and high n (the CPU hoses pass there on the left), the spine along the low-u edge and the bar along the low-n edge. The rail, knuckle and tab of revision 7a go: the card's hoses are no longer near the right bracket. The leg now spans from the rib's outer face (|X| 158) to the plate (|X| 225), 67 mm instead of 12 and 33 mm.
+5. The leg's strength. Show by a hand calculation in the report (beam formulas, the numbers written out) that the bracket's worst section stays under the ABS allowable of `strength.py` (6.7 MPa) for two loads: the fan's weight, and a 20 N knock along X at the fan's far corner. My estimate for today's 11 x 28 mm leg under the knock is about 6.5 MPa, which is too close. Make the leg stronger until the margin is at least 2: a deeper section, a second leg to rib_A, or a gusset. No part of the bracket enters the fan's open circle (check 11) or `gpu_out_zone`, and each stays 5 mm from the hoses (check 9). Report the section you chose and why.
+6. `gpu_post` becomes a frame. It keeps its job (the seat for the card bracket's tab at n `GPU_BRACKET_TAB_N`, and its two bolts into `beam_mid`). The solid block in front of the bracket is replaced by two columns outside the card's thickness in u, joined by a lintel under the tab, so that the opening shows the bracket over the card's whole thickness and from n 10 to the lintel's underside. Every dimension derives from `hw.GPU_BS` and the tab's constant, because the card's real size is about to be corrected from a fit gauge. State in the report: the opening's size, the lintel's section, the least wall, and the frame's stiffness against a 20 N pull on a cable along -X at the lintel (hand calculation).
+7. Bill of fasteners, mounts and the report's text follow the new parts.
+
+**cables.py**
+8. The two fan leads start at the fans' new inner faces and are rerouted. They keep clear of `io_zone` and `gpu_out_zone`. Report each lead's length against the lead's real length in the file.
+
+**organic_frame.py and the layer**
+9. Do not redesign the layer in this revision. Make `organic_frame.py` run with the new fan places (the grid has to cover |X| 260 plus the layer's thickness) and report what its checks say and where the layer now stands in `io_zone`, `gpu_out_zone` or in the slot between the left fan and the board (X -235..-122). The flanks are redrawn in the next revision.
+
+**Checks and tests**
+10. Add a check that `io_zone` and `gpu_out_zone` are free of printed parts and cables, and that a cable bundle 20 mm across can leave from each zone to the rear face of the skeleton without crossing a part (the grid method of `drive_access.py` is acceptable; assert every layer is non-empty).
+11. `test_checks.py`: cases for the removed rail and tab are replaced by cases for the new design of the same strictness (a bracket moved past its limit in X, a bracket moved towards the hoses, a block in the open circle, a pilot filled in, a part moved into each keep-out). `fit_gauges.py` G6 must still prove that every corner hole a bracket uses coincides with the fan's.
+12. Run the project `verify` skill in full. Regenerate the reports and the previews that show the fans (`render_full.py`; the Blender pictures are not needed).
+
+**Report back:** the numbers asked for above, every place where this spec was wrong and what you did instead, every check or test that changed and why, anything left failing. Do not commit.

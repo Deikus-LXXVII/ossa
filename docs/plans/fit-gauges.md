@@ -69,3 +69,12 @@ Differences from the list above:
 Found on the way, left for the gauges to settle:
 - `hoses.py` spaces the 360's ports 24.0 mm apart (`GPU_PORT_PITCH` = 12); `hardware.py` gives 23.8 for the ARCTIC ports and says the MSI ports are alike. G2 uses the hose route's 24.0. The real spacing is unknown until G2 is tried.
 - G1 lies on the 420's core face and uses the fan-face hole pattern. Radiators normally carry the same threaded pattern on both faces; G1 will show whether this one does.
+
+## Results from the owner (16 Nov 2026, first pass, printed in white PLA)
+
+- **`G6_fan140`:** the four holes coincide. The side fans' pattern in `hardware.py` stands.
+- **`G7_gpu_end`:** the hoses pass through the two cut-outs, but the plate is larger than the end of the card. The model's 51 x 150 mm end is therefore too big on at least one side. Which edge and by how much is asked of the owner; `hw.GPU_BS` is corrected when the numbers come.
+- **`G5_cpu_block`:** fits with a little play. The size of the play was not given; nothing is changed.
+- **New fact:** the 90 degree fittings on the CPU block turn. The hose routes may leave the block in another direction than the model draws.
+- **`C1_scale_l`:** not printed. The main session had not put it on the list it gave the owner. It is needed before the first real part in ABS or PETG, in each of those materials, not before.
+- **Not yet reported:** `C3_hose_clip` (meaningful only in nylon), `C2_insert_ladder` (waits for the inserts), and the second pass with the PC apart (`G1`, `G2`, `G3`, `G4a`, `G4b`).

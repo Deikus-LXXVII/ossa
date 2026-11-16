@@ -1,6 +1,6 @@
 # External cables: the board's rear connectors and the card's video outputs
 
-Status: found on 16 Nov 2026 after the owner raised it. Nothing built. The owner is choosing between the ways below.
+Status: found on 16 Nov 2026 after the owner raised it. Decided the same day: 140 mm side fans moved outwards, case 520 mm wide, card post rebuilt as a frame. Being built as Revision 13 (`docs/plans/b6-frame-v0.md`).
 
 ## What the model shows
 
