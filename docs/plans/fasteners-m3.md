@@ -153,3 +153,31 @@ Two findings of the review are not fixed by that commit:
 4. **The engaged-thread test proves the `min()`:** a case in which the entry is smaller than the insert's length (the M3 x 20 joints, entry 3.5) reports the entry, and one in which it is larger reports the insert's length; a version without the `min()` must fail the case.
 5. **Verify in full** as in revision 15 (the suite takes about 6 minutes), with `parts_manifest.py --expect` on the 23 parts that have a pilot. Regenerate the reports, the STEP file, the gauge files and the previews. Do not commit.
 6. **Report:** the stepped pilot's numbers, the melt volume, the tightest five distances between bores before and after, anything that had to move, every check or test added or changed, the script results.
+
+### Revision 15a: the stepped pilot is dropped; what is built instead (17 Nov 2026)
+
+Grok checked the spec above against the code and by a probe. The spec above is superseded by this section.
+
+**Why no stepped pilot.**
+- A ledge of 0.5 mm is the same molten ABS as the seat: it is a hint for the hand, not a stop. The sources Grok could read (CNC Kitchen's tips page and two tables that restate it, read from search extracts; the dimension sheet not re-opened) ask for a straight hole about 1 mm deeper than the insert, set by melting the insert most of the way in and pressing it flush with a cold flat tool.
+- It would not cure the thin wall: the pinch in `beam_mid` is at the pilot's end, and a 3.4 mm tip bore there is still 1.49 mm from the clearance hole.
+- It touches every reader of a pilot (checks 5, 7 and 15, the rounding guard, the organic pads, the manifest, the insert count) for a hint.
+- So the insert's depth stays the owner's job, and the documents say how: `docs/printer-and-materials.md`, "Setting the heat-set inserts", and the check sheet's C2 row.
+
+**What the probe found that the model did not know.**
+- The 1.6 mm wall rule is checked by a volume and misses a short pinch: 1.283 mm between `beam_mid`'s left end pilot (at its end, 6.7 mm deep) and the clearance hole for `gpu_post`'s high bolt.
+- Six lap pilots in the ribs have a floor of 1.3 mm under them (8 mm of half-rib, 6.7 mm of hole). No check looks at a pilot's floor. The floor is a designed number (`8.0 - depth`).
+
+**The rule, stated properly.** The 1.6 mm wall is for the plastic that holds the insert: round the pilot over the insert's length plus 0.3 mm from the mouth. Deeper, the bore is only room for the screw's tip and for melt: there the plastic round it and under it must be at least 1.2 mm (three 0.4 mm perimeters; the designed floors are 1.3 mm). Both are named constants in `hardware.py`.
+
+### Revision 15a: spec for `cad-implementer` (replaces the one above)
+
+1. **Walls as distances, in check 7, in addition to the present volume test.** For every pilot, the plain distance from its cutter to every other hole's cutter in the same part and to the part's outside (the mouth's face and the 0.5 mm of cutter in front of it excluded): at least 1.6 mm over the insert's zone (from the mouth to `M3_INSERT_LEN` + 0.3), at least 1.2 mm over the rest, the floor under the end included.
+   - Exempt only what is one hole by design: a bore that continues another on the same axis (parallel, axes within 0.05 mm, intervals overlapping or meeting within the relief bore's 0.2 mm), such as a relief bore on its pilot or a counterbore on its own hole. Two pilots on one axis at opposite ends of a long part are not exempt and pass by their real distance.
+   - Report the tightest five distances in each zone in `report_frame_v0.txt`.
+   - Tests: a short pinch of 1.3 mm in the insert's zone whose missing ring is under 0.5 mm³ must fail the new test while the volume test passes; a floor of 1.0 mm under a pilot must fail; the six lap floors of 1.3 mm must pass; a relief bore on its pilot must not be reported.
+2. **Move `gpu_post`'s bolts away from the beam's end pilot:** `GPU_POST_BOLT_V` from -10.5 to -10.0. By the probe's geometry the 1.283 mm becomes about 1.76 mm. Measure it, and the walls of the post's own pilots to the post's faces, and say what else moved.
+3. **The engaged-thread test proves the `min()`:** a joint whose entry is smaller than the insert's length (the M3 x 20 joints, 3.5) reports the entry, one whose entry is larger reports the insert's length, and a version without the `min()` fails the case. The present case (insert 3.0 mm) stays.
+4. **Stale text:** `docs/feature-map.md` where it still calls the insert's diameter and length assumptions and where it says nothing proves an insert holds; the comment at `FAN_PROBE_DEPTH` that says the bore's radius is 2.0.
+5. **Verify in full** (the verify skill; the suite takes about 6 minutes and its pinned count grows with your cases: raise `EXPECTED_CASES` in the same change and say the number), with `parts_manifest.py --expect gpu_post,beam_mid`. If the rounding moves any other part, say which and why before accepting it. Regenerate the reports, the STEP file and the previews. Do not commit, and do not run `parts_manifest.py --write` or `check_budgets.py --write`.
+6. **Report:** the tightest five distances in each zone before and after, what moved, every check or test added or changed, the script results with counts.
