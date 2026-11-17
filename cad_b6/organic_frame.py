@@ -50,7 +50,7 @@ STRAND_SLENDER = 36.0                      # a strand's mid radius is at least i
 
 # Bone radii: (at one joint, mid-span, at the other joint), or one number for a constant radius
 BONE_R = {"lip": (7, 5.5, 7), "card": (6.5, 5, 6.5), "brow": (7, 5, 7), "ring": 6.5, "front": (10, 6, 8), "rear": (7, 5.5, 10),
-          "side": (7, 5, 7), "base": (6.5, 5.0, 6.5)}     # revision 14b: the base tapers to 5 mid-span, where the hand's way under the board passes over it
+          "side": (7, 5, 7), "base": 6.5}
 CRUMB_CM3 = 6.0                            # loose pieces smaller than this (one strand cut at both ends is about 4) are carving crumbs and are dropped
 MIN_THICK = 4.5                            # carving leaves slivers; whatever is thinner than this is removed
 
@@ -83,7 +83,7 @@ HOT_GAP = 10.0                             # the layer keeps this far from the g
 CARD_BONE_U, CARD_BONE_N = 118.0, CARD_N + HOT_GAP + 8.0   # a bone over the card's top edge, clear of it
 SWEEP_X = 170.0                            # the flank sweeps pass this far out, clear of the card's ends
 NEAR_FILM_N0 = 50.0                        # right fan: the film from the ring's near side to the front sweep starts at this n, above the card's hoses
-UNDER_FILM = {-1: False, 1: False}         # revision 14b: no film from a ring's bottom to the base. Left: the hand's way in to the board's connectors passes under the fan (zone_access.py);
+UNDER_FILM = {-1: False, 1: False}         # revision 14b: no film from a ring's bottom to the base. Left: the hand's way up to the board's connectors passes under the fan (zone_access.py);
                                            # right: the card's hoses run under the fan
 TOP_FILM_L_U0 = 186.0                      # left fan, film from the ring's top to the side bone: first thread past the CPU hoses (hose b at u 170 + 6.2 + GAP_HW + a thread's radius)
 SILL = frame_v0.sill_geometry()            # the skeleton's front sill: section (Y, Z), the light slit's cutter
@@ -99,13 +99,10 @@ REAR_BEND_X = 176.5                        # the layer's own: the rear sweep's b
 REAR_FROM_N = -20.0                        # revision 14b: the rear sweep leaves the ring's far side here, below the CPU hoses' run to the 420's ports (n 42 and up on the left)
 REAR_MID = (296.0, -36.0, 222.0)           # the layer's own (u, n, |X|): between the ring and the 420's lower edge (n -16), inside the 420's end
 REAR_UNDER = (332.0, -38.0, 196.0)         # the layer's own (u, n, |X|): under the 420's core, before the sweep turns down the back
-BASE = {s: [(160 * s, 40, -4), (163 * s, 110, -7), (161 * s, 196, -6.5), (166 * s, 290, -5), (166 * s, 356, -4)]      # revision 14b: 2 to 2.5 mm lower at Y 110..196, where
-        for s in (1, -1)}                                                                                       # the hand's way under the board passes over it (zone_access.py)
-BASE_GAP_L = (80.0, 230.0)                 # revision 14b: the left base bone is open between these Y (its ends' surfaces), over the bottom of rib A's opening, where the hand's way
-                                           # in under the board passes at the desk (zone_access.py: with the bone there the widest hand was 62 mm, 64 without the layer; open over
-                                           # Y 100..210 is enough). Each piece ends in the knot of its pad (front_foot at Y 60, base_mid at Y 250), so neither end hangs free
-REAR_WINDOW_Y0 = 260.0                     # revision 14b: the rear window starts on the base this far back, and on the rear sweep under the 420: in front of that the hand's way to
-                                           # the board's connectors comes up under the left fan (zone_access.py)
+BASE = {s: [(160 * s, 40, -4), (163 * s, 110, -5), (161 * s, 196, -4), (166 * s, 290, -5), (166 * s, 356, -4)]
+        for s in (1, -1)}                  # revision 14b, second pass: whole on both sides again, at its height and radius of before the first pass (the first pass opened and lowered it
+                                           # for a hand's route under the board that ended below io_zone, which no hand holding a plug uses)
+RING_TIE_L3_BASE_Y = 100.0                 # revision 14b, second pass: the left ring's lower front corner is strutted to the base bone here, just behind the front foot's pad (Y 60)
 
 
 def sill_sdf(G):
@@ -202,8 +199,7 @@ def bone_members():
         add("front_" + tag, front_sweep(s), bone(*BONE_R["front"]))
         add("rear_" + tag, rear_sweep(s), bone(*BONE_R["rear"]))
         add("side_" + tag, side_bone(s), bone(*BONE_R["side"]))
-        for i, piece in enumerate(base_pieces(s)):
-            add(("base_" if i == 0 else "basefront_") + tag, piece, bone(*BONE_R["base"]))
+        add("base_" + tag, BASE[s], BONE_R["base"])
         for p, r in ((front_sweep(s)[0], 13), (rear_sweep(s)[-1], 13), (bp(LIP_U, FACE_N, 190 * s), 10)):
             out.append(("ball", p, r, K))
     # Left ring: its upper front corner hangs from the end of the front sweep. The CPU hoses cross between the ring's top and the
@@ -219,6 +215,14 @@ def bone_members():
     far = np.array(bp(_u1 + RING_OFF - 14, n1 + RING_OFF, RING_X[-1]), dtype=float)
     end2 = np.array(side_bone(-1)[-1], dtype=float)
     add("ring_tie_L2", [tuple(far), tuple((far + end2) / 2), tuple(end2)], bone(*RING_TIE))
+    # Revision 14b, second pass: its lower front corner (fan corner A) hangs from nothing else, and a 30 N push there moved it 9.6 mm (no film on its near side, which would hang in
+    # front of the card's outputs, nor under it, which is the hand's way up to the board's connectors). This strut runs from the corner forward and down to the base bone behind
+    # the front foot, below the outputs' prism (n stays near -50, the prism starts at n 10) and in front of the hand's way under the fan.
+    n0 = hw.FAN_SIDE_N[0]
+    low = np.array(bp(u0 - RING_OFF * math.sqrt(0.5), n0 - RING_OFF * math.sqrt(0.5), RING_X[-1]), dtype=float)      # on the ring's arc round the fan's corner A
+    line = sc.spline(BASE[-1], step=2.0)
+    end3 = line[int(np.argmin(np.abs(line[:, 1] - RING_TIE_L3_BASE_Y)))]
+    add("ring_tie_L3", [tuple(low), tuple((low + end3) / 2), tuple(end3)], bone(*RING_TIE))
     return out, lines
 
 
@@ -248,30 +252,6 @@ def film_members(a_ctrl, b_ctrl, n, seed, r_a=8.0, r_b=8.0, sag=(0.0, 0.0, -1.0)
         q1 = A[int(ta[i + 1] * (len(A) - 1))] * (1 - f1) + Bc[int(tb[i + 1] * (len(Bc) - 1))] * f1
         out.append(("tube", [q0, (q0 + q1) / 2 + sag * 3.0, q1], bone(LINK_R[0], LINK_R[1], LINK_R[0]), 7.0))
     return out
-
-
-def base_pieces(s):
-    """The base bone's control polylines, rear piece first: on the right the whole bone; on the left two pieces, open over BASE_GAP_L. The front piece ends past the
-    front foot's pad, the rear piece starts in front of the base pad."""
-    if s > 0:
-        return [BASE[s]]
-    line = sc.spline(BASE[s], step=2.0)
-    r_end = BONE_R["base"][0]
-    out = []
-    for keep in (line[:, 1] >= BASE_GAP_L[1] + r_end, line[:, 1] <= BASE_GAP_L[0] - r_end):
-        pts = line[keep]
-        ctrl = list(pts[::8])
-        if len(pts) and not np.allclose(ctrl[-1], pts[-1]):
-            ctrl.append(pts[-1])
-        out.append([tuple(map(float, p)) for p in ctrl])
-    return out
-
-
-def rear_window_base(s):
-    """Control points of the base bone from REAR_WINDOW_Y0 to its rear end: the rear window's lower edge."""
-    line = sc.spline(BASE[s], step=2.0)
-    i = int(np.argmin(np.abs(line[:, 1] - REAR_WINDOW_Y0)))
-    return [tuple(line[i])] + [p for p in BASE[s] if p[1] > line[i][1] + 10.0]
 
 
 def film_list():
@@ -310,7 +290,7 @@ def film_list():
                                 side_bone(s)[:3], 6, seed=70 + s, r_a=5.0, r_b=5.5,
                                 sag=(0.5 * s, 0.0, 0.0), sag_mm=6, links=2))
         # the rear window over the PSU's side
-        out.append(film_members(rear_window_base(s), rear_sweep(s)[2:5], 9, seed=80 + s, r_a=6.5, r_b=6.5,
+        out.append(film_members(BASE[s][2:], rear_sweep(s)[1:5], 9, seed=80 + s, r_a=6.5, r_b=6.5,
                                 sag=(0.4 * s, 0.0, 0.0), sag_mm=9))
     return out
 
@@ -651,6 +631,12 @@ def bitten(F, lines, parts, hware):
     return out
 
 
+def ring_cut_failures(cuts):
+    """Revision 14b: a ring is never cut (bitten's runs on a ring are failures); other bones may end in a part and are only reported."""
+    return [f"кольцо {name} перерезано зазором на {length:.0f} мм у X {mid[0]:.1f}, Y {mid[1]:.0f}, Z {mid[2]:.0f} ({who} в {dist:.1f} мм)"
+            for name, length, mid, who, dist in cuts if name in ("ring_L", "ring_R")]
+
+
 # ---------------------------------------------------------------------------
 # Checks that read only the field (revision 14b), so that test_organic.py can damage a copy of a saved field and expect them to fail
 # ---------------------------------------------------------------------------
@@ -692,9 +678,9 @@ def field_checks(d, xs, ys, zs):
         i = int(np.argmax(val))
         depth = -float(val[i])
         out.append(f"Кольцо {name}: ось внутри слоя на всей длине ({len(line)} точек через {RING_CHECK_STEP:g} мм), наименьшая глубина оси {depth:.2f} мм (нужно {RING_MIN_DEPTH:g}: радиус "
-                   f"{RING_R:g} минус воксель) у X {line[i][0]:.0f}, Y {line[i][1]:.0f}, Z {line[i][2]:.0f}")
+                   f"{RING_R:g} минус воксель) у X {line[i][0]:.1f}, Y {line[i][1]:.0f}, Z {line[i][2]:.0f}")
         if depth < RING_MIN_DEPTH:
-            fails.append(f"кольцо {name} не цело: ось лишь на {depth:.2f} мм внутри слоя (нужно {RING_MIN_DEPTH:g}) у X {line[i][0]:.0f}, Y {line[i][1]:.0f}, Z {line[i][2]:.0f}")
+            fails.append(f"кольцо {name} не цело: ось лишь на {depth:.2f} мм внутри слоя (нужно {RING_MIN_DEPTH:g}) у X {line[i][0]:.1f}, Y {line[i][1]:.0f}, Z {line[i][2]:.0f}")
     for name, b in EMPTY_BOXES.items():
         n = int((solid & bs_box_mask(xs, ys, zs, b)).sum())
         out.append(f"Слой в {name} (v {b[0]:g}..{b[1]:g}, u {b[2]:g}..{b[3]:g}, n {b[4]:g}..{b[5]:g}): {n} вокселей, {n * vol:.1f} см³")
@@ -754,9 +740,7 @@ def check(F, anchors, parts, hware, lines):
             out.append(f"  {name:9} {length:5.0f} мм у X {mid[0]:5.0f}, Y {mid[1]:4.0f}, Z {mid[2]:4.0f}: {who} в {dist:.1f} мм")
     else:
         out.append("Ни одна кость не перерезана зазорами.")
-    for name, length, mid, who, dist in cuts:
-        if name in ("ring_L", "ring_R"):                    # revision 14b: a ring is never cut; other bones may end in a part, and are reported above
-            fails.append(f"кольцо {name} перерезано зазором на {length:.0f} мм у X {mid[0]:.0f}, Y {mid[1]:.0f}, Z {mid[2]:.0f} ({who} в {dist:.1f} мм)")
+    fails += ring_cut_failures(cuts)
     out.append("")
     f_lines, f_fails = field_checks(F.d, F.xs, F.ys, F.zs)
     return out + f_lines, fails + f_fails
@@ -768,9 +752,9 @@ SIDE_DIFFERENCES = (
     "  - плёнка от верха кольца к боковой кости: справа от u 132, слева от u 186 (шланги CPU пересекают этот промежуток на u 141..170);",
     "  - плёнка от ближней стороны кольца к переднему изгибу только справа; слева она висела бы перед видеовыходами карты, вместо неё ring_tie_L (выше n 100);",
     "  - ring_tie_L2 (верхний дальний угол левого кольца к нижнему концу боковой кости) только слева: держит верх кольца там, где нет плёнки;",
-    "  - плёнки под вентилятором нет ни с одной стороны: слева под вентилятором проходит рука к разъёмам платы (zone_access.py), справа шланги карты.",
-    f"  - нижняя кость (base_*) слева разомкнута между Y {BASE_GAP_L[0]:g} и {BASE_GAP_L[1]:g} (концы в узлах площадок front_foot_L и base_mid_L), над низом проёма ребра A: там у стола проходит рука под платой (zone_access.py); справа кость целая;",
-    "  - низ кости base и задняя плёнка (с Y 260) изменены одинаково с обеих сторон, чтобы фланги оставались зеркальными.",
+    "  - плёнки под вентилятором нет ни с одной стороны: слева под вентилятором рука поднимается к разъёмам платы (zone_access.py), справа идут шланги карты;",
+    "  - ring_tie_L3 (нижний передний угол левого кольца к нижней кости за передней опорой) только слева: справа этот угол держит плёнка ближней стороны, слева её нет;",
+    "  - нижняя кость (base_*) и задняя плёнка (от base у Y 196 до заднего изгиба) одинаковы с обеих сторон, как до первого прохода ревизии 14b.",
 )
 
 

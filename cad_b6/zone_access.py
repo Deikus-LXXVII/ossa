@@ -12,10 +12,16 @@ docs/plans/b6-frame-v0.md, "Revision 13", item 10. The grid method of cad_b6/dri
   The layer  the organic layer (out/organic/field.npz, written by organic_frame.py) is not an obstacle for the 20 mm way out above, which is the skeleton's check of revision 13.
              Revision 14b redrew the layer's flanks and adds two checks with the layer as an obstacle:
   Wide way   a bundle BUNDLE_WIDE_D (40 mm) across leaves each zone to the rear plane inside the hull with the layer in the way too (wide_bundles).
-  Hand       a ball (a hand with a plug) comes from outside the left flank, wholly beyond the left fan's outer face, and gets its centre within HAND_NEAR of io_zone. Obstacles: the
-             skeleton, every hardware solid and keep-out but io_zone itself, the cables, and once without and once with the layer (hand_widest). The layer must not make the widest
-             ball smaller, and with it the ball must be at least HAND_MIN_D across. The plan asked for 70 mm; the skeleton and the hardware alone stop it short of that
-             (docs/plans/cables-and-organic.md, revision 14b, correction 3). The hand starts outside the hull, so it has its own grid with room beyond the fan and no hull limit.
+  Hand       a ball (a hand with a plug) comes from outside the left flank, wholly beyond the left fan's outer face, and gets its centre in front of the plug face of io_zone:
+             within the zone's u and n ranges, outside its outer face (v at or below the zone's low v) and no further than HAND_NEAR from that face (plug_face_goal). On its way the
+             ball's centre stays on the hand's side of the plug face (v at or below it, hand_corridor): without that the widest ball of the bare skeleton got in over the top and
+             crossed the case to X +78 and back, 960 mm, which no hand does. Obstacles:
+             the skeleton, every hardware solid and keep-out but io_zone itself, the cables, and once without and once with the layer (hand_check). The layer must not make the
+             widest ball smaller than the skeleton, the hardware and the cables alone allow. An empty start or an empty goal fails, and so does a hand that cannot get in at all
+             without the layer (the comparison would then hold between two zeros). The plan's first reading (anywhere within 50 mm of the zone, with a 60 mm floor) was removed in
+             the second pass of revision 14b: its widest ball ran under the board and ended below the zone, a route no hand that holds a plug can use
+             (docs/plans/cables-and-organic.md, "Revision 14b, result and second pass"). The hand starts outside the hull, so it has its own grid with room beyond the fan
+             and no hull limit.
   Layers     every layer of the grid (skeleton, hardware, cables, the organic layer) must be non-empty, as must the seeds, the target and the reached set: an empty one means the
              check looked at nothing.
 
@@ -49,9 +55,13 @@ CABLE_CLEAR = 0.0                       # a cable's surface may not enter the zo
 CABLE_STEP = 0.25                       # a cable's polyline is resampled this finely before it is measured against a zone, mm
 PAD_XY = 30.0                           # grid margin beyond the model, mm
 BUNDLE_WIDE_D = 40.0                    # revision 14b: the bundle that has to get out with the organic layer as an obstacle too
+WIDEST_R_MAX = 60                       # the bisections of the bundle and of the hand stop at this radius, mm; a result at the limit is reported as "at least"
 HAND_D = 70.0                           # revision 14b: the plan's hand, reported against
-HAND_MIN_D = 60.0                       # the widest hand the skeleton and the hardware let through, measured by Grok on a 2 mm grid; with the layer it may not be smaller
-HAND_NEAR = 50.0                        # the hand's centre gets this close to io_zone, mm (the reading under which Grok measured HAND_MIN_D: 64 mm passes, 70 does not)
+HAND_R_MIN = 10                         # the smallest hand tried, radius mm (a 20 mm ball, the bundle's size): if it cannot get in, the hand's result is 0
+HAND_BUDGET_D = 44                      # decision of 17 Nov 2026 (main session, for the owner to confirm): the closed ring round the left fan costs the hand 6 mm (a 50 mm ball
+                                        # reaches the plug face without the layer, behind the fan; 44 mm with it, under the fan). The rings stay closed and mirrored; with the layer the
+                                        # hand may not be smaller than this. A budget, not a target: lower it only on purpose
+HAND_NEAR = 50.0                        # the goal: the hand's centre in front of io_zone's plug face, at most this far out from it, mm
 HAND_ROOM = 100.0                       # the hand's grid reaches this far beyond the left fan's outer face, mm
 HAND_ZONE = "io_zone"                   # the zone the hand goes to; the hand may stand in it (the plugs it holds go there), the other keep-outs are obstacles
 SLOT_BS = (hw.x_to_v(hw.FAN_SIDE_INNER_X["fan_side_left"]), 0.0, hw.FAN_SIDE_U[0], hw.FAN_SIDE_U[1], hw.FAN_SIDE_N[0], hw.FAN_SIDE_N[1])      # the slot between the left fan's inner face and the board's edge, over the fan's footprint in (u, n)
@@ -153,8 +163,21 @@ def reach(grid, occupied, seeds, extra_blocks=()):
     return res
 
 
+def largest(pred, lo, hi):
+    """The largest whole number r in lo..hi for which pred(r) holds, pred falling with r; 0 if pred(lo) does not hold. A result equal to hi means "hi or more"."""
+    if not pred(lo):
+        return 0
+    if pred(hi):
+        return hi
+    while hi - lo > 1:
+        mid = (lo + hi) // 2
+        lo, hi = (mid, hi) if pred(mid) else (lo, mid)
+    return lo
+
+
 def widest(grid, dist, zone):
-    """The largest ball radius (whole mm, from BALL_R up to 60) with which the zone still has a way out: the margin of the check, found by bisection on the clearance."""
+    """The largest ball radius (whole mm, from BALL_R up to WIDEST_R_MAX) with which the zone still has a way out: the margin of the check, found by bisection on the clearance.
+    0 if a ball of BALL_R has none; WIDEST_R_MAX means that radius or more."""
     zm = grid.zone_mask(ZONE_BS[zone])
     rear = grid.ys[None, :, None] >= grid.y_rear
 
@@ -166,13 +189,12 @@ def widest(grid, dist, zone):
         lab, _ = ndimage.label(free)
         labels = np.unique(lab[sd])
         return bool(np.isin(lab[free & rear], labels[labels > 0]).any())
-    lo, hi = int(BALL_R), 60
-    if not gets_out(lo):
-        return 0
-    while hi - lo > 1:
-        mid = (lo + hi) // 2
-        lo, hi = (mid, hi) if gets_out(mid) else (lo, mid)
-    return lo
+    return largest(gets_out, int(BALL_R), WIDEST_R_MAX)
+
+
+def diameter_text(d):
+    """A widest diameter for the report: 'at least' when the search reached its limit."""
+    return f"{'>=' if d >= 2 * WIDEST_R_MAX else ''}Ø{d} мм"
 
 
 def wide_bundles(grid, occupied, extra_blocks=()):
@@ -194,65 +216,150 @@ def hand_grid(parts):
     return Grid(parts, x_lo=-(hw.ENVELOPE_FAN_X + HAND_ROOM))
 
 
-def hand_widest(grid, occupied, extra_blocks=(), plug_side=False):
-    """Diameter (mm, even) of the widest ball that gets from wholly beyond the left fan's outer face (X <= -ENVELOPE_FAN_X - its radius) to within HAND_NEAR of HAND_ZONE
-    (its centre), through the free air of `occupied`. The desk is a floor; there is no hull. 0 if a ball of 20 mm cannot.
-    plug_side: the centre also has to be on the plugs' side of the zone (v <= the zone's outer face), not under or behind the board."""
+def plug_face_goal(grid):
+    """Grid points in front of the plug face of HAND_ZONE, where the hand's centre has to get: within the zone's u and n ranges, v from the zone's outer (low v) face out to HAND_NEAR
+    beyond it."""
+    v, u, n = grid.bs_coords()
+    b = ZONE_BS[HAND_ZONE]
+    return (v <= b[0]) & (v >= b[0] - HAND_NEAR) & (u >= b[2]) & (u <= b[3]) & (n >= b[4]) & (n <= b[5])
+
+
+def hand_corridor(grid):
+    """Grid points the hand's centre may pass: on the hand's side of the plug face of HAND_ZONE (v at or below the zone's outer face). The ball itself may reach past it."""
+    return np.broadcast_to(grid.bs_coords()[0] <= ZONE_BS[HAND_ZONE][0], grid.shape)
+
+
+def hand_start(grid, radius):
+    """Grid points where a ball of `radius` lies wholly beyond the left fan's outer face."""
+    return np.broadcast_to(grid.xs[:, None, None] <= -hw.ENVELOPE_FAN_X - radius, grid.shape)
+
+
+def hand_widest(grid, occupied, extra_blocks=()):
+    """The widest ball that gets from wholly beyond the left fan's outer face to the plug-face goal (plug_face_goal) through the free air of `occupied`, its centre inside
+    hand_corridor. The desk is a floor; there is no hull. Returns dict(d: diameter mm, even, 0 if a ball of HAND_R_MIN cannot; start, goal: free ball centres in the start and in the goal for a ball of HAND_R_MIN; goal_box: grid
+    points of the goal before any obstacle; dist: the clearance field)."""
     occ = occupied.copy()
     occ[:, :, grid.zs < hw.DESK_Z] = True
     for (x0, x1, y0, y1, z0, z1) in extra_blocks:
         occ[np.ix_((grid.xs >= x0) & (grid.xs <= x1), (grid.ys >= y0) & (grid.ys <= y1), (grid.zs >= z0) & (grid.zs <= z1))] = True
     dist = ndimage.distance_transform_edt(~occ, sampling=grid.vox)
-    near = box_distance(grid, ZONE_BS[HAND_ZONE]) <= HAND_NEAR
-    if plug_side:
-        near &= grid.bs_coords()[0] <= ZONE_BS[HAND_ZONE][0]
-    outside = grid.xs[:, None, None]
+    goal_box = plug_face_goal(grid)
+
+    corridor = hand_corridor(grid)
+
+    def ends(radius):
+        free = (dist >= radius + grid.vox) & corridor
+        return free, free & hand_start(grid, radius), free & goal_box
 
     def gets_in(radius):
-        free = dist >= radius + grid.vox
-        start = free & (outside <= -hw.ENVELOPE_FAN_X - radius)
-        goal = free & near
+        free, start, goal = ends(radius)
         if not start.any() or not goal.any():
             return False
         lab, _ = ndimage.label(free)
         labels = np.unique(lab[goal])
         return bool(np.isin(lab[start], labels[labels > 0]).any())
-    lo, hi = 10, 60
-    if not gets_in(lo):
-        return 0
-    if gets_in(hi):
-        return 2 * hi
-    while hi - lo > 1:
-        mid = (lo + hi) // 2
-        lo, hi = (mid, hi) if gets_in(mid) else (lo, mid)
-    return 2 * lo
+    _free, start, goal = ends(HAND_R_MIN)
+    return dict(d=2 * largest(gets_in, HAND_R_MIN, WIDEST_R_MAX), start=int(start.sum()), goal=int(goal.sum()), goal_box=int(goal_box.sum()), dist=dist)
 
 
-def hand_check(parts, hardware, strands, field=None, extra_blocks=()):
-    """(lines, failures, results) of the hand: the widest ball without the organic layer and, if the field is given, with it; once to anywhere within HAND_NEAR of the zone
-    (the plan's reading, under which HAND_MIN_D was measured) and once on the plugs' side only. results: {(plug_side, with_layer): diameter}."""
+def hand_route(grid, dist, radius, layers):
+    """The shortest way (6-neighbour steps on the grid) of a ball of `radius` from the start to the goal, and its narrowest point. Returns (points [(X, Y, Z)], narrowest (X, Y, Z),
+    clearance there mm, the layer nearest to it), or None if there is no way."""
+    free = (dist >= radius + grid.vox) & hand_corridor(grid)
+    start, goal = free & hand_start(grid, radius), free & plug_face_goal(grid)
+    lab, _ = ndimage.label(free)
+    common = np.intersect1d(np.unique(lab[start]), np.unique(lab[goal]))
+    common = common[common > 0]
+    if not len(common):
+        return None
+    comp = lab == common[0]
+    step = np.full(grid.shape, -1, dtype=np.int32)
+    front = goal & comp
+    step[front] = 0
+    k = 0
+    st = ndimage.generate_binary_structure(3, 1)
+    while not (front & start).any():
+        k += 1
+        nxt = ndimage.binary_dilation(front, structure=st) & comp & (step < 0)
+        if not nxt.any():
+            return None
+        step[nxt] = k
+        front = nxt
+    cand = np.argwhere(front & start)
+    p = tuple(cand[np.argmax(dist[tuple(cand.T)])])
+    path = [p]
+    off = [(1, 0, 0), (-1, 0, 0), (0, 1, 0), (0, -1, 0), (0, 0, 1), (0, 0, -1)]
+    while step[p] > 0:
+        nb = [tuple(np.add(p, o)) for o in off]
+        nb = [q for q in nb if all(0 <= q[i] < grid.shape[i] for i in range(3)) and step[q] == step[p] - 1]
+        p = max(nb, key=lambda q: dist[q])
+        path.append(p)
+    pts = [(float(grid.xs[i]), float(grid.ys[j]), float(grid.zs[m])) for i, j, m in path]
+    i_min = int(np.argmin([dist[q] for q in path]))
+    q = path[i_min]
+    lo = [max(c - 40, 0) for c in q]
+    hi = [min(c + 41, n) for c, n in zip(q, grid.shape)]
+    sl = tuple(slice(a, b) for a, b in zip(lo, hi))
+    who, best = "-", float("inf")
+    for name, m in layers.items():
+        idx = np.argwhere(m[sl])
+        if len(idx):
+            dd = float(np.min(np.linalg.norm((idx - (np.array(q) - lo)) * grid.vox, axis=1)))
+            if dd < best:
+                best, who = dd, name
+    return pts, pts[i_min], float(dist[q]), who
+
+
+def bs_text(p):
+    a, b = (p[1] - hw.ORIGIN[1]) / hw.C, (p[2] - hw.ORIGIN[2]) / hw.C
+    return f"X {p[0]:.0f}, Y {p[1]:.0f}, Z {p[2]:.0f} (v {p[0] - hw.ORIGIN[0]:.0f}, u {(a + b) / 2:.0f}, n {(b - a) / 2:.0f})"
+
+
+def hand_check(parts, hardware, strands, field=None, extra_blocks=(), route=True):
+    """(lines, failures, results) of the hand: the widest ball that reaches the plug face of io_zone without the organic layer and, if the field is given, with it.
+    results: {False: hand_widest without the layer, True: with it} (dist left out)."""
     grid = hand_grid(parts)
     lay = layers_of(grid, parts, hardware, strands, field, skip=(HAND_ZONE,))
     base = lay["skeleton"] | lay["hardware"] | lay["cables"]
-    res = {}
-    for side in (False, True):
-        res[(side, False)] = hand_widest(grid, base, extra_blocks, side)
-        if field is not None:
-            res[(side, True)] = hand_widest(grid, base | lay["organic"], extra_blocks, side)
-    lines = [f"  Рука (ревизия 14b): шар снаружи левого фланга (целиком за наружной гранью левого вентилятора, X <= -{hw.ENVELOPE_FAN_X:g} - R) подходит центром на {HAND_NEAR:g} мм к {HAND_ZONE}; "
-             f"препятствия: каркас, железо и запретные зоны кроме {HAND_ZONE}, кабели; сетка {grid.vox:g} мм, X от {grid.xs[0]:.0f}. План просил Ø{HAND_D:g}, нижняя граница Ø{HAND_MIN_D:g}."]
+    res = {False: hand_widest(grid, base, extra_blocks)}
+    if field is not None:
+        res[True] = hand_widest(grid, base | lay["organic"], extra_blocks)
+    b = ZONE_BS[HAND_ZONE]
+    lines = [f"  Рука (ревизия 14b, второй проход): шар снаружи левого фланга (целиком за наружной гранью левого вентилятора, X <= -{hw.ENVELOPE_FAN_X:g} - R) ставит центр перед гранью "
+             f"штекеров {HAND_ZONE}: u {b[2]:g}..{b[3]:g}, n {b[4]:g}..{b[5]:g}, v от {b[0] - HAND_NEAR:g} до {b[0]:g} (X {hw.ORIGIN[0] + b[0] - HAND_NEAR:g}..{hw.ORIGIN[0] + b[0]:g}, "
+             f"не дальше {HAND_NEAR:g} мм от грани); по пути центр не заходит за плоскость грани штекеров (v <= {b[0]:g}); препятствия: каркас, железо и запретные зоны кроме {HAND_ZONE}, кабели; сетка {grid.vox:g} мм, X от {grid.xs[0]:.0f}. "
+             f"План просил Ø{HAND_D:g}. Правило (решение 17 ноября 2026): со слоем рука не меньше бюджета Ø{HAND_BUDGET_D}; замкнутое кольцо левого вентилятора стоит руке разницу между «без слоя» и "
+             f"«со слоем», кольца оставлены замкнутыми и зеркальными."]
     fails = []
-    for side, label in ((False, "куда угодно в 50 мм от зоны (так мерил Grok)"), (True, f"только со стороны штекеров (X <= {hw.ORIGIN[0] + ZONE_BS[HAND_ZONE][0]:g}, не под платой)")):
-        txt = f"  рука, {label}: без слоя Ø{res[(side, False)]} мм"
-        if field is not None:
-            w, wo = res[(side, True)], res[(side, False)]
-            bad = w < wo or (not side and w < HAND_MIN_D)
-            txt += f", со слоем Ø{w} мм   " + ("FAIL" if bad else "PASS")
-            if w < wo:
-                fails.append(f"ZONE_ACCESS hand{' (plugs side)' if side else ''}: the organic layer makes the widest hand smaller (Ø{w} mm with it, Ø{wo} mm without)")
-            if not side and w < HAND_MIN_D:
-                fails.append(f"ZONE_ACCESS hand: with the organic layer the widest hand that reaches {HAND_ZONE} is Ø{w} mm, under Ø{HAND_MIN_D:g}")
-        lines.append(txt)
+    for with_layer, r in res.items():
+        if r["goal_box"] == 0 or r["goal"] == 0:
+            fails.append(f"ZONE_ACCESS hand{' with the layer' if with_layer else ''}: the goal in front of the plug face of {HAND_ZONE} is empty "
+                         f"({r['goal_box']} grid points, {r['goal']} free for a ball of Ø{2 * HAND_R_MIN})")
+        if r["start"] == 0:
+            fails.append(f"ZONE_ACCESS hand{' with the layer' if with_layer else ''}: the start beyond the left fan's outer face is empty")
+    wo = res[False]["d"]
+    txt = f"  рука к грани штекеров: центров цели {res[False]['goal_box']} (свободных для Ø{2 * HAND_R_MIN}: {res[False]['goal']}), старта {res[False]['start']}; без слоя {diameter_text(wo)}"
+    if wo == 0:
+        fails.append(f"ZONE_ACCESS hand: without the organic layer no ball of Ø{2 * HAND_R_MIN} mm reaches the plug face of {HAND_ZONE}: the comparison with the layer would measure nothing")
+    if field is not None:
+        w = res[True]["d"]
+        txt += f", со слоем {diameter_text(w)} (бюджет Ø{HAND_BUDGET_D}, слой стоит руке {wo - w} мм)   " + ("FAIL" if w < HAND_BUDGET_D or wo == 0 else "PASS")
+        if w < HAND_BUDGET_D:
+            fails.append(f"ZONE_ACCESS hand: the organic layer makes the widest hand smaller than its budget (Ø{w} mm with it, budget Ø{HAND_BUDGET_D} mm, Ø{wo} mm without the layer)")
+    lines.append(txt)
+    if route:
+        for with_layer, r in res.items():
+            if r["d"] == 0:
+                continue
+            got = hand_route(grid, r["dist"], r["d"] // 2, {k: v for k, v in lay.items() if with_layer or k != "organic"})
+            if got is None:
+                continue
+            pts, narrow, clear, who = got
+            pick = pts[::max(len(pts) // 8, 1)] + [pts[-1]]
+            lines.append(f"  путь шара Ø{r['d']} {'со слоем' if with_layer else 'без слоя'} ({len(pts)} шагов по {grid.vox:g} мм, от старта к цели): " + "; ".join(bs_text(p) for p in pick))
+            lines.append(f"    самое узкое место: {bs_text(narrow)}, просвет {clear:.1f} мм (радиус шара {r['d'] // 2} + воксель), ближайший слой: {who}")
+    for r in res.values():
+        r.pop("dist", None)
     return lines, fails, res
 
 
@@ -349,7 +456,7 @@ def run(parts=None, hardware=None, strands=None, field=None, extra_blocks=(), ex
         reached_pts = r["reached"][z]
         wide = widest(grid, r["dist"], z) if ok else 0
         lines.append(f"  {z}: центров шара в зоне {n_seed}, достижимого свободного воздуха {int(reached_pts.sum()) * grid.vox ** 3 / 1000:.0f} см3, до задней грани: {'ДА' if ok else 'НЕТ'}, "
-                     f"самый толстый жгут, который ещё выходит: Ø{2 * wide} мм (запас по диаметру {2 * wide - BUNDLE_D:g} мм)   "
+                     f"самый толстый жгут, который ещё выходит: {diameter_text(2 * wide)} (запас по диаметру {2 * wide - BUNDLE_D:g} мм)   "
                      + ("PASS" if ok and n_seed and not bad and cd >= CABLE_CLEAR else "FAIL"))
     if field is not None:
         with_layer = reach(grid, occupied | lay["organic"], None, extra_blocks)
@@ -362,7 +469,7 @@ def run(parts=None, hardware=None, strands=None, field=None, extra_blocks=(), ex
         wide = wide_bundles(grid, occupied | lay["organic"], extra_blocks)
         for z in ZONES:
             ok = wide[z] >= BUNDLE_WIDE_D
-            lines.append(f"  {z} со слоем (ревизия 14b): самый толстый жгут, который выходит к задней грани в габарите: Ø{wide[z]} мм (нужно Ø{BUNDLE_WIDE_D:g})   {'PASS' if ok else 'FAIL'}")
+            lines.append(f"  {z} со слоем (ревизия 14b): самый толстый жгут, который выходит к задней грани в габарите: {diameter_text(wide[z])} (нужно Ø{BUNDLE_WIDE_D:g})   {'PASS' if ok else 'FAIL'}")
             if not ok:
                 fails.append(f"ZONE_ACCESS {z}: with the organic layer the widest bundle that leaves for the rear face is Ø{wide[z]} mm, under Ø{BUNDLE_WIDE_D:g}")
         results["wide"] = wide

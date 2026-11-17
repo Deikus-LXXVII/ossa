@@ -33,6 +33,7 @@ STRENGTH_LAYER = 20.0                       # MPa across layers, the weak direct
 SAFETY = 2.0                                # for a rare hand load
 ALLOW = STRENGTH_LAYER / SAFETY
 PUSH_N = 30.0                               # a firm push with a hand
+MOVE_MAX = 5.0                              # mm: no push of PUSH_N may move the layer more than this (revision 14b, second pass)
 FINGER_R = 6.0
 N_POINTS = 160
 PAD_FIX_H = 2.0                             # nodes this far above a skeleton face, inside the pad, are held
@@ -247,6 +248,9 @@ def main():
     over = [r_ for r_ in pushes if r_[3] > ALLOW]
     out.append(f"Толчки {PUSH_N:g} Н: напряжение выше допустимого в {len(over)} случаях из {len(pushes)}; "
                f"медиана напряжения {np.median([r_[3] for r_ in pushes]):.1f} МПа, медиана смещения {np.median([r_[2] for r_ in pushes]):.2f} мм")
+    worst = max(pushes, key=lambda r_: r_[2])
+    out.append(f"Толчки {PUSH_N:g} Н: наибольшее смещение {worst[2]:.2f} мм (давим {worst[0]} в X {worst[1][0]:.0f}, Y {worst[1][1]:.0f}, Z {worst[1][2]:.0f}), предел {MOVE_MAX:g} мм; "
+               f"выше предела в {sum(r_[2] > MOVE_MAX for r_ in pushes)} случаях из {len(pushes)}")
     out.append("")
     out.append("Десять самых слабых мест по напряжению (куда давят -> где наибольшее напряжение):")
     for label, p, m, s, where in sorted(pushes, key=lambda r_: -r_[3])[:10]:
