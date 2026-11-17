@@ -30,6 +30,9 @@ Tag each finding **Important** (wrong result possible), **Nit**, or **Pre-existi
 | 12 | A solver, a mesh or a speed change in a strength script | The report is identical to the one before, apart from timing lines. A failure to converge or a bad residual stops the run. | 17 Nov 2026, the Accelerate solver. |
 | 13 | A part the revision says it did not touch | Its volume and bounding box are the same as before. | Revision 14a: the sill's face moved 2 mm as a side effect of a larger pocket. |
 | 14 | A channel, a clip or a wall drawn round a hose or a cable route | The clearance does not hang on one sample of the route. Say what happens if the route moves by a millimetre. | Revision 14a: a hose channel with a 0.24 mm wall placed on one vertex of the route. |
+| 15 | A test's probe point or expected value moved in the same change as the geometry it judges | The probe still stands where the claim is (the middle of a wall, its thinnest place), and the move is not what makes it pass. | Revision 14a: the sill's strip probe was moved 1 mm off the wall's middle onto material a rounding had left, and the wall was 0 mm at the bottom. |
+| 16 | A rounding, a pocket or a cut next to a wall under about 5 mm | The wall is measured on the rounded solid over its whole length and height, not at one point. | Revision 14a: an R 6 rounding cut through a 2.9 mm wall, leaving nothing under Z 10.9 (check 22 now). |
+| 17 | A part's feature drawn as an offset from a PLACEHOLDER hardware number, or a cut that is not a recorded `Hole` | The feature follows the part's own numbers where the plan says the part must not change with the hardware; a counterbore or bore is a `Hole` so checks 7 and 16 see it. | Revision 14a: the sill's window followed `FRONT_IO_W`; the rest's counterbores were anonymous cuts 0.5 mm too shallow. |
 
 ## What a review does not have to redo
 
