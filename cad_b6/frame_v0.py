@@ -438,7 +438,7 @@ class Hole:
     wall: float              # minimum wall the insert / screw needs around the hole
     pilot: bool
     solid: object = None
-    _spans: tuple = None     # (blank, spans) cache
+    _spans: tuple = None     # (blank, the numbers they were measured with, spans) cache of material_spans
     stack: float = None      # a pilot only: the thickness the screw clamps, from its head's seat to the pilot's mouth; None where nothing is known (the I/O module's screws)
     washer: bool = True      # a washer lies under the head (it bears on plastic; the board's screws bear on the PCB)
     item: str = ""           # what the screw is, for the bill of fasteners
@@ -2028,6 +2028,13 @@ def exact_box(shape):
     return (xmin, xmax, ymin, ymax, zmin, zmax)
 
 
+def exact_bound_box(shape):
+    """exact_box as a cadquery BoundBox (xmin .. zmax, xlen, ylen, zlen, center()), for code that reads those attributes."""
+    b = Bnd_Box()
+    BRepBndLib.AddOptimal_s(shape.wrapped, b, False, False)
+    return cq.occ_impl.geom.BoundBox(b)
+
+
 def bbox_of(shape):
     hit = _BBOX.get(shape)
     if hit is None:
@@ -2075,7 +2082,10 @@ def solid_distance(a, b):
 def memo_call(memo, objs, tag, fn, *args, extra=()):
     """fn(*args), remembered in `memo` (a dict) under the identity of the solids in `objs` plus `extra`, when a memo is
     given. test_checks.py passes one so that a damaged copy of the model only recomputes what touches the damaged part;
-    the objects are kept in the entry, so their ids cannot be reused, and a hit must be the very same objects."""
+    the objects are kept in the entry, so their ids cannot be reused, and a hit must be the very same objects.
+    A solid's identity stands for its geometry (a shape is not changed in place), nothing else: `extra` must hold every other
+    number fn reads, the measurement's own steps, margins and tolerances (span_numbers(), iv_numbers()) and the fields of a
+    mutable object such as a Hole (hole_numbers()). A number left out lets a changed measurement return the old answer."""
     if memo is None:
         return fn(*args)
     key = (tag,) + tuple(id(o) for o in objs) + tuple(extra)
@@ -2085,6 +2095,27 @@ def memo_call(memo, objs, tag, fn, *args, extra=()):
     val = fn(*args)
     memo[key] = (tuple(objs), val)
     return val
+
+
+def hole_numbers(h):
+    """Every field of a Hole a measurement can read. A Hole is mutable, so its identity does not stand for its numbers."""
+    return (h.kind, tuple(h.start), tuple(h.d), h.r, h.length, h.wall, h.pilot, h.stack, h.washer, h.item)
+
+
+def iv_numbers():
+    """The numbers inter_vol reads besides its two shapes."""
+    return (BBOX_TOL, CROSS_VOL)
+
+
+def span_numbers():
+    """The numbers material_spans reads besides the solid and the probe's own numbers."""
+    return (SPAN_STEP, SPAN_MARGIN)
+
+
+def frame_numbers():
+    """The board frame as it is now: what hw.bp, hw.bp_yz, hw.bs_of, hw.to_board and un_of read at call time. Every memo key whose measurement goes
+    through one of them carries these (hw.U_DIR and hw.N_DIR are tuples computed at import, so they do not show a changed hw.C or hw.ORIGIN)."""
+    return (tuple(hw.ORIGIN), hw.C, hw.TILT_DEG, tuple(hw.U_DIR), tuple(hw.N_DIR))
 
 
 def inter_vol(a, b):
@@ -2139,8 +2170,9 @@ MOUNT_TOL = 0.2          # mm, axis point to hole wall, derived hardware mounts 
 
 def material_spans(blank, hole):
     """(t0, t1) intervals along the bore where its axis runs inside the part's undrilled material."""
-    if hole._spans is not None and hole._spans[0] is blank:
-        return hole._spans[1]
+    numbers = (tuple(hole.start), tuple(hole.d), hole.length) + span_numbers()
+    if hole._spans is not None and hole._spans[0] is blank and hole._spans[1] == numbers:
+        return hole._spans[2]
 
     def inside(t):
         return blank.isInside(Vector(*hole.point(t)))
@@ -2168,7 +2200,7 @@ def material_spans(blank, hole):
     if start is not None:
         spans.append((start, ts[-1]))
     spans = [(a + SPAN_MARGIN, b - SPAN_MARGIN) for a, b in spans if b - a > 2 * SPAN_MARGIN + 0.02]
-    hole._spans = (blank, spans)
+    hole._spans = (blank, numbers, spans)
     return spans
 
 
@@ -2221,7 +2253,8 @@ def check_holes(parts, failures, memo=None):
     for p in parts:
         for h in p.holes:
             n += 1
-            failures += memo_call(memo, (p.solid, p.blank, h), "hole", check_hole, p, h)
+            failures += memo_call(memo, (p.solid, p.blank, h), "hole", check_hole, p, h,
+                                  extra=(p.name, hole_numbers(h), OVERSHOOT, BORE_SHRINK, BORE_EPS, WALL_EPS) + span_numbers() + iv_numbers())
     return n
 
 
@@ -2312,7 +2345,7 @@ def derive_mounts(parts, contacts, failures, memo=None):
             failures.append(f"CHECK5 {item} at ({pt[0]:.1f}, {pt[1]:.1f}, {pt[2]:.1f}): no holder part {holder}")
             continue
         try:
-            why = memo_call(memo, (part.solid,), "mount", hole_at, part, pt, r, extra=(tuple(pt), r))
+            why = memo_call(memo, (part.solid,), "mount", hole_at, part, pt, r, extra=(tuple(pt), r, MOUNT_TOL))
         except BooleanFailure as e:
             failures.append(f"CHECK5 {item} in {holder}: BOOLEAN FAILED: {e}")
             continue
@@ -2333,9 +2366,9 @@ def derive_mounts(parts, contacts, failures, memo=None):
             try:
                 pt_post, pt_beam = hw.bp(GPU_POST_BOLT_V, u, hw.ATX_TRAY_N + 4.0), hw.bp(GPU_POST_BOLT_V, u, BEAM_N_MID)
                 why_post = memo_call(memo, (byname["gpu_post"].solid,), "mount", hole_at, byname["gpu_post"], pt_post,
-                                     hw.M3_PILOT_D / 2, extra=(tuple(pt_post), hw.M3_PILOT_D / 2))
+                                     hw.M3_PILOT_D / 2, extra=(tuple(pt_post), hw.M3_PILOT_D / 2, MOUNT_TOL))
                 why_beam = memo_call(memo, (byname["beam_mid"].solid,), "mount", hole_at, byname["beam_mid"], pt_beam,
-                                     hw.M3_CLEAR_D / 2, extra=(tuple(pt_beam), hw.M3_CLEAR_D / 2))
+                                     hw.M3_CLEAR_D / 2, extra=(tuple(pt_beam), hw.M3_CLEAR_D / 2, MOUNT_TOL))
             except BooleanFailure as e:
                 failures.append(f"CHECK5 gpu_post screw at u = {u}: BOOLEAN FAILED: {e}")
                 continue
@@ -2351,7 +2384,7 @@ def derive_mounts(parts, contacts, failures, memo=None):
                 whys.append(f"no holder part {holder}")
                 continue
             try:
-                why = memo_call(memo, (part.solid,), "mount", hole_at, part, pt, r, extra=(tuple(pt), r))
+                why = memo_call(memo, (part.solid,), "mount", hole_at, part, pt, r, extra=(tuple(pt), r, MOUNT_TOL))
             except BooleanFailure as e:
                 why = f"BOOLEAN FAILED: {e}"
             if why:
@@ -2436,10 +2469,10 @@ def check_tie_bridges(parts, hardware, pb, hb, contacts, pp_contact, failures, m
     return rows
 
 
-def _guard(failures, tag, label, fn, *args):
+def _guard(failures, tag, label, fn, *args, **kw):
     """Run fn; a BooleanFailure becomes a named check failure and the result is None."""
     try:
-        return fn(*args)
+        return fn(*args, **kw)
     except BooleanFailure as e:
         failures.append(f"{tag} {label}: BOOLEAN FAILED: {e}")
         return None
@@ -2451,10 +2484,11 @@ _NMAX: dict = {}
 def part_n_max(p):
     """Highest board-space n of a part (the solid expressed in board space). Cached per solid object, which stays
     referenced by the cache so its id cannot be reused."""
-    hit = _NMAX.get(id(p.solid))
+    key = (id(p.solid),) + frame_numbers()       # hw.to_board reads the frame
+    hit = _NMAX.get(key)
     if hit is None or hit[0] is not p.solid:
         hit = (p.solid, float(exact_box(hw.to_board(p.solid))[5]))
-        _NMAX[id(p.solid)] = hit
+        _NMAX[key] = hit
     return hit[1]
 
 
@@ -2566,12 +2600,13 @@ def check_guides(parts, failures, memo=None):
         mouth = GUIDE_MOUTH * 2 * guide_hose_r(pair)
         for i, tube in enumerate(tubes[hose_name]):
             label = f"{p.name} x {hose_name}[{i}]"
-            v = _guard(failures, "CHECK10", label, memo_call, memo, (p.solid, tube), "iv", inter_vol, p.solid, tube)
+            v = _guard(failures, "CHECK10", label, memo_call, memo, (p.solid, tube), "iv", inter_vol, p.solid, tube, extra=iv_numbers())
             d = _guard(failures, "CHECK10", label, memo_call, memo, (p.solid, tube), "dist", solid_distance, p.solid, tube)
             def probe_vol(w):
                 try:
+                    hp, hd, _ = hose_at(pair, i, u_of[i])           # where the probe stands: the hose's route, which no solid's identity stands for
                     return memo_call(memo, (p.solid,), "mouth", lambda: inter_vol(p.solid, mouth_probe(pair, i, u_of[i], side, w)),
-                                     extra=(pair, i, round(w, 4)))
+                                     extra=(pair, i, round(w, 4), u_of[i], side, guide_hose_r(pair), tuple(np.round(hp, 6)), tuple(np.round(hd, 9))) + iv_numbers())
                 except BooleanFailure as e:
                     failures.append(f"CHECK10 {label}: BOOLEAN FAILED: {e}")
                     return None
@@ -2676,7 +2711,7 @@ def check_sill_rear_wall(parts, failures, memo=None):
         return {}
     g = sill_geometry()
     worst, n = memo_call(memo, (sill.solid,), "sill_wall", sill_wall_probes, sill.solid, g,
-                         extra=(CARRIER_X, SILL_POCKET_PLAY, g["z0"], g["roof"], g["pocket_rear"], g["y_rear"], g["window_xz"], SILL_WINDOW_R, SILL_WALL_STEP))
+                         extra=(CARRIER_X, SILL_POCKET_PLAY, g["z0"], g["roof"], g["pocket_rear"], g["y_rear"], g["window_xz"], SILL_WINDOW_R, SILL_WALL_STEP) + span_numbers())
     if n == 0:
         failures.append("CHECK22 no probe of the sill's rear wall")
         return {}
@@ -2712,10 +2747,11 @@ SHADOW_FAN = {"hose_guide_cpu": "fan_side_left"}      # the parts that may stand
 _SHADOW_TUBES: dict = {}
 
 
-def projection_mask(shape, window, res=SHADOW_RES):
+def projection_mask(shape, window, res=None):
     """Boolean image (rows = n, columns = u) of the pixels of `window` = (u0, u1, n0, n1) that `shape`'s projection along X covers, in board space: the shape is tessellated and every
     triangle filled. The boundary pixels count, so an area read from it is a little over the true one (by about half a pixel along the outline: under 0.1 % of the circle here)."""
     from PIL import Image, ImageDraw
+    res = SHADOW_RES if res is None else res       # read at call time, as guide_shadow's cache key and its pixel centres read it
     u0, u1, n0, n1 = window
     w, h = int(math.ceil((u1 - u0) / res)), int(math.ceil((n1 - n0) / res))
     img = Image.new("1", (w, h), 0)
@@ -2733,7 +2769,7 @@ def guide_shadow(solid, fan, tubes):
     cu, cn = hw.FAN_CENTRE_UN
     r = hw.FAN_APERTURE_D / 2
     window = (cu - r - 1.0, cu + r + 1.0, cn - r - 1.0, cn + r + 1.0)
-    key = (round(cu, 3), round(cn, 3))
+    key = (round(cu, 3), round(cn, 3), r, SHADOW_RES) + frame_numbers()       # projection_mask reads the frame (hw.bs_of)
     if key not in _SHADOW_TUBES or _SHADOW_TUBES[key][0] is not tubes[0]:
         _SHADOW_TUBES[key] = (tubes[0], np.logical_or.reduce([projection_mask(t, window) for t in tubes]))
     hoses_mask = _SHADOW_TUBES[key][1]
@@ -2976,10 +3012,11 @@ MIN_WEB = 2.0              # nothing of an antler may be narrower than this, mea
 WEB_RES = 0.1              # mm per pixel of that section; the radius found is good to about one pixel, so a failure is a web under MIN_WEB - 0.1
 
 
-def web_section(solid, res=WEB_RES):
+def web_section(solid, res=None):
     """The section of `solid` by the plane through the plate's middle (u = ANTLER_U mid), rasterised in (X, n): (mask, xs, ns, res)."""
     import trimesh
     from matplotlib.path import Path
+    res = WEB_RES if res is None else res       # read at call time, as the memo key reads it (a default would keep the value at import)
     vs, fs = tessellate(solid, 0.05)
     mesh = trimesh.Trimesh(vs, fs, process=False)
     sec = mesh.section(plane_origin=np.array(hw.bp(0.0, sum(ANTLER_U) / 2.0, 0.0)), plane_normal=np.array(hw.U_DIR))
@@ -3071,7 +3108,7 @@ def check_420_plates(parts, failures, memo=None):
     for p in parts:
         if p.name.startswith("antler"):
             w, xr, nr = _guard(failures, "CHECK14", f"{p.name} narrowest web", memo_call, memo, (p.blank if p.blank is not None else p.solid,), "web", narrowest_web,
-                               p.blank if p.blank is not None else p.solid) or (float("nan"), None, None)
+                               p.blank if p.blank is not None else p.solid, extra=(tuple(ANTLER_U), WEB_RES) + frame_numbers()) or (float("nan"), None, None)
             out["webs"].append((p.name, w, xr, nr))
             if w < MIN_WEB - 0.1:
                 failures.append(f"CHECK14 {p.name} has a web {w:.2f} mm wide at |X| {abs(xr[0]):.1f}..{abs(xr[1]):.1f}, n {nr[0]:.1f}..{nr[1]:.1f}: nothing of the plate may be narrower than {MIN_WEB:g} mm")
@@ -3080,7 +3117,7 @@ def check_420_plates(parts, failures, memo=None):
     out["underside"] = []
     for p in parts:
         if p.name.startswith("antler"):
-            v = _guard(failures, "CHECK14", f"{p.name} x the fans' underside", memo_call, memo, (p.solid, air), "iv", inter_vol, p.solid, air)
+            v = _guard(failures, "CHECK14", f"{p.name} x the fans' underside", memo_call, memo, (p.solid, air), "iv", inter_vol, p.solid, air, extra=iv_numbers())
             if v is None:
                 continue
             out["underside"].append((p.name, v))
@@ -3151,9 +3188,10 @@ _REF_SHARP: dict = {}
 
 def ref_sharp(name):
     """Number of sharp outline corners on the unrounded part."""
-    if name not in _REF_SHARP:
-        _REF_SHARP[name] = len(rd.sharp_axial_edges(reference_parts()[name].solid, plate_axes(name), accept=plate_accept(name), caps=False))
-    return _REF_SHARP[name]
+    key = sharp_numbers(name)                   # not the name alone: plate_accept reads the frame and the plate's numbers
+    if key not in _REF_SHARP:
+        _REF_SHARP[key] = len(rd.sharp_axial_edges(reference_parts()[name].solid, plate_axes(name), accept=plate_accept(name), caps=False))
+    return _REF_SHARP[key]
 
 
 def log_reason(p, y, z):
@@ -3179,6 +3217,13 @@ def reason_class(text):
     return "other"
 
 
+def sharp_numbers(name):
+    """What sharp_axial_edges reads for plate `name` besides its solid: the plate's axes, the numbers its filter (plate_accept) reads, the angle that makes an edge sharp,
+    and the board frame (plate_accept places an edge with un_of)."""
+    axes = plate_axes(name)
+    return (name, None if axes is None else tuple(map(tuple, axes)), tuple(TONGUE_X), tuple(TONGUE_N), NECK_X[0], ARM_NOTCH_X, rd.SHARP_DEG) + frame_numbers()
+
+
 def classify_corners(p, others, memo=None):
     """Sharp outline corners of plate `p` and why each is allowed to stay: 'lap' (a step of a lap joint), 'allowance' (the corner's rounding would
     take more contact area than the 97 % floor leaves, or flat contact within 4 mm of a screw; ROUND_LOG says so), 'hole' (it would cut a
@@ -3186,7 +3231,7 @@ def classify_corners(p, others, memo=None):
     kernel could not make the fillet), 'declared' (KEEP_SHARP, the bracket's rail group), 'junction' (the run-out of a fillet), 'contact'
     (a face of the part lies against hardware or another part within the reach of the largest radius and the log has no entry: a step cut
     by a neighbour), or 'open' (nothing excuses it). others: rounding.Neighbors of the hardware and the other parts."""
-    edges = memo_call(memo, (p.solid,), "sharp", lambda: rd.sharp_axial_edges(p.solid, plate_axes(p.name), accept=plate_accept(p.name)))   # depends on the part alone
+    edges = memo_call(memo, (p.solid,), "sharp", lambda: rd.sharp_axial_edges(p.solid, plate_axes(p.name), accept=plate_accept(p.name)), extra=sharp_numbers(p.name))
     patches = others.patches(p.solid.Faces(), bbox_of(p.solid), exclude=(p.name,)) if edges else []
     rows = []
     for e in edges:
@@ -3223,7 +3268,7 @@ def check_corners(parts, hardware, pb, hb, failures, memo=None):
         if plate_axes(p.name) is None:
             continue
         edges = _guard(failures, "CHECK12", p.name, memo_call, memo, (p.solid,), "sharp0",       # without the end caps: cheaper, and the count is all this needs
-                       lambda: rd.sharp_axial_edges(p.solid, plate_axes(p.name), accept=plate_accept(p.name), caps=False))
+                       lambda: rd.sharp_axial_edges(p.solid, plate_axes(p.name), accept=plate_accept(p.name), caps=False), extra=sharp_numbers(p.name))
         if edges is None:
             continue
         now = len(edges)
@@ -3498,7 +3543,7 @@ def check_m3_counterbores(parts, failures, memo=None):
             if h.kind != "M3cb":
                 continue
             where = f"{p.name}: {h.describe()}"
-            rim, bottom = memo_call(memo, (p.solid, h), "m3cb", m3_counterbore_probes, p.solid, h, extra=(CB_RIM_POINTS, hw.M3_CLEAR_D))
+            rim, bottom = memo_call(memo, (p.solid, h), "m3cb", m3_counterbore_probes, p.solid, h, extra=(hole_numbers(h), CB_RIM_POINTS, hw.M3_CLEAR_D) + span_numbers())
             if None in rim or bottom is None:
                 failures.append(f"CHECK16 {where}: no face round the counterbore or no floor under it")
                 continue
@@ -3609,7 +3654,10 @@ def explain_corners(parts, hardware, memo=None):
         if plate_axes(p.name) is None:
             continue
         near = [n for n in items if n.name != p.name and bbox_gap(pb[p.name], bbox_of(n.shape)) <= 1e-3]
-        rows = memo_call(memo, (p.solid,) + tuple(n.shape for n in near), "corners", classify_corners, p, rd.Neighbors(near), memo)
+        rows = memo_call(memo, (p.solid,) + tuple(n.shape for n in near), "corners", classify_corners, p, rd.Neighbors(near), memo,
+                         extra=sharp_numbers(p.name) + (tuple(n.name for n in near), tuple(map(tuple, LAP_ZONES)), RIB_T, ROUND_CONCAVE,
+                                                         bracket_join_x(p.name) if p.name.startswith("fan_bracket") else None))
+        # not in the key: ROUND_LOG and KEEP_SHARP, which the build that made p.solid wrote; a later build (a test's damaged copy) rewrites them for other solids
         by = {w: sum(1 for c in rows if c[0] == w) for w in CORNER_CLASSES}
         out.append((p.name, len(rows), ref_sharp(p.name), by, [c for c in rows if c[0] == "open"]))
     return out
@@ -3622,7 +3670,7 @@ def run_checks(hardware, parts, memo=None):
     # 1. hardware x hardware
     hh = []
     for (an, a), (bn, b) in itertools.combinations(hardware.items(), 2):
-        v = _guard(failures, "CHECK1", f"hardware {an} x {bn}", memo_call, memo, (a, b), "iv", inter_vol, a, b)
+        v = _guard(failures, "CHECK1", f"hardware {an} x {bn}", memo_call, memo, (a, b), "iv", inter_vol, a, b, extra=iv_numbers())
         if v is None:
             continue
         hh.append((an, bn, v))
@@ -3642,7 +3690,7 @@ def run_checks(hardware, parts, memo=None):
             if GUIDE_HOSE.get(p.name) == hn:
                 continue                    # a guide holds its own hose: it is measured against the true hose in check 10
             v = _guard(failures, "CHECK2", f"part x hardware {p.name} x {hn}", memo_call, memo, (p.solid, hs), "iv",
-                       inter_vol, p.solid, hs)
+                       inter_vol, p.solid, hs, extra=iv_numbers())
             d = _guard(failures, "CHECK2", f"part x hardware {p.name} x {hn}", memo_call, memo, (p.solid, hs), "dist",
                        solid_distance, p.solid, hs)
             if v is None or d is None:
@@ -3662,7 +3710,7 @@ def run_checks(hardware, parts, memo=None):
         if bbox_gap(pb[a.name], pb[b.name]) > 1e-6:
             continue
         v = _guard(failures, "CHECK3", f"part x part {a.name} x {b.name}", memo_call, memo, (a.solid, b.solid), "iv",
-                   inter_vol, a.solid, b.solid)
+                   inter_vol, a.solid, b.solid, extra=iv_numbers())
         if v is None:
             continue
         pp.append((a.name, b.name, v))
@@ -4330,7 +4378,7 @@ def format_report(hardware, parts, res, memo=None):
           f"{b[1] - b[0]:.0f} мм <= {MAX_PART:.0f}, делить пополам не нужно.")
         io = hw.FRONT_IO_W
         w(f"  Карман (ревизия 14a): снаружи каретки front_io_carrier (X {CARRIER_X[0]:g}..{CARRIER_X[1]:g}, Y {hw.ENVELOPE_Y0:g}..{CARRIER_Y1:g}, Z {CARRIER_Z[0]:g}..{CARRIER_Z[1]:g}) плюс {SILL_POCKET_PLAY:g} мм с боков, сзади и сверху: "
-          f"X {g['cuts']['pocket'].BoundingBox().xmin:g}..{g['cuts']['pocket'].BoundingBox().xmax:g}, Y до {g['pocket_rear']:g}, потолок Z {g['roof']:g} (до канала светлой линии {solid_distance(g['cuts']['pocket'], g['cuts']['channel']):.2f} мм); открыт спереди и снизу. "
+          f"X {exact_box(g['cuts']['pocket'])[0]:g}..{exact_box(g['cuts']['pocket'])[1]:g}, Y до {g['pocket_rear']:g}, потолок Z {g['roof']:g} (до канала светлой линии {solid_distance(g['cuts']['pocket'], g['cuts']['channel']):.2f} мм); открыт спереди и снизу. "
           f"Бокс модуля front_io X {io[0]:g}..{io[1]:g}, Y {io[2]:g}..{io[3]:g}, Z {io[4]:g}..{io[5]:g} (PLACEHOLDER) лежит в каретке, не в пороге: зазор до него за модулем {g['pocket_rear'] - io[3]:.2f} мм, "
           f"задняя стенка порога {SILL_REAR_WALL:.2f} мм (была 5; плоскость Y {g['y_rear']:g} не двигалась). Пилотов модуля в пороге больше нет; 4 пилота M3 под винты каретки в торцевых стенках кармана. Отверстий под порты нет.")
         ls = hw.LIGHT_STRIP_BS

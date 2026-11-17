@@ -311,7 +311,7 @@ PAD_FACE_PROBE = 3.0                       # mm: where the face is read, off the
 def face_hit(solid, y, z, s):
     """X of the part's outer face at (y, z), seen from outside on side s; None if the ray misses."""
     import cadquery as cq
-    bb = solid.BoundingBox()
+    bb = frame_v0.exact_bound_box(solid)
     xs = np.arange(bb.xmax + 0.5, bb.xmin - 0.5, -0.5) if s > 0 else np.arange(bb.xmin - 0.5, bb.xmax + 0.5, 0.5)
     prev = None
     for x in xs:
