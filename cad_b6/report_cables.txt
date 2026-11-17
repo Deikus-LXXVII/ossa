@@ -11,8 +11,8 @@ Power switch         31    n/a    n/a        -  /8                    4.24  fron
 Light line           61    n/a    n/a        8.0/8                    4.27  front_sill                                                 none (Y 52)
 Audio               175    n/a    n/a        8.0/8                    3.78  front_sill                                                 none (Y 51)
 Pump / 420 fans     140    n/a    n/a        8.0/8                    3.50  hw:dimms                                                  none (Y 197)
-Right side fan      157    400    243        8.0/8                    5.55  hw:gpu_hoses                                              none (Y 209)
-Left side fan       167    400    233        8.0/8                    6.40  hw:gpu                                                    none (Y 111)
+Right side fan      166    400    234        8.0/8                    4.62  neck_right                                                none (Y 209)
+Left side fan       222    400    178        8.0/8                    6.40  hw:gpu                                                    none (Y 111)
 
 per route: every clearance under 10 mm, and every failed check
   ATX 24-pin       tie_bridge_rail_4 4.3; hw:board (route without the plug's descent) 5.5; rib_A_right 6.5; tie_bridge_rail_3 7.0; tie_bridge_leg_1 9.4
@@ -20,12 +20,12 @@ per route: every clearance under 10 mm, and every failed check
   EPS 1            hw:board (route without the plug's descent) 3.5; hw:dimms 4.0; hw:rad420 4.0; rib_A_right 4.5; rib_B_right 4.5; hw:atx24 7.1; hw:psu (route after its socket leg) 8.0
   EPS 2            hw:board (route without the plug's descent) 3.5; hw:dimms 3.5; hw:psu (route after its socket leg) 3.6; beam_top 3.9; hw:rad420 4.0; tie_bridge_skid_1 4.3; rib_A_right 4.5; rib_B_right 4.5; tie_bridge_top_2 7.4
   USB 3 front      beam_mid 3.5; tie_bridge_low_2 4.0; hw:board (route without the plug's descent) 5.5; tie_bridge_low_1 5.5; rib_A_right 6.5; front_sill 6.6; tie_bridge_mid_3 8.2; beam_low 8.5; tie_bridge_leg_2 8.7
-  USB-C front      hw:gpu (from n 11 up) 3.0; hw:board (route without the plug's descent) 3.4; rib_A_right 4.4; tie_bridge_low_2 4.5; front_sill 6.6; fan_bracket_right 6.8; beam_low 9.3
+  USB-C front      hw:gpu (from n 11 up) 3.0; hw:board (route without the plug's descent) 3.4; rib_A_right 4.4; tie_bridge_low_2 4.5; front_sill 6.6; fan_bracket_right 7.3; beam_low 9.3
   Power switch     front_sill 4.2
   Light line       front_sill 4.3; hw:front_io 9.7
   Audio            front_sill 3.8; hw:board (route without the plug's descent) 8.7
   Pump / 420 fans  hw:dimms 3.5; hw:rad420 9.0; hw:atx24 9.7
-  Right side fan   hw:gpu_hoses 5.5; neck_right 5.8
+  Right side fan   neck_right 4.6; hw:gpu_hoses 7.3
   Left side fan    hw:gpu 6.4
 route x route: smallest distances EPS 1 x EPS 2 0.43, 12V-2x6 x USB 3 front 0.46, ATX 24-pin x EPS 1 0.50, ATX 24-pin x 12V-2x6 0.50, EPS 2 x Pump / 420 fans 1.00, ATX 24-pin x USB 3 front 1.16
 

@@ -265,7 +265,7 @@ def main():
     case("hose_guide_cpu built with a 0.5 x diameter mouth", "CHECK10 hose_guide_cpu x ...: the mouth is not 9.3 mm wide",
          r["failures"], "CHECK10 hose_guide_cpu", "the mouth is not 9.3 mm wide")
 
-    # 2g. side fans and their brackets (revision 7)
+    # 2g. side fans and their brackets (revision 7, rebuilt in revision 13: one design, the right one built where it stands, the left one its mirror)
     br_l = part_named(parts, "fan_bracket_left")
     br_r = part_named(parts, "fan_bracket_right")
     h_l = next(h for h in br_l.holes if h.pilot and h.item == "side fan")
@@ -277,6 +277,10 @@ def main():
     r = f.run_checks(hardware, with_part(parts, "fan_bracket_left", solid=br_l.blank), MEMO)
     case("fan_bracket_left undrilled (blank instead of the part)", "CHECK5 fan_side_left: 0 of 4 corner holes",
          r["failures"], "CHECK5 fan_side_left: 0 of 4")
+    h_rib = next(h for h in br_l.holes if h.pilot and h.item == "fan bracket")
+    r = f.run_checks(hardware, with_part(parts, "fan_bracket_left", solid=refilled(br_l, h_rib)), MEMO)
+    case("fan_bracket_left: one rib-bolt pilot in the leg filled back in", "CHECK7 fan_bracket_left ... M3 pilot ... is not drilled",
+         r["failures"], "CHECK7 fan_bracket_left", "M3 pilot", "is not drilled")
     mv = moved(br_l, -5, 0, 0)
     r = f.run_checks(hardware, with_part(parts, "fan_bracket_left", solid=mv.solid, blank=mv.blank, holes=mv.holes), MEMO)
     case("fan_bracket_left moved 5 mm into fan_side_left", "CHECK2 part x hardware fan_bracket_left x fan_side_left",
@@ -285,10 +289,14 @@ def main():
     r = f.run_checks(hardware, with_part(parts, "fan_bracket_right", solid=mv.solid, blank=mv.blank, holes=mv.holes), MEMO)
     case("fan_bracket_right moved 5 mm into fan_side_right", "CHECK2 part x hardware fan_bracket_right x fan_side_right",
          r["failures"], "CHECK2 part x hardware fan_bracket_right x fan_side_right")
-    mv = moved(br_r, 0, -4 * hw.C, -4 * hw.C)        # 4 mm down-slope along u: 7.03 -> 3.03 mm from gpu_hoses
+    # the bracket towards the hoses: the right one is the near one (gpu_hoses 5.55 mm from its spine's foot and the root block); 3 mm towards -u leaves about 2.5 mm
+    d_gpu = f.solid_distance(br_r.solid, hardware["gpu_hoses"])
+    mv = moved(br_r, 0, -3 * hw.C, -3 * hw.C)
     r = f.run_checks(hardware, with_part(parts, "fan_bracket_right", solid=mv.solid, blank=mv.blank, holes=mv.holes), MEMO)
-    case("fan_bracket_right moved 4 mm along u, 3 mm from gpu_hoses", "CHECK9 fan_bracket_right is 3.03 mm from gpu_hoses, needs 5",
+    case("fan_bracket_right moved 3 mm along -u, towards gpu_hoses", f"CHECK9 fan_bracket_right is N mm from gpu_hoses, needs 5 (it is {d_gpu:.2f} mm in place)",
          r["failures"], "CHECK9 fan_bracket_right", "gpu_hoses", "needs 5")
+    check("  the undamaged right bracket is 5 mm or more from gpu_hoses, and the left one far from cpu_hoses", d_gpu >= f.HOSE_CLEAR - 1e-6 and f.solid_distance(br_l.solid, hardware["cpu_hoses"]) >= f.HOSE_CLEAR,
+          (f">= {f.HOSE_CLEAR:g} mm", f"right {d_gpu:.2f} mm from gpu_hoses, left {f.solid_distance(br_l.solid, hardware['cpu_hoses']):.2f} mm from cpu_hoses"))
     ap_blank = f.bsx(*f.fan_bracket_geometry("fan_bracket_left")[0], 180.0, 200.0, 20.0, 40.0)    # a block in the middle of the fan's circle
     fused = br_l.solid.fuse(ap_blank).clean()
     r = f.run_checks(hardware, with_part(parts, "fan_bracket_left", solid=fused), MEMO)
@@ -300,39 +308,135 @@ def main():
     r = f.run_checks(hardware, with_part(parts, "fan_bracket_left", solid=br_l.solid.fuse(wide).clean()), MEMO)
     case("fan_bracket_left with a block that bites 12 mm into the circle's edge", "CHECK11 fan_bracket_left ... inside the open circle",
          r["failures"], "CHECK11 fan_bracket_left", "inside the open circle")
-    # fan corner holes are the revision-7 mount table: the left bracket uses A, B, C from the inner face; the right one A, C from the inner
-    # face (B, D are 4.1 mm from gpu_hoses there) and D from the outside through the revision-7a tab
+    # revision 13: the probe reaches the rib, not 60 mm in from the fan's inner face (that covered a leg of 12 or 33 mm; the leg is 49 now): a block in the circle next to the rib is found
+    near_rib = f.bsx(-170.0, -160.0, 150.0, 170.0, 20.0, 40.0)
+    r = f.run_checks(hardware, with_part(parts, "fan_bracket_left", solid=br_l.solid.fuse(near_rib).clean()), MEMO)
+    case("fan_bracket_left with a block in the circle, 10 mm from the rib (X -170..-160)", "CHECK11 fan_bracket_left has N mm3 inside the open circle",
+         r["failures"], "CHECK11 fan_bracket_left", "inside the open circle")
+    rect_leg = f.bsx(*f.fan_bracket_geometry("fan_bracket_left")[1], 116.0, 140.0, *f.BRACKET_LEG_N)      # the old rectangular leg widened to u 140: it enters the circle (u 132.3 at n -6)
+    r = f.run_checks(hardware, with_part(parts, "fan_bracket_left", solid=br_l.solid.fuse(rect_leg).clean()), MEMO)
+    case("fan_bracket_left with a rectangular leg 24 mm wide (the trapezoid leans away from the circle)", "CHECK11 fan_bracket_left has N mm3 inside the open circle",
+         r["failures"], "CHECK11 fan_bracket_left", "inside the open circle")
+    # fan corner holes are the revision-13 mount table: both brackets use A, B, C from the inner face and none reaches D (the CPU hoses pass there on the left)
     check("both fans have 3 screws", base["mounts"]["fan_side_left"] == 3 and base["mounts"]["fan_side_right"] == 3,
           ("left 3, right 3", f"left {base['mounts']['fan_side_left']}, right {base['mounts']['fan_side_right']}"))
-    tab_x = f.hw.FAN_SIDE_X["fan_side_right"][1]
-    tab_holes = [h for h in br_r.holes if h.kind == "M3c"]
     fan_pilots = [h for h in br_r.holes if h.pilot and h.item == "side fan"]
-    check("the right bracket's third screw is the outer tab: two fan pilots and one clearance hole, no inner pilot at corner D",
-          len(fan_pilots) == 2 and len(tab_holes) == 1 and tab_holes[0].start[0] < tab_x < tab_holes[0].start[0] + tab_holes[0].length,
-          ("2 fan pilots + 1 M3c through the tab (X 226..228.5)", f"{len(fan_pilots)} fan pilots, {len(tab_holes)} M3c"))
-    r = f.run_checks(hardware, with_part(parts, "fan_bracket_right", solid=refilled(br_r, tab_holes[0])), MEMO)
-    case("fan_bracket_right: tab clearance hole filled back in", "CHECK7 fan_bracket_right ... M3c ... is not drilled",
-         r["failures"], "CHECK7 fan_bracket_right", "is not drilled")
-    case("  same damage, right fan screw count derived from the solids", "CHECK5 fan_side_right: 2 of 4 corner holes",
-         r["failures"], "CHECK5 fan_side_right: 2 of 4")
+    check("each bracket has three fan pilots (corners A, B, C), no clearance hole at the fan's outer face, and the right one is the left one mirrored",
+          len(fan_pilots) == 3 and not [h for h in br_r.holes if h.kind == "M3c"] and not [h for h in br_l.holes if h.kind == "M3c"]
+          and abs(br_l.solid.Volume() - br_r.solid.Volume()) < 1e-3 and all(any(abs(a.start[0] + b.start[0]) < 1e-9 and a.start[1:] == b.start[1:] for b in br_r.holes) for a in br_l.holes),
+          ("3 fan pilots, 0 M3c, equal volumes, every left hole a right hole mirrored", f"{len(fan_pilots)} fan pilots, {len([h for h in br_r.holes if h.kind == 'M3c'])} M3c, volumes {br_l.solid.Volume():.0f} / {br_r.solid.Volume():.0f}"))
     h_r = fan_pilots[0]
     r = f.run_checks(hardware, with_part(parts, "fan_bracket_right", solid=refilled(br_r, h_r)), MEMO)
-    case("fan_bracket_right: one inner pilot filled back in (the tab alone does not make three)", "CHECK5 fan_side_right: 2 of 4 corner holes",
+    case("fan_bracket_right: one fan pilot filled back in", "CHECK5 fan_side_right: 2 of 4 corner holes",
          r["failures"], "CHECK5 fan_side_right: 2 of 4")
-    mv = moved(br_r, 1.0, 0, 0)
+    # check 8: the brackets stand out to the fans' outer face, everything else stops at the radiators' ends
+    check("the limits: the fans' brackets 260 (the fans' outer face), the skeleton 229", hw.ENVELOPE_FAN_X == 260.0 and hw.ENVELOPE_X == 229.0 and hw.ENVELOPE_FAN_X == max(abs(x) for xs in hw.FAN_SIDE_X.values() for x in xs)
+          and base["envelope"]["parts_fan"][0] <= hw.ENVELOPE_FAN_X and base["envelope"]["parts_rest"][0] <= hw.ENVELOPE_X,
+          ("fan brackets max |X| <= 260, other parts max |X| <= 229",
+           f"brackets {base['envelope']['parts_fan'][0]:.1f}, others {base['envelope']['parts_rest'][0]:.1f} ({base['envelope']['parts_rest'][1]})"))
+    mv = moved(br_r, 26.0, 0, 0)
     r = f.run_checks(hardware, with_part(parts, "fan_bracket_right", solid=mv.solid, blank=mv.blank, holes=mv.holes), MEMO)
-    case("fan_bracket_right moved 1 mm outwards: the tab passes |X| = 229", "CHECK8 fan_bracket_right reaches |X| = 229.50, limit 229",
-         r["failures"], "CHECK8 fan_bracket_right", "|X|")
-    near = f.bsx(198.0, 202.0, 235.0, 262.0, 98.5, 104.0)        # the rail's inboard face brought 4 mm closer to the hoses
-    r = f.run_checks(hardware, with_part(parts, "fan_bracket_right", solid=br_r.solid.fuse(near).clean()), MEMO)
-    case("fan_bracket_right rail widened 4 mm inboard", "CHECK9 fan_bracket_right is N mm from gpu_hoses, needs 5",
-         r["failures"], "CHECK9 fan_bracket_right", "gpu_hoses", "needs 5")
-    drop = f.bsx(202.0, 226.0, 150.0, 170.0, 90.0, 104.0)         # the rail with a block hanging into the fan's open circle (n 95 at the top)
-    r = f.run_checks(hardware, with_part(parts, "fan_bracket_right", solid=br_r.solid.fuse(drop).clean()), MEMO)
-    case("fan_bracket_right rail with a block hanging into the fan's open circle", "CHECK11 fan_bracket_right has N mm3 inside the open circle",
-         r["failures"], "CHECK11 fan_bracket_right", "inside the open circle")
-    check("undamaged model: no failure at all, including the right fan and its rail and tab", not base["failures"],
+    case("fan_bracket_right moved 26 mm outwards: past the fans' outer face (|X| 261)", "CHECK8 fan_bracket_right reaches |X| = 261.00, limit 260",
+         r["failures"], "CHECK8 fan_bracket_right", "|X| = 261", "limit 260")
+    mv = moved(br_l, -26.0, 0, 0)
+    r = f.run_checks(hardware, with_part(parts, "fan_bracket_left", solid=mv.solid, blank=mv.blank, holes=mv.holes), MEMO)
+    case("fan_bracket_left moved 26 mm outwards: past the fans' outer face (|X| 261)", "CHECK8 fan_bracket_left reaches |X| = 261.00, limit 260",
+         r["failures"], "CHECK8 fan_bracket_left", "|X| = 261", "limit 260")
+    ant_r = part_named(parts, "antler_right")
+    mv = moved(ant_r, 2.0, 0, 0)
+    r = f.run_checks(hardware, with_part(parts, "antler_right", solid=mv.solid, blank=mv.blank, holes=mv.holes), MEMO)
+    case("antler_right moved 2 mm outwards: the skeleton keeps the radiators' limit (|X| 229)", "CHECK8 antler_right reaches |X| = 230, limit 229",
+         r["failures"], "CHECK8 antler_right reaches |X| = 230", "limit 229")
+    # a part moved into each keep-out (the check is 2: part x hardware, every keep-out is hardware)
+    mv = moved(br_l, 20.0, 0, 0)                       # the left bracket's spine (u 116..122, n up to 95) then stands in gpu_out_zone (X -204..-124, u 75.6..126.6, n 10..100)
+    r = f.run_checks(hardware, with_part(parts, "fan_bracket_left", solid=mv.solid, blank=mv.blank, holes=mv.holes), MEMO)
+    case("fan_bracket_left moved 20 mm inwards: its spine stands in gpu_out_zone", "CHECK2 part x hardware fan_bracket_left x gpu_out_zone",
+         r["failures"], "CHECK2 part x hardware fan_bracket_left x gpu_out_zone")
+    post = part_named(parts, "gpu_post")
+    r = f.run_checks(hardware, with_part(parts, "gpu_post", solid=post.solid.fuse(hw.bs_box(-20.0, -5.5, 90.0, 110.0, 20.0, 60.0)).clean()), MEMO)
+    case("gpu_post with a block in its window (the card's video outputs)", "CHECK2 part x hardware gpu_post x gpu_out_zone",
+         r["failures"], "CHECK2 part x hardware gpu_post x gpu_out_zone")
+    old_post = hw.bs_box(-20.0, -5.5, hw.GPU_BS[2] - 2.6, 146.0, hw.ATX_TRAY_N, hw.GPU_BRACKET_TAB_N)      # the solid block before revision 13
+    r = f.run_checks(hardware, with_part(parts, "gpu_post", solid=old_post), MEMO)
+    case("gpu_post as the solid block of revisions 2..12", "CHECK2 part x hardware gpu_post x gpu_out_zone", r["failures"], "CHECK2 part x hardware gpu_post x gpu_out_zone")
+    rb = part_named(parts, "rib_B_left")
+    r = f.run_checks(hardware, with_part(parts, "rib_B_left", solid=rb.solid.fuse(hw.bs_box(-40.0, -20.0, 180.0, 200.0, 0.0, 20.0)).clean()), MEMO)
+    case("rib_B_left with a block in io_zone", "CHECK2 part x hardware rib_B_left x io_zone", r["failures"], "CHECK2 part x hardware rib_B_left x io_zone")
+    # the frame that leaves the outputs open (revision 13, item 6): the window, the lintel under the tab's seat, the two columns outside the card's thickness
+    window = hw.bs_box(*f.GPU_POST_V, hw.GPU_BS[2], hw.GPU_BS[3], hw.GPU_OUT_N[0], hw.GPU_OUT_N[1])
+    in_window = f.inter_vol(post.solid, window)
+    probes = {"lintel": (-12.0, (hw.GPU_BS[2] + hw.GPU_BS[3]) / 2, hw.GPU_BRACKET_TAB_N - 1.0), "low column": (-12.0, hw.GPU_BS[2] - f.GPU_POST_CLEAR - 3.0, 50.0),
+              "high column": (-12.0, hw.GPU_BS[3] + f.GPU_POST_CLEAR + 5.0, 50.0), "base": (-12.0, (hw.GPU_BS[2] + hw.GPU_BS[3]) / 2, hw.ATX_TRAY_N + 3.0)}
+    solid_at = {k: post.solid.isInside(cq.Vector(*hw.bp(*pt))) for k, pt in probes.items()}
+    top = max(hw.to_board(post.solid).BoundingBox().zmax, 0.0)
+    check("gpu_post is a frame: nothing in the opening (the card's whole thickness in u, n GPU_OUT_N), material in both columns, the lintel and the base, top at the tab's seat",
+          in_window < f.VOL_EPS and all(solid_at.values()) and abs(top - hw.GPU_BRACKET_TAB_N) < 1e-3,
+          (f"0 mm3 in the opening, solid at {sorted(probes)}, top n {hw.GPU_BRACKET_TAB_N:g}", f"{in_window:.2f} mm3 in the opening, {solid_at}, top n {top:.2f}"))
+    check("gpu_post's every size follows hardware.py: window from the card's u range, lintel under the tab's seat, columns outside the card",
+          abs(f.GPU_POST_U_WINDOW[0] - (hw.GPU_BS[2] - f.GPU_POST_CLEAR)) < 1e-9 and abs(f.GPU_POST_U_WINDOW[1] - (hw.GPU_BS[3] + f.GPU_POST_CLEAR)) < 1e-9
+          and abs(f.GPU_POST_N_RANGE[1] - hw.GPU_BRACKET_TAB_N) < 1e-9 and f.GPU_POST_N_WINDOW[1] == hw.GPU_OUT_N[1] + f.GPU_POST_CLEAR and f.GPU_POST_N_WINDOW[0] == hw.GPU_OUT_N[0] - f.GPU_POST_CLEAR,
+          ("window u (GPU_BS u range +- 0.5), window n (GPU_OUT_N -+ 0.5), top n GPU_BRACKET_TAB_N", f"window u {f.GPU_POST_U_WINDOW}, n {f.GPU_POST_N_WINDOW}, top {f.GPU_POST_N_RANGE[1]:g}"))
+    check("hardware: gpu_out_zone is 80 mm out from the card's bracket (v -82..-2), the card's whole thickness in u, n 10..100, and a keep-out",
+          "gpu_out_zone" in hw.KEEP_OUT and "gpu_out_zone" in hardware and hw.GPU_OUT_ZONE_BS == (hw.GPU_BS[0] - 80.0, hw.GPU_BS[0], hw.GPU_BS[2], hw.GPU_BS[3], 10.0, 100.0)
+          and (hw.GPU_OUT_ZONE_BS[0], hw.GPU_OUT_ZONE_BS[1]) == (-82.0, -2.0),
+          ("v -82..-2, u = the card's, n 10..100", f"{hw.GPU_OUT_ZONE_BS}"))
+    check("undamaged model: no failure at all, including both fan brackets, gpu_post and the two keep-outs", not base["failures"],
           ("0 failures", f"{len(base['failures'])}: {'; '.join(base['failures'][:3])}"))
+
+    # 2h. revision 13, item 10: zone_access.py. The zones are free of printed parts and cables and a 20 mm bundle leaves each of them to the rear face; every layer of its grid is non-empty
+    import drive_access
+    import zone_access
+    strands, _skipped = drive_access.cable_strands()
+    za_lines, za_fails, za = zone_access.run(parts=parts, hardware=hardware, strands=strands, field=drive_access.load_field())      # with the organic layer's field, so that "every layer" includes it
+    check("zone_access: the undamaged model passes (both zones free, a 20 mm bundle leaves each, every layer non-empty)",
+          not za_fails and all(za["reach"]["out"][z] and za["reach"]["seeds"][z] > 0 for z in zone_access.ZONES) and all(m.any() for m in za["layers"].values()) and "organic" in za["layers"],
+          ("0 failures, both zones reach the rear face, skeleton / hardware / cables / organic layers non-empty", f"{len(za_fails)} failures: {'; '.join(za_fails[:2])}; layers {{{', '.join(f'{k} {int(m.sum())}' for k, m in za['layers'].items())}}}"))
+    _l, fz, _ = zone_access.run(parts=parts, hardware=hardware, strands=strands, extra_parts=[hw.bs_box(-60.0, -40.0, 160.0, 180.0, 0.0, 20.0)])
+    case("zone_access: a printed block in io_zone", "ZONE_ACCESS io_zone: the printed part extra stands in it", fz, "ZONE_ACCESS io_zone", "printed part extra stands in it")
+    _l, fz, _ = zone_access.run(parts=parts, hardware=hardware, strands=strands, extra_parts=[hw.bs_box(-50.0, -30.0, 90.0, 100.0, 30.0, 50.0)])
+    case("zone_access: a printed block in gpu_out_zone", "ZONE_ACCESS gpu_out_zone: the printed part extra stands in it", fz, "ZONE_ACCESS gpu_out_zone", "printed part extra stands in it")
+    for zone, pt0, pt1 in (("io_zone", (-60.0, 200.0, 20.0), (-10.0, 200.0, 20.0)), ("gpu_out_zone", (-70.0, 100.0, 50.0), (-10.0, 100.0, 50.0))):
+        bad = dict(strands, fake=[(np.array([hw.bp(*pt0), hw.bp(*pt1)]), 2.0)])
+        _l, fz, _ = zone_access.run(parts=parts, hardware=hardware, strands=bad)
+        case(f"zone_access: a cable through {zone}", f"ZONE_ACCESS {zone}: the cable fake stands in it", fz, f"ZONE_ACCESS {zone}", "the cable fake stands in it")
+    g0 = za["grid"]
+    # a wall across the case behind both zones, only as wide and as high as the hull (between the fans' inner faces, up to the skeleton's top): the grid's margin beside the fans and above the
+    # case must not count as a way round it (it did before the outside review of revision 13; the wall then had to cover the whole grid to block)
+    _l, fz, _ = zone_access.run(parts=parts, hardware=hardware, strands=strands, extra_blocks=[(-g0.x_hull, g0.x_hull, 300.0, 310.0, hw.DESK_Z, g0.z_hull)])
+    case("zone_access: a wall behind io_zone", "ZONE_ACCESS io_zone: a bundle of 20 mm cannot leave the zone", fz, "ZONE_ACCESS io_zone", "cannot leave the zone")
+    case("zone_access: the same wall behind gpu_out_zone", "ZONE_ACCESS gpu_out_zone: a bundle of 20 mm cannot leave the zone", fz, "ZONE_ACCESS gpu_out_zone", "cannot leave the zone")
+    u_edge = zone_access.ZONE_BS["io_zone"][2]
+    # two route points 3.4 mm apart, each 0.6 mm outside io_zone (one below its low-u face, one beyond its v 0 face); the chord between them cuts the zone's edge 0.6 mm deep
+    clip = dict(strands, fake=[(np.array([hw.bp(-1.8, u_edge - 0.6, 20.0), hw.bp(0.6, u_edge + 1.8, 20.0)]), 0.0)])
+    _l, fz, _ = zone_access.run(parts=parts, hardware=hardware, strands=clip)
+    case("zone_access: a cable whose chord cuts io_zone between two route points", "ZONE_ACCESS io_zone: the cable fake stands in it", fz, "ZONE_ACCESS io_zone", "the cable fake stands in it")
+    _l, fz, _ = zone_access.run(parts=parts, hardware=hardware, strands={})
+    case("zone_access: no cables at all is reported, not passed", "ZONE_ACCESS layer cables is empty", fz, "ZONE_ACCESS layer cables is empty")
+
+    # 2i. checks 17 and 18 (revision 13): the hand calculations bite when a section is made thinner
+    st = base["strength"]
+    check("checks 17 and 18: the fan bracket and the card's post carry the plan's loads with a margin of 2 or more", st["fan bracket"]["margin"] >= f.STRENGTH_MARGIN_MIN and st["card post"]["margin"] >= f.STRENGTH_MARGIN_MIN
+          and not [x for x in base["failures"] if x.startswith(("CHECK17", "CHECK18"))],
+          (f"margins >= {f.STRENGTH_MARGIN_MIN:g}", f"bracket {st['fan bracket']['margin']:.2f} ({st['fan bracket']['knock']:.2f} MPa at the knock), post {st['card post']['margin']:.2f} ({st['card post']['worst']:.2f} MPa)"))
+    check("check 17 numbers: the three screws share the knock by statics (sum -20 N), the old 11 x 28 leg carries about 6.5 MPa, as the plan estimated",
+          abs(sum(st["fan bracket"]["forces"].values()) + f.KNOCK_N) < 1e-9
+          and abs(f.bracket_strength(leg=((116.0, -34.0), (127.0, -34.0), (127.0, -6.0), (116.0, -6.0)))["rows"][0][2] - 6.5) < 0.5,
+          ("forces sum to -20 N; the old leg 6.5 +- 0.5 MPa", f"sum {sum(st['fan bracket']['forces'].values()):+.3f} N; old leg {f.bracket_strength(leg=((116.0, -34.0), (127.0, -34.0), (127.0, -6.0), (116.0, -6.0)))['rows'][0][2]:.2f} MPa"))
+    with patched(f, "BRACKET_T", 10.0):                 # the plate before revision 13: the spine and the bar take 20 MPa
+        fl = []
+        f.check_strength(fl)
+    case("bracket plate 10 mm thick (as before revision 13)", "CHECK17 fan bracket: the worst section carries 20.4 MPa, margin 0.33", fl, "CHECK17 fan bracket", "worst section carries 20", "margin 0.33")
+    with patched(f, "BRACKET_LEG_UN", ((116.0, -34.0), (122.0, -34.0), (122.0, -6.0), (116.0, -6.0))):      # a leg 6 mm wide in u
+        fl = []
+        f.check_strength(fl)
+    case("bracket leg 6 mm wide in u", "CHECK17 fan bracket: the worst section carries N MPa, margin under 2", fl, "CHECK17 fan bracket", "needs 2")
+    with patched(f, "GPU_POST_V_UP", (-20.0, -5.5)), patched(f, "GPU_POST_COL_W", 8.0):      # the frame as first drawn: 14.5 mm thick above the slab, a low column 8 wide
+        fl = []
+        f.check_strength(fl)
+    thin = f.post_strength(col_w=6.0)
+    check("check 18 counts torsion in the low column: a 6 mm low column fails (bending alone would pass it with margin 2.1)", thin["margin"] < f.STRENGTH_MARGIN_MIN,
+          ("margin < 2", f"margin {thin['margin']:.2f}, worst {thin['worst']:.2f} MPa"))
+    case("card post 14.5 mm thick with an 8 mm low column", "CHECK18 card post: the worst section carries 6.77 MPa, margin 0.99", fl, "CHECK18 card post", "needs 2")
 
     # 3. two parts overlapping each other
     bf = part_named(parts, "beam_front")
@@ -940,8 +1044,8 @@ def main():
     check("drive_access: the left bay's sled can be carried in from behind with at most 30 degrees of tilt, without and with the plug zone", all(da.passes(x_) for x_ in res_l),
           ("a path, least tilt <= 30 both times", "; ".join(da.verdict(x_) for x_ in res_l)))
     check("drive_access: every cable route is in the grid (no route without strands), and the body is the sled, the drives and the plug boxes as built",
-          not no_strand and len(strands) == 12 and len(rects_l[0]) == 3 and len(rects_l[1]) == 5 and da.silhouette(rects_l[1])[3] == lay["z_top"] + hw.DRIVE_PLUG_ZONE,
-          ("12 routes, 3 and 5 rectangles, top at the plug zone's top", f"{len(strands)} routes, {len(rects_l[0])} and {len(rects_l[1])} rectangles, top {da.silhouette(rects_l[1])[3]:g}"))
+          not no_strand and len(strands) == 12 and len(rects_l[0]) == 3 and len(rects_l[1]) == 5 and abs(da.silhouette(rects_l[1])[3] - (lay["z_top"] + hw.DRIVE_PLUG_ZONE)) < 1e-6,
+          ("12 routes, 3 and 5 rectangles, top at the plug zone's top", f"{len(strands)} routes (without strands: {no_strand}), {len(rects_l[0])} and {len(rects_l[1])} rectangles, top {da.silhouette(rects_l[1])[3]!r} against {lay['z_top'] + hw.DRIVE_PLUG_ZONE!r}"))
     seat_l = da.access(maps_l, rects_l[1], extra_blocks=[(250.0, 300.0, 100.0, 130.0)])
     check("drive_access: a block of 50 x 30 mm in the seat (Y 250..300, Z 100..130) leaves the seat blocked, and the check fails", not da.passes(seat_l) and not seat_l["goal_free"],
           ("the seat is blocked", da.verdict(seat_l)))
@@ -1042,8 +1146,8 @@ def main():
           (f"{want}", f"{got_len}"))
     check("  the board's screw (2 mm of PCB, no washer) is M3 x 6, entering 4 mm", f.screw_fit(2.0, washer=False)[:2] == (6, 4.0), ("(6, 4.0)", f"{f.screw_fit(2.0, washer=False)[:2]}"))
     check("  the lengths fit the rule: at least 3.5 mm into the insert, at least 0.5 mm short of the bottom, no relief bore needed anywhere",
-          all(r_["entry"] >= hw.SCREW_ENGAGE_MIN - 1e-6 and r_["entry"] <= r_["depth"] - hw.SCREW_BOTTOM_GAP + 1e-6 and r_["relief"] == 0 for r_ in base["screws"]["rows"]) and len(base["screws"]["rows"]) == 95,
-          ("95 screws with a stack, all inside the rule, relief 0", f"{len(base['screws']['rows'])} screws, tightest margin {base['screws']['tightest']['margin']:.2f} mm"))
+          all(r_["entry"] >= hw.SCREW_ENGAGE_MIN - 1e-6 and r_["entry"] <= r_["depth"] - hw.SCREW_BOTTOM_GAP + 1e-6 and r_["relief"] == 0 for r_ in base["screws"]["rows"]) and len(base["screws"]["rows"]) == 96,      # revision 13: 96 (was 95): the right fan has three pilots in its bracket, the third was a clearance hole in a tab
+          ("96 screws with a stack, all inside the rule, relief 0", f"{len(base['screws']['rows'])} screws, tightest margin {base['screws']['tightest']['margin']:.2f} mm"))
     check("  the counts stay inside four fifths of the stock: no length over, inserts under 176, washers under 304",
           all(n_ <= hw.STOCK_SHARE * hw.M3_SCREW_STOCK[L_] for L_, (n_, _) in base["screws"]["bill"].items()) and base["screws"]["inserts"] <= hw.STOCK_SHARE * hw.M3_INSERT_STOCK
           and base["screws"]["washers"] <= hw.STOCK_SHARE * hw.M3_WASHER_STOCK,
@@ -1070,10 +1174,10 @@ def main():
          r["failures"], "CHECK15 M3 x 20: 30 needed", "owner has 30")
     with patched(hw, "M3_INSERT_STOCK", 100):
         r = f.run_checks(hardware, parts, MEMO)
-    case("the owner has 100 inserts (the model needs 97)", "CHECK15 97 M3 inserts needed, the owner has 100 and the model may use 0.8 of them (80)", r["failures"], "CHECK15 97 M3 inserts needed")
+    case("the owner has 100 inserts (the model needs 98)", "CHECK15 98 M3 inserts needed, the owner has 100 and the model may use 0.8 of them (80)", r["failures"], "CHECK15 98 M3 inserts needed")
     with patched(hw, "M3_WASHER_STOCK", 100):
         r = f.run_checks(hardware, parts, MEMO)
-    case("the owner has 100 washers (the model needs 86)", "CHECK15 86 M3 washers needed, the owner has 100", r["failures"], "CHECK15 86 M3 washers needed")
+    case("the owner has 100 washers (the model needs 87)", "CHECK15 87 M3 washers needed, the owner has 100", r["failures"], "CHECK15 87 M3 washers needed")
     with patched(hw, "M3_SCREW_STOCK", {k_: v_ for k_, v_ in hw.M3_SCREW_STOCK.items() if k_ != 20}):
         r = f.run_checks(hardware, parts, MEMO)
         relief_set = f.joint_pilots((142.0, 10.0, 0.0), (-1, 0, 0), 16.0, "rib end")

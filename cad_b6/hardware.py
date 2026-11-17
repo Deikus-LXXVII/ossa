@@ -174,12 +174,12 @@ RAD360_PORT_INSET = RAD420_PORT_INSET
 RAD420_PORT_D, RAD420_PORT_RISE = 20.0, 20.0
 PSU_W = (-75, 75, 165, 375, 0, 86)              # Seasonic PRIME TX-1600 Noctua Edition (120 mm fan), fan face up, IEC Y = 375, modular Y = 165
 
-# Revision 7: the two 140 x 140 x 25 fans stand on the flanks, one under each end of the 360, blowing OUT. Positions
-# come from a clash study against the model: the CPU hoses run down the left flank at X = -221 and the GPU hoses rise
-# at X = +189, so the left fan sits 21 mm further in than the right one. Edges along the board's u and n, thickness
-# along X. Hole axes along X, four corners on the 124.5 mm pattern about the box centre in (u, n).
-FAN_SIDE_X = {"fan_side_right": (201.0, 226.0), "fan_side_left": (-205.0, -180.0)}
-FAN_SIDE_INNER_X = {"fan_side_right": 201.0, "fan_side_left": -180.0}     # the face towards the board
+# Revision 7: the two 140 x 140 x 25 fans stand on the flanks, one under each end of the 360, blowing OUT. Revision 13: both moved outwards to X +-235..+-260,
+# beyond the CPU hoses (which run down the left flank at X -228..-213 in the fan's footprint; a fan whose inner face is at X -235.5 or further out is 6 mm clear of
+# them), so that the cables of the board's rear connectors and of the card's video outputs have room behind the left fan (docs/plans/external-cables.md). The place in
+# u and n is unchanged. Edges along the board's u and n, thickness along X. Hole axes along X, four corners on the 124.5 mm pattern about the box centre in (u, n).
+FAN_SIDE_X = {"fan_side_right": (235.0, 260.0), "fan_side_left": (-260.0, -235.0)}
+FAN_SIDE_INNER_X = {"fan_side_right": 235.0, "fan_side_left": -235.0}     # the face towards the board
 FAN_SIDE_IN = {"fan_side_right": -1, "fan_side_left": 1}                  # direction of X towards the board
 FAN_SIDE_U, FAN_SIDE_N = (120.0, 260.0), (-42.0, 98.0)
 FAN_PITCH = 124.5
@@ -309,6 +309,11 @@ DRIVE_PLUGS = tuple(f"drive_plugs_{s}" for s in DRIVE_SIDES)       # the plug ke
 # Owner's rule (revision 5): nothing may stick out past the radiators' ends (|X| <= 229) or in front of the
 # front fans (Y >= 0), because a passer-by could catch it. Frame parts and hose keep-outs are both held to it.
 ENVELOPE_X = float(RAD420_BS[1] - RAD420_BS[0]) / 2          # 229
+# Revision 13: the side fans stand beyond the radiators' ends, so for the fans, their brackets and their own leads the limit is the fans' outer face. Everything else
+# (the skeleton, the hoses, the other cables) keeps ENVELOPE_X.
+ENVELOPE_FAN_X = max(abs(x) for xs in FAN_SIDE_X.values() for x in xs)      # 260
+FAN_SIDE_PARTS = ("fan_bracket_left", "fan_bracket_right")                    # the printed parts that may stand out to ENVELOPE_FAN_X
+FAN_SIDE_CABLES = ("fan_left", "fan_right")                                  # the cables that may (cables.py)
 ENVELOPE_Y0 = 0.0                                            # the front plane (it was the front fans' face until revision 7)
 # Revision 6: no frame part may rise above the 420's top edge. The 420 stands at 45 deg, so "above" is meant in board space:
 # the top face of the radiator (its fans, 140 mm wide) is the plane n = RAD420_FAN_N[1] and a part reaching past it stands above the radiator seen from
@@ -383,11 +388,18 @@ PSU_SCREW_LEN = 6.0                         # ASSUMPTION ("about 6 mm"): the PSU
 RAD360_SCREW_LEN = 6.0                      # ASSUMPTION, not measured: the 360's 6-32 screw under its head; the owner has not measured the radiator's stock screw
 # Rear I/O aperture plus 50 mm for plugs and cable bend. Keep-out volume, not a component.
 IO_ZONE_BS = (-50, 0, 148.49, 307.24, -3.81, 40.64)
+# Revision 13: the card's video outputs. The card's bracket stands at v GPU_BS[0], looks to -X (the left flank), and carries the outputs on a part of its face that is
+# NOT KNOWN (the real card has not been measured at the bracket), so the whole face is kept open: the card's whole thickness in u, n from GPU_OUT_N[0] to GPU_OUT_N[1],
+# and GPU_OUT_DEPTH out from the bracket for a DisplayPort plug and its bend. ASSUMPTION: which part of the bracket carries the outputs; the 80 mm is the plan's figure for a DisplayPort
+# plug with its bend (docs/plans/external-cables.md). Keep-out volume, not a component: no printed part and no cable may stand in it.
+GPU_OUT_DEPTH = 80.0
+GPU_OUT_N = (10.0, 100.0)
+GPU_OUT_ZONE_BS = (GPU_BS[0] - GPU_OUT_DEPTH, GPU_BS[0], GPU_BS[2], GPU_BS[3], GPU_OUT_N[0], GPU_OUT_N[1])
 # The port collars on the core face of the 420 (left-hand end) and on the inner face of the 360 (right-hand end),
 # with a small margin. The hose keep-outs stop at these boxes; they are not hoses.
 RAD420_PORTS_BS = (-111, -86, 288, 310, 30, 78)
 RAD360_PORTS_BS = (298, 323, 220, 269, 100, 122)
-KEEP_OUT = ("io_zone", "dimms", "atx24", "eps", "rad420_ports", "rad360_ports", "cpu_hoses", "gpu_hoses", "light_strip") + DRIVE_PLUGS
+KEEP_OUT = ("io_zone", "gpu_out_zone", "dimms", "atx24", "eps", "rad420_ports", "rad360_ports", "cpu_hoses", "gpu_hoses", "light_strip") + DRIVE_PLUGS
 HOSES = ("cpu_hoses", "gpu_hoses")
 
 # ---------------------------------------------------------------------------
@@ -511,6 +523,7 @@ def build_hardware() -> dict[str, Solid]:
         hw[name] = bs_box(*fan_side_bs(name))
     hw["front_io"] = wbox(*FRONT_IO_W)
     hw["io_zone"] = bs_box(*IO_ZONE_BS)
+    hw["gpu_out_zone"] = bs_box(*GPU_OUT_ZONE_BS)
     hw["dimms"] = bs_box(*DIMMS_BS)
     hw["atx24"] = bs_box(*ATX24_BS)
     hw["eps"] = bs_box(*EPS_BS)
@@ -529,7 +542,7 @@ def build_hardware() -> dict[str, Solid]:
 HW_COLORS = {
     "board": "#4f7fbf", "gpu": "#5aa13c", "cpu_block": "#b84040",
     "rad420": "#e08a2e", "rad360": "#a6cc5c", "psu": "#a99bd0",
-    "fan_side_right": "#6fb3b8", "fan_side_left": "#6fb3b8", "io_zone": "#c0507a",
+    "fan_side_right": "#6fb3b8", "fan_side_left": "#6fb3b8", "io_zone": "#c0507a", "gpu_out_zone": "#d98aa8",
     "dimms": "#d6c14a", "atx24": "#3fa7a0", "eps": "#8a5fc9",
     "rad420_ports": "#c25a00", "rad360_ports": "#7a8f00", "cpu_hoses": "#1a1a1c", "gpu_hoses": "#6b3d1f",
     "front_io": "#d4a017", "light_strip": "#f2e45a",

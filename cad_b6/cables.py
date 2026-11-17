@@ -261,7 +261,7 @@ LIGHT_PASS_UN = (14.0, 14.0)               # first pass: (u, n) at which the lig
 # Pump lead and side fans
 PUMP_START_N = 50.5                        # search: where the pump lead leaves the block's wall: 3 mm + r 2 over the DIMMs (n 45), in from the DIMM side
 FAN_LEFT_START_V = hw.x_to_v(hw.FAN_SIDE_X["fan_side_left"][1])      # inner face of the left fan
-FAN_RIGHT = dict(v0=347.0, u0=260.0, n=46.0, ua=287.0, va=270.0)   # search: the right fan's lead leaves the fan's rear edge (u 260) at v0 (inside the fan's thickness, v 323..348), crosses the board's edge beyond EPS 2's rise (u ua) at level n, and enters SYS_FAN1 from the +u side; 5.5 mm off the hoses
+FAN_RIGHT = dict(v0=hw.x_to_v(hw.FAN_SIDE_X["fan_side_right"][0]), u0=hw.FAN_SIDE_U[1], n=46.0, ua=287.0, va=270.0)   # search: the right fan's lead leaves the fan's rear edge (its high-u edge) at v0 (the fan's inner face), crosses the board's edge beyond EPS 2's rise (u ua) at level n, and enters SYS_FAN1 from the +u side; 5.5 mm off the hoses
 FAN_LEFT = dict(u=177.5, n=65.0)           # search: the left fan's lead runs straight from the fan to above the header (the first pass's `alt`), over the board at level n, u from the fan to the header's
 
 
@@ -401,8 +401,9 @@ def evaluate_route(rt, targets, gpu_under, slots):
     if rt.ymin < hw.ENVELOPE_Y0 - front_tol - 1e-6:
         text = f"envelope: {hw.ENVELOPE_Y0 - rt.ymin:.1f} mm in front of Y {hw.ENVELOPE_Y0:g} (surface at Y {rt.ymin:.1f})" + (f", accepted up to {front_tol:g}" if front_tol else "")
         rt.fail.append(("route", text))
-    if rt.xmax > hw.ENVELOPE_X + 1e-6:
-        text = f"envelope: {rt.xmax - hw.ENVELOPE_X:.1f} mm outside |X| {hw.ENVELOPE_X:g} (surface at |X| {rt.xmax:.1f})"
+    x_limit = hw.ENVELOPE_FAN_X if rt.name in hw.FAN_SIDE_CABLES else hw.ENVELOPE_X       # revision 13: a side fan's own lead may reach the fan's outer face, every other cable stops at the radiators' ends
+    if rt.xmax > x_limit + 1e-6:
+        text = f"envelope: {rt.xmax - x_limit:.1f} mm outside |X| {x_limit:g} (surface at |X| {rt.xmax:.1f})"
         rt.fail.append(("route", text))
 
 

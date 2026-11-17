@@ -27,7 +27,8 @@ from vtkmodules.util import numpy_support
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 C = math.sqrt(0.5)
 VOX = 3.0
-X_LIM, Y0, Y1, Z0, Z1 = 252.0, -8.0, 394.0, -18.0, 400.0
+X_LIM = hw.ENVELOPE_FAN_X + 20.0     # revision 13: the side fans stand out to |X| 260 (it was 252 for fans at 226); 20 mm more for the layer's own thickness there
+Y0, Y1, Z0, Z1 = -8.0, 394.0, -18.0, 400.0
 FLANK = 238.0                # centre plane of the shell on each side; radiator ends are at 229
 CLEAR = 4.0                  # shell stays this far from hardware
 HOT_CLEAR = None             # if set: distance kept from the graphics card and the PSU (the organic layer)

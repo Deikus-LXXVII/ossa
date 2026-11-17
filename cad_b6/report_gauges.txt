@@ -9,7 +9,7 @@ G3_psu_rear           PLA  150.0 x 86.0 x 2.0              10.04   12.5    14  P
 G4a_atx_holes_low     PLA  147.0 x 243.5 x 2.0             25.61   31.8    36  PASS (4)
 G4b_atx_holes_high    PLA  170.0 x 243.5 x 2.0             26.95   33.4    37  PASS (4)
 G5_cpu_block          PLA  168.0 x 111.2 x 2.0              7.92    9.8    11  PASS (5)
-G6_fan140             PLA  140.0 x 152.0 x 2.0             13.22   16.4    18  PASS (4)
+G6_fan140             PLA  140.0 x 152.0 x 2.0             13.22   16.4    18  PASS (5)
 G7_gpu_end            PLA  51.0 x 150.0 x 2.0               8.39   10.4    12  PASS (4)
 C1_scale_l            ABS  200.0 x 200.0 x 2.0              9.04    9.4    13  PASS (3)
 C2_insert_ladder      ABS  144.0 x 38.0 x 10.0             38.07   39.6    53  PASS (3)
@@ -86,7 +86,8 @@ G6_fan140  (PLA)
   note: outer 140 x 140 (FAN_SIDE_U/N), holes at FAN_SIDE_HOLES_UN (pitch 124.5) at FAN_SIDE_HOLE_D 4.5, open circle 134; label tab below the plate; arrow towards low u
   engraved: 'G6 fan140' size 4.5 mm, 12.3 mm3 engraved, 20.6 mm long
   engraved: arrow at (114.0, -5.5) towards 180 deg, 28 mm
-  ok   4 of 4 gauge holes coincide with a hole of fan_bracket_left, fan_bracket_right (by part {'fan_bracket_left': 3, 'fan_bracket_right': 1}; largest offset 2.8e-14 mm, expected 4)
+  ok   3 of 4 gauge holes coincide with a hole of fan_bracket_left (by part {'fan_bracket_left': 3}; largest offset 2.8e-14 mm, expected 3); no skeleton hole at (132.25, 132.25) = world (-235.000, 174.551, 272.184), nearest fan_bracket_left hole axis 124.5 mm away
+  ok   3 of 4 gauge holes coincide with a hole of fan_bracket_right (by part {'fan_bracket_right': 3}; largest offset 2.8e-14 mm, expected 3); no skeleton hole at (132.25, 132.25) = world (-235.000, 174.551, 272.184), nearest fan_bracket_right hole axis 124.5 mm away
   ok   placed on hw:fan_side_left: overlap 0.00 mm3, distance 0.000 mm
   ok   fits the bed: 140.0 x 152.0 mm (limit 290)
   ok   STL watertight True, mesh volume 13230.4 vs 13218.6 mm3

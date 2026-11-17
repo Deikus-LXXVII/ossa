@@ -560,6 +560,19 @@ The radiators, both pairs of hoses, both hose guides and the 40 mm straight at t
 
 **Report back:** the numbers asked for above, every place where this spec was wrong and what you did instead, every check or test that changed and why, anything left failing. Do not commit.
 
+### Revision 13, result (17 Nov 2026)
+
+Built by `cad-implementer`, rerun and read by the main session, reviewed by Grok (`change-review`). All scripts pass: `frame_v0.py`, `cables.py`, `zone_access.py`, `fit_gauges.py`, `drive_access.py`, `test_checks.py` 225 of 225, `strength.py` (all three load models).
+
+- **Fans:** left X -260..-235, right 235..260, u and n unchanged. Left fan 6.40 mm from the CPU hoses' keep-out, right fan 16.55 mm from the card's.
+- **Fan brackets:** one design, mirrored, three screws each (corners A, B, C). The plate is 28 mm thick, not 10: under a 20 N knock at the fan's far corner the 10 mm spine and bar carried about 20 MPa against an allowable of 6.67. Now 2.61 MPa at the spine, margin 2.56 (check 17). The leg is a trapezoid 49 mm long, because a rectangle entered the fan's open circle.
+- **`gpu_post`:** a frame with a window of 52.0 x 91.0 mm in front of the card's outputs, two columns outside the card's thickness, a lintel 7.5 mm under the tab's seat, 24.5 mm thick above the rib. Under a 20 N pull on a cable at the lintel: 2.03 MPa in the low column with torsion, margin 3.29 (check 18).
+- **Zones:** `gpu_out_zone` added (80 mm out from the card's bracket, the card's whole thickness, n 10..100). Both zones are free of printed parts and cables. A bundle gets out to the rear inside the hull (between the fans' inner faces, below the skeleton's top): up to 52 mm across from the board's connectors, 72 mm from the card's outputs.
+- **Fan leads:** right 166 mm of 400, left 222 mm of 400.
+- **Bill of fasteners:** 96 screw pilots, 98 inserts, 87 washers.
+- **Found by Grok's review and fixed by the main session before the commit:** the way-out check could pass through the grid's own margin beside the fans and over the case (the hull is closed now and the test wall is only as large as the hull); check 18 ignored torsion in the low column (margin as drawn 4.22 before, 3.29 now; a 6 mm column now fails); a missing organic field passed silently; cables were measured at their route points only; two numbers were retyped instead of derived.
+- **Open:** the two bolts of `gpu_post` see about 225 N each and the brackets' rib bolts about 150 N in those worst cases; what an insert holds is recorded in `docs/plans/fasteners-m3.md` (about 1170 N for a good insert in PETG, 380 N for a poor one, nothing found for ABS). The organic layer is not redrawn: its rings are cut off at |X| 229 and twelve pushes are over its allowable (Revision 14b).
+
 ## Revision 14a — card rest and front I/O seat as parts of their own; CPU hose clip moved to the left fan (17 Nov 2026)
 
 **Why.** Three decisions of 16 Nov 2026, recorded in `docs/plans/external-cables.md` and `docs/plans/modularity.md`: every card support is a part of its own, so that a misplaced support costs a small reprint; a hardware dimension that is not proved does not live in a part heavier than about 80 g, which today means the front I/O module's seat in `front_sill` (205 g, placeholder dimensions); the CPU hose clip does little next to the 420's ports and moves to where the hoses pass the left fan (6.4 mm apart since Revision 13).

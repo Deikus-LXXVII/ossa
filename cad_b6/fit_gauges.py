@@ -575,7 +575,11 @@ def solid_checks(items: dict, parts_by_name: dict, hardware: dict, extra: dict):
     for k in ("G4a", "G4b"):
         check_holes(g[k], ["beam_low", "beam_mid", "beam_top"], parts_by_name, 6, k)
         check_placed(g[k], hardware, "board")
-    check_holes(g["G6"], ["fan_bracket_left", "fan_bracket_right"], parts_by_name, 4, "G6")
+    # revision 13: both brackets screw to corners A, B and C and none reaches D (the tab of revision 7a is gone), so three of the gauge's four holes must coincide with a pilot of each bracket
+    # and the fourth is listed as unused. Each bracket is held to its own table of corners (before, the two were pooled and the count was 4: D coincided with the right tab's hole), so a
+    # pilot that is missing or off its fan hole in either of them fails
+    for holder in ("fan_bracket_left", "fan_bracket_right"):
+        check_holes(g["G6"], [holder], parts_by_name, len(fv.BRACKET_CORNERS[holder]), f"G6 {holder.split('_')[-1]}")
     check_placed(g["G6"], hardware, "fan_side_left")
     # G5: ring and lug against the CPU block solid
     sv, su = hw.CPU_SOCKET_VU

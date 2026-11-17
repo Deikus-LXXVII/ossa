@@ -634,11 +634,26 @@ HOLDING_RIB = {      # which rib outline(s) the bolt must lie inside
 NECK_BOLTS = [hw.bp_yz(sum(NECK_U) / 2, n) for n in (-34.0, -52.0)]      # (Y, Z), along X through pad + neck into rib_B's post
 NECK_PAD_STACK = NECK_X[1] - X_OUT                                       # the pad and the strut: 34 mm, the longest stack of the skeleton
 TONGUE_BOLTS = [hw.bp_yz(350.0, n) for n in (-30.0, -46.0)]               # (Y, Z), along X through the antler tongue into rib_B's post
-GPU_POST_U0 = hw.GPU_BS[2] - 2.6       # under the card's bracket end, 2.6 mm past its lower face
-GPU_POST_BS = (-20, -5.5, GPU_POST_U0, 146, hw.ATX_TRAY_N, hw.GPU_BRACKET_TAB_N)
+# Revision 13: the card's post is a frame (a plate 14.5 mm thick along v with a window), so that the card's video outputs are open (hw.GPU_OUT_ZONE_BS). Every size that depends on the
+# card or on the tab's seat comes from hw.GPU_BS, hw.GPU_OUT_N and hw.GPU_BRACKET_TAB_N: the card's real size is about to be corrected from a fit gauge.
+GPU_POST_CLEAR = 0.5                    # the frame keeps this far from the card's thickness in u and from gpu_out_zone in n
+GPU_POST_V = (-20.0, -5.5)              # the base's thickness along v: the beam's end face to 5.5 mm short of the board's edge (as before the rebuild)
+GPU_POST_V_UP = (-30.0, GPU_POST_V[1])  # the part above n GPU_POST_N_STEP: 10 mm thicker towards the flank, over rib_A's top (n -6, 1 mm clear). The 20 N pull of the plan bends the columns about u
+                                        # over a 95 mm arm; at 14.5 mm thick the low column carried 6.8 MPa, at 24.5 mm 1.6 (see the report, "card post strength")
+GPU_POST_N_STEP = -5.0                  # where the post gets thicker: 1 mm above the top of rib_A's diagonal (n -6)
+GPU_POST_BOLT_V = -10.5                 # the two bolts' v
+GPU_POST_COL_W = 12.0                   # the low-u column's width in u (the high one is as wide as the bolts need)
+GPU_POST_U_WINDOW = (hw.GPU_BS[2] - GPU_POST_CLEAR, hw.GPU_BS[3] + GPU_POST_CLEAR)       # the opening: the card's whole thickness in u, and a little more
+GPU_POST_BOLT_WALL = 1.9                # wall between the first bolt's pilot and the window's edge (rule 1.6)
+GPU_POST_U_BOLT0 = GPU_POST_U_WINDOW[1] + hw.M3_PILOT_D / 2 + GPU_POST_BOLT_WALL      # the first bolt: its pilot keeps that wall to the window's edge
+GPU_POST_U = (round(GPU_POST_U_BOLT0, 3), round(GPU_POST_U_BOLT0 + 8.0, 3))     # the two bolts into beam_mid (131 and 139 for the card as it is now)
+GPU_POST_U_RANGE = (GPU_POST_U_WINDOW[0] - GPU_POST_COL_W, round(GPU_POST_U[1] + 7.0, 3))     # the frame's outside, along u
+GPU_POST_N_WINDOW = (hw.GPU_OUT_N[0] - GPU_POST_CLEAR, hw.GPU_OUT_N[1] + GPU_POST_CLEAR)      # the opening, along n: the zone's n range, and a little more each end
+GPU_POST_N_RANGE = (hw.ATX_TRAY_N, hw.GPU_BRACKET_TAB_N)      # the base stands on beam_mid, the lintel's top is the seat of the card bracket's tab
+GPU_POST_R = 3.0                        # radius of the frame's outside corners (edges along v)
+GPU_POST_R_WINDOW = 1.0                 # and of the window's: 1 mm, because a bigger one would fill the window's corner to within 0.5 mm of gpu_out_zone's (the zone's edge is 0.5 mm from the window's)
+GPU_POST_BS = (GPU_POST_V_UP[0], GPU_POST_V[1], *GPU_POST_U_RANGE, *GPU_POST_N_RANGE)      # the box round the whole frame, board space
 GPU_POST_STACK = hw.ATX_TRAY_N - BEAM_N0                       # what a card post's screw clamps: beam_mid's section along n
-GPU_POST_V = -10.5
-GPU_POST_U = (131.0, 139.0)
 
 GUIDE_PARTS = ("hose_guide_cpu", "hose_guide_gpu")
 GUIDE_HOSE = {"hose_guide_cpu": "cpu_hoses", "hose_guide_gpu": "gpu_hoses"}     # the keep-out a guide is exempt from in check 2
@@ -655,38 +670,34 @@ GUIDE_GPU_U = (166.0, 166.0 + GUIDE_LEN)       # on the up-slope run behind the 
 GUIDE_GPU_BOLT_N = -20.0                       # on rib_A's diagonal, whose axis is n = -20
 GUIDE_GPU_PLATE_N1 = -6.0
 
-# Side fans (revision 7). Each 140 mm fan is screwed to a printed bracket by its corner holes (M3 inserts in the bracket, screws
-# from the fan's outer face) and the bracket is bolted to that side's rib_A. The bracket lies on the fan's inner face (the
-# side towards the board) as a plate, BRACKET_T thick. Its outline is a C: a spine along n just outside the fan's open
-# circle on the low-u side, an ear under each screw it uses, a bar along the low-n edge when the fan's B corner is used,
-# and a leg that carries it across the gap to the rib's outer face. No part of it enters the circle (check 11).
-BRACKET_T = 10.0                                          # plate thickness along X
+# Side fans (revision 7, rebuilt in revision 13). Each 140 mm fan is screwed to a printed bracket by its corner holes (M3 inserts in the bracket, screws
+# from the fan's outer face) and the bracket is bolted to that side's rib_A. The bracket lies on the fan's inner face (the side towards the board) as a plate,
+# BRACKET_T thick. Its outline is a C: a spine along n just outside the fan's open circle on the low-u side, an ear under each of the three screws it uses (A, B, C;
+# the CPU hoses pass at D on the left, and the card's hoses at D and B on the right at the old place), a bar along the low-n edge, and a root block that joins the bar to the
+# leg. A leg carries it across the gap to the rib's outer face. One design for both sides: the right bracket is built where it stands and the left one is its mirror.
+# No part of it enters the circle (check 11, which now reaches from the fan's outer face to the rib).
+BRACKET_T = 28.0                                          # plate thickness along X. Revision 13: 28 (was 10). The knock of the plan (20 N along X at the fan's far corner) bends the spine
+                                                          # and the bar about their thin axis; at 10 mm they carry about 20 MPa, at 28 mm 2.6 (see the report, "bracket strength")
 BRACKET_EAR = 4.9                                         # half-side of the ear around a pilot (the M4S insert's radius and wall until revision 12; the outline stays)
 _AP_R = hw.FAN_APERTURE_D / 2
 BRACKET_SPINE_U = (116.0, hw.FAN_CENTRE_UN[0] - _AP_R - 1.0)       # 116..122: 1 mm outside the circle, whose low-u point is u 123
+SPINE_N0 = -34.0                                          # the spine's lower end: the leg's lower face. Below it only the A ear and the bar, because on the right the card's hoses pass 3 mm
+                                                          # from a spine that reaches n -40 (measured, revision 13)
 BAR_N = (hw.FAN_CENTRE_UN[1] - _AP_R - 0.5 - 7.5, hw.FAN_CENTRE_UN[1] - _AP_R - 0.5)   # -47..-39.5: 0.5 mm under the circle, 7.5 wide
-BRACKET_LEG_U = (116.0, 127.0)                            # the leg's footprint on the rib: u 116..127, n -34..-6 = the diagonal's full width
-BRACKET_LEG_N = (-34.0, -6.0)
+BAR_U0 = 128.0                                            # the bar starts here (the root block's low-u edge)
+BRACKET_LEG_N = (-34.0, -6.0)                             # the leg's footprint on the rib: n -34..-6 = the diagonal's full width
+BRACKET_LEG_U0 = 116.0
+BRACKET_LEG_U1 = (130.0, 150.0)                           # the leg's high-u edge at its top (n -6) and at its foot (n -34): it leans away from the fan's open circle, which at n -6 starts
+                                                          # at u 132.3 (1.9 mm kept) and is far at the foot. A rectangle 24 wide would enter the circle (check 11).
+BRACKET_LEG_UN = ((BRACKET_LEG_U0, BRACKET_LEG_N[0]), (BRACKET_LEG_U1[1], BRACKET_LEG_N[0]), (BRACKET_LEG_U1[0], BRACKET_LEG_N[1]), (BRACKET_LEG_U0, BRACKET_LEG_N[1]))
+ROOT_U = (BAR_U0, BRACKET_LEG_U1[1])                      # the root block joins the bar to the leg: u 128..150, n from the bar's underside to 1 mm into the leg
+ROOT_N = (BAR_N[0], BRACKET_LEG_N[0] + 1.0)
 BRACKET_BOLT_U = 121.0                                    # two M3 along X through rib_A into the leg, stacked in n
 BRACKET_BOLT_N = (-26.0, -14.0)
 BRACKET_BOLTS = [hw.bp_yz(BRACKET_BOLT_U, n) for n in BRACKET_BOLT_N]      # (Y, Z), the same on both ribs
-# the corners each bracket screws to from the fan's inner face. A and C only on the right: B and D are within 4.1 mm of gpu_hoses
-# (needs 5), see DEVIATIONS; the right bracket reaches D from the outside instead (BRACKET_TAB, revision 7a)
-BRACKET_CORNERS = {"fan_bracket_left": ("A", "B", "C"), "fan_bracket_right": ("A", "C")}
+BRACKET_CORNERS = {"fan_bracket_left": ("A", "B", "C"), "fan_bracket_right": ("A", "B", "C")}      # the corners each bracket screws to from the fan's inner face (one design)
 BRACKET_FAN = {"fan_bracket_left": "fan_side_left", "fan_bracket_right": "fan_side_right"}
-# Revision 7a: the right bracket reaches a third corner from OUTSIDE. A rail runs along the outside of the fan's top edge (n 98.5..104,
-# in the fan's own thickness, RAIL_INSET short of the fan's inner face so it keeps clear of the hoses that rise just inside) up-slope
-# to RAIL_U1, and ends in a tab folded over the fan's outer face at corner D. The fan screw goes in from outside through the tab's
-# clearance hole. Nothing passes |X| = 229.
-BRACKET_TAB = {"fan_bracket_right": "D"}                  # bracket -> the corner it reaches over the fan's outer face
-RAIL_N = (hw.FAN_SIDE_N[1] + 0.5, hw.FAN_SIDE_N[1] + 6.0)  # 98.5..104: 0.5 mm clear of the fan's top edge, 5.5 wide
-RAIL_INSET = 1.0                                          # the rail's inboard face stands this far outside the fan's inner face
-RAIL_U1 = hw.FAN_SIDE_U[1] + 2.0                          # 262
-TAB_T = 2.5                                               # tab thickness along X
-TAB_WALL = 4.0                                            # material around the tab's clearance hole
-RAIL_GROUP = ("root", "rail", "knuckle", "tab")
-RAIL_CONVEX: dict = {"rail": 2.0}                         # the rail is 5.5 wide: a 6 mm radius would eat the whole end of it and the joint to the root block
-BRACKET_RAIL_X = hw.FAN_SIDE_INNER_X["fan_side_right"]              # |X| beyond the plate (X 191..201): the rail group
+APERTURE_FROM_OUT = 20.0                                  # check 11's probe cylinder starts this far outside the fan's outer face
 FAN_STACK = hw.FAN_SIDE_X["fan_side_right"][1] - hw.FAN_SIDE_X["fan_side_right"][0]       # what a side fan's screw clamps: the fan's thickness (the right one's; both are the same)
 BOARD_STACK = hw.BOARD_BS[5] - hw.BOARD_BS[4]                   # what a board screw clamps: the board's thickness (no washer, the head bears on the PCB)
 FAN_MIN_SCREWS = 3                                        # revision 7: at least three of the four corner holes
@@ -1042,7 +1053,7 @@ def beam_holes(name):
     holes += tie_pilots(name)      # the cable tie points, from the underside up into the beam
     if name == "beam_mid":     # clearance for the gpu_post bolts, along n through the beam
         for u in GPU_POST_U:
-            holes.append(clear_hole("M3c", hw.bp(GPU_POST_V, u, BEAM_N0 - OVERSHOOT), hw.N_DIR, 22.0))
+            holes.append(clear_hole("M3c", hw.bp(GPU_POST_BOLT_V, u, BEAM_N0 - OVERSHOOT), hw.N_DIR, 22.0))
     return holes
 
 
@@ -1452,91 +1463,83 @@ def fan_bracket_geometry(name):
     return plate, leg, rib_face, d
 
 
-def build_fan_bracket(name):
-    """C-shaped plate on the fan's inner face plus a leg to the rib's outer face. Pilots: one under each used fan corner,
-    and two in the leg's rib face for the rib bolts."""
+def bracket_leg_outline():
+    return Poly([hw.bp_yz(u, n) for u, n in BRACKET_LEG_UN])
+
+
+def build_fan_bracket():
+    """The side fan bracket, built where the RIGHT one stands (the left one is its mirror, add_mirror). A plate BRACKET_T thick on the fan's inner face: an ear under
+    each of the three screws, the spine, the bar and the root block; a leg to the rib's outer face. Pilots: one under each used fan corner, and two in the leg's rib
+    face for the rib bolts."""
+    name = "fan_bracket_right"
     fan = BRACKET_FAN[name]
     plate, leg, rib_face, d = fan_bracket_geometry(name)
     corners = BRACKET_CORNERS[name]
     pos = {k: hw.FAN_SIDE_HOLES_UN[k] for k in corners}
     r = BRACKET_EAR
-    plate_boxes = []                    # the C: ears, spine, bar (one layer, one outline)
-    layers = []                         # everything else, each a box of its own
-    rail = name in BRACKET_TAB
+    plate_boxes = []                    # the C: ears, spine, bar, root block (one layer, one outline)
     for k, (u, n) in pos.items():
         low_n = n < hw.FAN_CENTRE_UN[1]
         n0, n1 = (BAR_N[1] - 0.5, n + r) if low_n else (n - r, n + r)
         u0 = BRACKET_SPINE_U[1] - 0.5 if u < hw.FAN_CENTRE_UN[0] else u - r
         plate_boxes.append(bsx(*plate, u0, u + r, n0, n1))
     n_top = max(pos[k][1] + r for k in pos)
-    if rail:
-        n_top = RAIL_N[1]               # the spine climbs past the fan's top edge to meet the rail
-    n_bot = BAR_N[0] if "B" in pos else min(BAR_N[1] - 0.5, *(pos[k][1] - r for k in pos))
-    plate_boxes.append(bsx(*plate, *BRACKET_SPINE_U, n_bot, n_top))
-    if "B" in pos:
-        plate_boxes.append(bsx(*plate, BRACKET_SPINE_U[0], pos["B"][0] + r, BAR_N[0], BAR_N[1]))
-    layers.append(("leg", bsx(*leg, *BRACKET_LEG_U, *BRACKET_LEG_N)))
-    tab_hole = None
-    if rail:
-        x_out = hw.FAN_SIDE_X[fan][0 if d > 0 else 1]                    # the fan's outer face
-        x_rail_in = hw.FAN_SIDE_INNER_X[fan] - d * RAIL_INSET
-        x_tab = tuple(sorted((x_out, x_out - d * TAB_T)))
-        x_knuckle = tuple(sorted((x_out + d * 1.0, x_out - d * 1.0)))    # 1 mm either side of the fan's outer face, fuses rail and tab
-        tu, tn = hw.FAN_SIDE_HOLES_UN[BRACKET_TAB[name]]
-        t_half = hw.FAN_SIDE_HOLE_D / 2 + TAB_WALL
-        layers.append(("root", bsx(*sorted((plate[0] if d < 0 else plate[1], x_out)), BRACKET_SPINE_U[0], BRACKET_SPINE_U[1], *RAIL_N)))   # root block: plate face to outer face
-        layers.append(("rail", bsx(*sorted((x_rail_in, x_out)), BRACKET_SPINE_U[1] - 1.0, RAIL_U1, *RAIL_N)))
-        layers.append(("knuckle", bsx(*x_knuckle, tu - t_half, RAIL_U1, RAIL_N[0], RAIL_N[1])))
-        layers.append(("tab", bsx(*x_tab, tu - t_half, RAIL_U1, tn - t_half, RAIL_N[1])))
-        tab_hole = (tu, tn, x_tab)
+    plate_boxes.append(bsx(*plate, *BRACKET_SPINE_U, SPINE_N0, n_top))
+    plate_boxes.append(bsx(*plate, BAR_U0, max(pos[k][0] for k in pos) + r, *BAR_N))
+    plate_boxes.append(bsx(*plate, *ROOT_U, *ROOT_N))
+    leg_solid = outline_solid([bracket_leg_outline()], *leg)
     holes = []
     for k, (u, n) in pos.items():       # fan screws: from the fan's inner face into the plate, away from the fan
         y, z = hw.bp_yz(u, n)
         holes += joint_pilots((hw.FAN_SIDE_INNER_X[fan], y, z), (d, 0, 0), FAN_STACK, "side fan")
     for (y, z) in BRACKET_BOLTS:        # rib bolts: insert pilots in the leg's face on the rib
         holes += joint_pilots((rib_face, y, z), (math.copysign(1.0, rib_face), 0, 0), RIB_T, "fan bracket")   # away from the rib: +X on the right, -X on the left
-    if tab_hole:                        # the tab's fan screw: M3 clearance from outside, the screw runs into the fan's own hole
-        tu, tn, (xa, xb) = tab_hole
-        y, z = hw.bp_yz(tu, tn)
-        holes.append(x_clear(y, z, xa - OVERSHOOT, xb + OVERSHOOT))
     rings = hole_rings(holes)
     extra = [rd.Neighbor("aperture", aperture_cylinder(fan), "keepout")] if ROUND is not None else []   # the fan's open circle: a probe, not hardware
     kw = dict(sides=(1,), own=(name,), rings=rings, extra=extra)
-    solids = [rounded_like(fuse_all(plate_boxes), (1, 0, 0), name + " plate", **kw)]
-    for label, box in layers:
-        if label in RAIL_GROUP:     # revision 8a: rounded with the radius that keeps its joints (the rail is 5.5 wide, so 2 mm); see below
-            solids.append(rounded_like(box, (1, 0, 0), f"{name} {label}", convex=RAIL_CONVEX.get(label, ROUND_CONVEX), **kw))
-        else:
-            solids.append(rounded_like(box, (1, 0, 0), f"{name} {label}", **kw))
-    s = fuse_all(solids)
-    if ROUND is not None and name in BRACKET_TAB and n_solids(s) != 1:
-        # the rail group (2.5..5.5 mm thin, joined by 1 mm overlaps) is rounded only when the bracket stays one solid; if not, leave the group as drawn
-        ROUND_LOG.append(rd.Entry(name, (0.0, 0.0, 0.0), "layer", 0.0, 0.0,
-                                  "rail, root block, knuckle and tab (2.5..5.5 mm thin, joined by 1 mm overlaps): rounding any of them cut the joints into two solids"))
-        s = fuse_all([solids[0]] + [box if lab in RAIL_GROUP else solids[1 + i] for i, (lab, box) in enumerate(layers)])
+    s = fuse_all([rounded_like(fuse_all(plate_boxes), (1, 0, 0), name + " plate", **kw),
+                  rounded_like(leg_solid, (1, 0, 0), name + " leg", **kw)])
     x_join = plate[0] if d < 0 else plate[1]          # the plate's face towards the rib, where the leg joins it
 
-    def pick(e):      # the leg's four sides where they meet that face
+    def pick(e):      # the leg's sides where they meet that face
         m, dd = edge_info(e)
         if abs(float(dd[0])) > 1e-6 or abs(m[0] - x_join) > 1e-3:
             return False
         u, n = un_of(m[1], m[2])
-        (u0, u1), (n0, n1) = BRACKET_LEG_U, BRACKET_LEG_N
-        return (abs(u - u0) < 1e-2 or abs(u - u1) < 1e-2) and n0 - 1e-2 <= n <= n1 + 1e-2 \
-            or (abs(n - n0) < 1e-2 or abs(n - n1) < 1e-2) and u0 - 1e-2 <= u <= u1 + 1e-2
+        return min(_seg_dist((u, n), a, b) for a, b in zip(BRACKET_LEG_UN, BRACKET_LEG_UN[1:] + BRACKET_LEG_UN[:1])) < 1e-2
     s = junction_fillet(s, name, "leg meets plate", pick, **kw)
     return drill(s, holes)
 
 
 def build_gpu_post():
-    s = hw.bs_box(*GPU_POST_BS)
+    """The card's post as a frame: a foot on beam_mid (v GPU_POST_V thick) and, above n GPU_POST_N_STEP, a plate GPU_POST_V_UP thick along v with a window that leaves the card bracket open over the
+    card's whole thickness in u and from n GPU_OUT_N[0] to the lintel's underside. Two columns outside the card's thickness, a base under the window, a lintel under the tab's seat.
+    The two bolts are in the high-u column's foot, through beam_mid."""
+    (u0, u1), (n0, n1) = GPU_POST_U_RANGE, GPU_POST_N_RANGE
+    (wu0, wu1), (wn0, wn1) = GPU_POST_U_WINDOW, GPU_POST_N_WINDOW
+    assert n1 - wn1 >= 5.0, f"the lintel between n {wn1:g} and the tab's seat {n1:g} is under 5 mm thick: the post cannot be a frame"
+    s = hw.bs_box(*GPU_POST_V, u0, u1, n0, GPU_POST_N_STEP).fuse(hw.bs_box(*GPU_POST_V_UP, u0, u1, GPU_POST_N_STEP, n1))
+    s = s.cut(hw.bs_box(GPU_POST_V_UP[0] - 1.0, GPU_POST_V_UP[1] + 1.0, wu0, wu1, wn0, wn1)).clean()
     holes = []
     for u in GPU_POST_U:
-        holes += joint_pilots(hw.bp(GPU_POST_V, u, hw.ATX_TRAY_N), hw.N_DIR, GPU_POST_STACK, "gpu_post")
-    v0, v1, u0, u1, n0, n1 = GPU_POST_BS
-    # the long edges run along n; the foot stands on beam_mid, so the first COLLAR mm keep the foot's outline; the top end is free
-    s = round_box(s, ((v0, u0, n0), (v1, u1, n1)), 2, "gpu_post", all_corners(n0 + COLLAR, n1), place=bs_place,
-                  rings=hole_rings(holes))
+        holes += joint_pilots(hw.bp(GPU_POST_BOLT_V, u, hw.ATX_TRAY_N), hw.N_DIR, GPU_POST_STACK, "gpu_post")
+    if ROUND is not None:
+        def corner_edges(shape, us, ns):      # the edges along v (world X) that stand at a corner (u, n) of the lists
+            out = []
+            for e in shape.Edges():
+                m, dd = edge_info(e)
+                u, n = un_of(m[1], m[2])
+                if abs(float(dd[0])) > 0.9999 and any(abs(u - a) < 1e-3 for a in us) and any(abs(n - b) < 1e-3 for b in ns):
+                    out.append(e)
+            return out
+        win = corner_edges(s, (wu0, wu1), (wn0, wn1))
+        assert len(win) == 4 and len(corner_edges(s, (u0, u1), (n0, n1))) == 4, "gpu_post: expected 4 window and 4 outside corner edges along v"
+        s = s.fillet(GPU_POST_R_WINDOW, win)
+        # the outside corners, except the foot's high-u one: the foot stands on beam_mid, and a rounding there would take contact area from it (check 12's 97 % floor)
+        keep_sharp = corner_edges(s, (u1,), (n0,))
+        rest = [e for e in corner_edges(s, (u0, u1), (n0, n1)) if not any(e.isSame(k) for k in keep_sharp)]
+        s = s.fillet(GPU_POST_R, rest)
+        assert s.isValid() and n_solids(s) == 1, "gpu_post: the corner fillet gave an invalid solid"
     return drill(s, holes)
 
 
@@ -1586,10 +1589,11 @@ def _build_frame():
     add("beam_front", build_beam_front(), "front beam, ties the front feet; carries the front sill (4 x M3 from below)")
     add("front_sill", build_front_sill(),
         "front sill X +-140: 45 deg face parallel to the board, pocket for the I/O module (PLACEHOLDER box), channel and slit for the light line, 4 x M3 into beam_front, 2 x M3 for the module (PLACEHOLDER)")
-    add("fan_bracket_right", build_fan_bracket("fan_bracket_right"),
-        "right side fan bracket: plate on the fan's inner face (corners A, C), leg to rib_A_right's outer face, 2 x M3")
-    add("fan_bracket_left", build_fan_bracket("fan_bracket_left"),
-        "left side fan bracket: C-plate on the fan's inner face (corners A, B, C), leg to rib_A_left's outer face, 2 x M3")
+    bracket = build_fan_bracket()      # revision 13: one design, built where the right one stands, mirrored for the left
+    add("fan_bracket_right", bracket,
+        f"right side fan bracket: plate {BRACKET_T:g} mm on the fan's inner face (corners A, B, C, spine, bar, root block), leg to rib_A_right's outer face, 2 x M3")
+    add_mirror("fan_bracket_left", bracket,
+               f"left side fan bracket: the right one mirrored (corners A, B, C), leg to rib_A_left's outer face, 2 x M3")
     for name, row in BEAM_ROW.items():
         add(name, build_beam(name), f"ATX tray beam, row u = {row}, 3 standoff bosses")
     add("skid_front", build_skid("skid_front", 185, 205), "PSU skid, front")
@@ -1613,7 +1617,7 @@ def _build_frame():
     add("visor_arm_right", build_arm_right(True), "360 visor arm, right (2 x M3 to the neck, knee below the bar, radiator screws counterbored), notched at the port tank")
     add_mirror("visor_arm_left", build_arm_right(False), "360 visor arm, left (2 x M3 to the neck, knee below the bar, radiator screws counterbored)")
 
-    add("gpu_post", build_gpu_post(), "card bracket post, left side (PLACEHOLDER geometry)")
+    add("gpu_post", build_gpu_post(), "card bracket post, left side: a frame with a window for the card's video outputs, columns outside the card's thickness, a lintel under the tab's seat (tab height PLACEHOLDER)")
 
     g_cpu, _ = build_hose_guide_cpu()
     add("hose_guide_cpu", g_cpu, "CPU hose guide: foot on the left neck, two channels open to -X, 1 x M3", material="PA6")
@@ -1636,11 +1640,9 @@ def _build_frame():
              f"2 per arm along n at u = 192, 297: the radiator's own screws, heads in counterbores from below ({HW_SCREW_FLOOR:g} mm of arm under each; the screw's {hw.RAD360_SCREW_LEN:g} mm is an ASSUMPTION)")
     fastener("psu", "psu_bulkhead (+ skid_front, skid_rear support)", "6-32", len(hw.PSU_PATTERN),
              f"{len(hw.PSU_HOLES)} holes, standard pattern seen from behind (inlet at -X); PSU rests on the skids; heads in counterbores from behind ({HW_SCREW_FLOOR:g} mm of the {BULK_T:g} mm wall under each; the screw's {hw.PSU_SCREW_LEN:g} mm is an ASSUMPTION)")
-    for fan, bracket in (("fan_side_left", "fan_bracket_left"), ("fan_side_right", "fan_bracket_right")):
-        k = len(BRACKET_CORNERS[bracket]) + (bracket in BRACKET_TAB)
-        tab = f"; corner {BRACKET_TAB[bracket]} through a tab over the fan's outer face (screw from outside, clearance hole)" if bracket in BRACKET_TAB else ""
-        fastener(fan, bracket, m3(FAN_STACK), k,
-                 f"corners {', '.join(BRACKET_CORNERS[bracket])} of 4 (needs >= {FAN_MIN_SCREWS}): screws from the fan's outer face through the {FAN_STACK:g} mm fan into the plate{tab}")
+    for fan, holder in (("fan_side_left", "fan_bracket_left"), ("fan_side_right", "fan_bracket_right")):
+        fastener(fan, holder, m3(FAN_STACK), len(BRACKET_CORNERS[holder]),
+                 f"corners {', '.join(BRACKET_CORNERS[holder])} of 4 (needs >= {FAN_MIN_SCREWS}): screws from the fan's outer face through the {FAN_STACK:g} mm fan into the plate")
     fastener("front_io", "front_sill", hw.FRONT_IO_SCREW_KIND + " insert", len(hw.FRONT_IO_SCREWS),
              "PLACEHOLDER: 2 along X into the end walls of the sill's pocket; the module's screws are not known until it is measured")
     fastener("gpu", "gpu_post (left) + rib_A_right gpu_rest (right)", m3(GPU_POST_STACK), 2,
@@ -1711,7 +1713,7 @@ def check_bolts(neck_prims):
         BOLT_CHECKS.append((f"joint bolt ({pt[0]:.1f},{pt[1]:.1f}) in neck strut + visor arm", ok, ""))
     gap = math.dist(JOINT_BOLTS[0], JOINT_BOLTS[1])
     BOLT_CHECKS.append((f"joint bolts {gap:.1f} mm apart (>= {JOINT_MIN_SPACING:g})", gap >= JOINT_MIN_SPACING, ""))
-    leg = [_rect_poly(*BRACKET_LEG_U, *BRACKET_LEG_N)]
+    leg = [bracket_leg_outline()]
     for pt in BRACKET_BOLTS:       # clearance wall in rib_A, pilot wall in the bracket's leg
         ok = inside(SHAPE_A, pt, cr + hw.M3_MIN_WALL) and inside(leg, pt, pr)
         BOLT_CHECKS.append((f"fan bracket bolt ({pt[0]:.1f},{pt[1]:.1f}) in rib_A + bracket leg", ok, ""))
@@ -2023,13 +2025,9 @@ def mount_points():
                 out.append((item, "drive_sled_" + item.split("_")[1], (side * (fc["pb_x"] - fc["dir"] * DRIVE_PROBE_DEPTH), y, z), CLEAR_KINDS[THREAD_CLEAR[fc["spec"]["thread"]]][0] / 2, None))
     for fan, holder in FAN_HOLDER.items():
         x = hw.FAN_SIDE_INNER_X[fan] + hw.FAN_SIDE_IN[fan] * FAN_PROBE_DEPTH
-        x_out = hw.FAN_SIDE_X[fan][0 if hw.FAN_SIDE_IN[fan] > 0 else 1]
-        x_tab = x_out - hw.FAN_SIDE_IN[fan] * TAB_T / 2                      # mid-thickness of a tab over the fan's outer face
         for corner, (u, n) in hw.FAN_SIDE_HOLES_UN.items():
-            # inner face: an insert pilot in the plate. Outer face: a clearance hole in a tab (revision 7a), looked for at every corner
-            # of every fan; a corner counts once if either has a hole. The fan's flat outer face has no material at the probe.
+            # an insert pilot in the plate at each corner, looked for at every corner of every fan; a corner counts once if it has one. The fan's flat inner face has no material at the probe.
             out.append((fan, holder, hw.bp(hw.x_to_v(x), u, n), hw.M3_PILOT_D / 2, corner))
-            out.append((fan, holder, hw.bp(hw.x_to_v(x_tab), u, n), hw.M3_CLEAR_D / 2, corner))
     return out
 
 
@@ -2073,7 +2071,7 @@ def derive_mounts(parts, contacts, failures, memo=None):
     if "gpu_post" in byname and "beam_mid" in byname:
         for u in GPU_POST_U:
             try:
-                pt_post, pt_beam = hw.bp(GPU_POST_V, u, hw.ATX_TRAY_N + 4.0), hw.bp(GPU_POST_V, u, BEAM_N_MID)
+                pt_post, pt_beam = hw.bp(GPU_POST_BOLT_V, u, hw.ATX_TRAY_N + 4.0), hw.bp(GPU_POST_BOLT_V, u, BEAM_N_MID)
                 why_post = memo_call(memo, (byname["gpu_post"].solid,), "mount", hole_at, byname["gpu_post"], pt_post,
                                      hw.M3_PILOT_D / 2, extra=(tuple(pt_post), hw.M3_PILOT_D / 2))
                 why_beam = memo_call(memo, (byname["beam_mid"].solid,), "mount", hole_at, byname["beam_mid"], pt_beam,
@@ -2201,10 +2199,15 @@ def check_envelope(parts, hardware, pb, hb, failures):
         my = min(((b[2], n) for n, b in items))
         out[tag] = (mx[0], mx[1], my[0], my[1])
         for n, b in items:
-            if max(abs(b[0]), abs(b[1])) > hw.ENVELOPE_X + 1e-6:
-                failures.append(f"CHECK8 {n} reaches |X| = {max(abs(b[0]), abs(b[1])):.2f}, limit {hw.ENVELOPE_X:g}")
+            limit = hw.ENVELOPE_FAN_X if n in hw.FAN_SIDE_PARTS else hw.ENVELOPE_X      # revision 13: the side fans' brackets stand out to the fans' outer face, everything else to the radiators' ends
+            if max(abs(b[0]), abs(b[1])) > limit + 1e-6:
+                failures.append(f"CHECK8 {n} reaches |X| = {max(abs(b[0]), abs(b[1])):.2f}, limit {limit:g}")
             if b[2] < hw.ENVELOPE_Y0 - 1e-6:
                 failures.append(f"CHECK8 {n} reaches Y = {b[2]:.2f}, in front of {hw.ENVELOPE_Y0:g}")
+        if tag == "parts":
+            rest = max(((max(abs(b[0]), abs(b[1])), n) for n, b in items if n not in hw.FAN_SIDE_PARTS))
+            fans = max(((max(abs(b[0]), abs(b[1])), n) for n, b in items if n in hw.FAN_SIDE_PARTS), default=(0.0, ""))
+            out["parts_rest"], out["parts_fan"] = rest, fans
     return out
 
 
@@ -2307,12 +2310,12 @@ def check_guides(parts, failures, memo=None):
 
 
 def aperture_cylinder(fan):
-    """The fan's open circle (hardware.FAN_APERTURE_D) as a cylinder along X, from 20 mm past the fan's outer face to 60 mm
-    inside its inner face: long enough to cover a bracket's plate and its leg. It is a probe, not hardware."""
+    """The fan's open circle (hardware.FAN_APERTURE_D) as a cylinder along X, from APERTURE_FROM_OUT past the fan's outer face to the rib's outer face
+    (revision 13: the leg is 49 mm long now, so the probe reaches the rib; it was 60 mm inside the inner face for a leg of 12 or 33). It is a probe, not hardware."""
     face, d = hw.FAN_SIDE_INNER_X[fan], hw.FAN_SIDE_IN[fan]
     x_out_face = hw.FAN_SIDE_X[fan][0 if d > 0 else 1]
     y, z = hw.bp_yz(*hw.FAN_CENTRE_UN)
-    x0, x1 = sorted((x_out_face - d * 20.0, face + d * 60.0))
+    x0, x1 = sorted((x_out_face - d * APERTURE_FROM_OUT, -d * X_OUT))
     return cyl((x0, y, z), (1, 0, 0), hw.FAN_APERTURE_D, x1 - x0)
 
 
@@ -2332,6 +2335,173 @@ def check_apertures(parts, failures, memo=None):
         if v >= VOL_EPS:
             failures.append(f"CHECK11 {p.name} has {v:.1f} mm3 inside the open circle of {fan} (diameter {hw.FAN_APERTURE_D:g})")
     return rows
+
+
+# ---------------------------------------------------------------------------
+# Checks 17 and 18 (revision 13): the side fan bracket and the card's post, hand calculations as functions of the model's own numbers (beam formulas, no mesh), so that a
+# section that is made thinner fails here. The material numbers are strength.py's (it reads them from here): printed ABS, 20 MPa across the layers, safety 3.
+# ---------------------------------------------------------------------------
+ABS_STRENGTH_LAYER = 20.0        # MPa, typical across the layers
+ABS_SAFETY = 3.0                 # on the weaker direction, for creep, heat and print defects
+ABS_ALLOW = ABS_STRENGTH_LAYER / ABS_SAFETY          # 6.67 MPa
+ABS_E = 2000.0                   # MPa, printed ABS along the layers
+STRENGTH_MARGIN_MIN = 2.0        # revision 13: the bracket's and the post's worst section stays under ABS_ALLOW / this
+FAN_KG = 0.2                     # a 140 mm fan's mass (strength.py's KG["fan140"])
+GRAVITY = 9.81                   # m/s^2
+KNOCK_N = 20.0                   # the plan's load on a side fan: 20 N along X at its far corner
+PULL_N = 20.0                    # the plan's load on the card's post: 20 N along -X (v) on a cable at the lintel
+
+
+def poly_props(pts):
+    """(area, (cu, cn), Inn, Iuu, Iun) of a simple polygon of (u, n) vertices: the centroid, and the second moments about it, Inn = integral (u - cu)^2 dA, Iuu = integral (n - cn)^2 dA,
+    Iun = integral (u - cu)(n - cn) dA (shoelace formulas)."""
+    a = cx = cy = ixx = iyy = ixy = 0.0
+    for (x0, y0), (x1, y1) in zip(pts, list(pts[1:]) + [pts[0]]):
+        k = x0 * y1 - x1 * y0
+        a += k
+        cx += (x0 + x1) * k
+        cy += (y0 + y1) * k
+        iyy += (x0 * x0 + x0 * x1 + x1 * x1) * k
+        ixx += (y0 * y0 + y0 * y1 + y1 * y1) * k
+        ixy += (x0 * y1 + 2 * x0 * y0 + 2 * x1 * y1 + x1 * y0) * k
+    sgn = 1.0 if a > 0 else -1.0
+    a, cx, cy = a / 2, cx / (6 * (a / 2)), cy / (6 * (a / 2))
+    ixx, iyy, ixy = sgn * ixx / 12 - abs(a) * cy * cy, sgn * iyy / 12 - abs(a) * cx * cx, sgn * ixy / 24 - abs(a) * cx * cy
+    return abs(a), (cx, cy), iyy, ixx, ixy
+
+
+def bracket_strength(depth=None, leg=None, spine_w=None, bar_w=None):
+    """Hand calculation of a side fan bracket under the plan's two loads (revision 13, item 5). Returns dict(rows, worst, margin, bolts, lines).
+    Model: the fan is rigid and held by the three screws (corners A, B, C of the bracket), each of which takes a force along X only; the knock, KNOCK_N along X at the fan's far corner
+    (u, n) = (FAN_SIDE_U[1], FAN_SIDE_N[1]), is shared by the three by statics: F_A + F_B + F_C = -F and the moments about the u and n axes. The leg carries the whole of F, eccentrically.
+    The spine (a beam along n, depth `depth` along X) carries F_C over the lever from corner C down to the leg's top; the bar (a beam along u) carries F_B over the lever from the root
+    block's end to corner B; the ear at C carries F_C over its stub. The weight, FAN_KG, acts at the fan's centre, down, across X over the lever from the fan's centre to the rib's face.
+    rows: (what, load case, stress MPa, how)."""
+    depth = BRACKET_T if depth is None else depth
+    leg = BRACKET_LEG_UN if leg is None else leg
+    spine_w = (BRACKET_SPINE_U[1] - BRACKET_SPINE_U[0]) if spine_w is None else spine_w
+    bar_w = (BAR_N[1] - BAR_N[0]) if bar_w is None else bar_w
+    corners = BRACKET_CORNERS["fan_bracket_right"]
+    pos = {k: hw.FAN_SIDE_HOLES_UN[k] for k in corners}
+    uK, nK = hw.FAN_SIDE_U[1], hw.FAN_SIDE_N[1]
+    M = np.array([[1.0] * 3, [pos[k][0] for k in "ABC"], [pos[k][1] for k in "ABC"]])
+    Fa, Fb, Fc = np.linalg.solve(M, -KNOCK_N * np.array([1.0, uK, nK]))
+    force = dict(A=float(Fa), B=float(Fb), C=float(Fc))
+    area, (cu, cn), Inn, Iuu, Iun = poly_props(list(leg))
+    I = np.array([[Inn, Iun], [Iun, Iuu]])
+    bc, cc = np.linalg.solve(I, KNOCK_N * np.array([uK - cu, nK - cn]))
+    leg_sigma = max(abs(KNOCK_N / area + bc * (u - cu) + cc * (n - cn)) for u, n in leg)
+    rows = [("leg", "knock", float(leg_sigma),
+             f"A = {area:.0f} mm2, centroid (u {cu:.1f}, n {cn:.1f}), I_n = {Inn:.0f}, I_u = {Iuu:.0f}, I_un = {Iun:.0f} mm4; F = {KNOCK_N:g} N at (u {uK:g}, n {nK:g}): "
+             f"M_n = F (u_K - u_c) = {KNOCK_N * (uK - cu):.0f}, M_u = F (n_K - n_c) = {KNOCK_N * (nK - cn):.0f} N mm; sigma = F/A + M_n (u - u_c)/I_n + M_u (n - n_c)/I_u at the worst vertex")]
+    uC, nC = pos["C"]
+    m_spine = abs(force["C"]) * (nC - BRACKET_LEG_N[1])
+    rows.append(("spine", "knock", m_spine * 6 / (spine_w * depth ** 2),
+                 f"F_C = {abs(force['C']):.1f} N at n {nC:.1f}, lever to the leg's top (n {BRACKET_LEG_N[1]:g}) {nC - BRACKET_LEG_N[1]:.1f} mm, M = {m_spine:.0f} N mm; section {spine_w:g} (u) x {depth:g} (X), "
+                 f"W = b h^2 / 6 = {spine_w * depth ** 2 / 6:.0f} mm3"))
+    uB = pos["B"][0]
+    m_bar = abs(force["B"]) * (uB - ROOT_U[1])
+    rows.append(("bar", "knock", m_bar * 6 / (bar_w * depth ** 2),
+                 f"F_B = {abs(force['B']):.1f} N at u {uB:.1f}, lever from the root block's end (u {ROOT_U[1]:g}) {uB - ROOT_U[1]:.1f} mm, M = {m_bar:.0f} N mm; section {bar_w:g} (n) x {depth:g} (X), "
+                 f"W = {bar_w * depth ** 2 / 6:.0f} mm3"))
+    stub = uC - BRACKET_SPINE_U[1]
+    rows.append(("ear C", "knock", abs(force["C"]) * stub * 6 / (2 * BRACKET_EAR * depth ** 2),
+                 f"F_C = {abs(force['C']):.1f} N, stub {stub:.1f} mm from the spine's face, section {2 * BRACKET_EAR:.1f} x {depth:g}"))
+    # the weight: F_u = F_n = -C W across X, lever L from the fan's centre to the rib's face
+    W = FAN_KG * GRAVITY
+    L = abs(sum(hw.FAN_SIDE_X["fan_side_right"]) / 2) - X_OUT
+    fu = fn = hw.C * W
+    bw = np.linalg.solve(I, np.array([fu * L, fn * L]))       # the two moments about the n and u axes through the leg's centroid
+    grav_sigma = max(max(abs(sa * bw[0] * (u - cu) + sb * bw[1] * (n - cn)) for sa in (-1, 1) for sb in (-1, 1)) for u, n in leg)
+    rows.append(("leg", "weight", float(grav_sigma),
+                 f"W = {FAN_KG:g} kg x {GRAVITY:g} = {W:.2f} N, components along u and n {fu:.2f} N each, lever {L:.1f} mm (fan centre to the rib's face): M = {fu * L:.0f} N mm about each axis"))
+    knock = max(r[2] for r in rows if r[1] == "knock")
+    worst = max(r[2] for r in rows)
+    # the two rib bolts' tension under the knock, by the pivot at the far edge of the leg's footprint (not a stress: the insert's pull-out is not in the data)
+    (bu, bn_list) = BRACKET_BOLT_U, BRACKET_BOLT_N
+    u_edge = max(u for u, n in leg)
+    t_u = abs(KNOCK_N * (uK - cu)) / max(u_edge - bu, 1.0) / len(bn_list)
+    arms = [BRACKET_LEG_N[1] - n for n in bn_list]
+    t_n = [abs(KNOCK_N * (nK - cn)) * a / sum(x * x for x in arms) for a in arms]
+    bolt = max(t_u + t for t in t_n)
+    lines = [f"  Нагрузки (план, п. 5): удар {KNOCK_N:g} Н вдоль X в дальний угол вентилятора (u {uK:g}, n {nK:g}); вес вентилятора {FAN_KG:g} кг = {W:.2f} Н в его центре (u {hw.FAN_CENTRE_UN[0]:g}, n {hw.FAN_CENTRE_UN[1]:g}). "
+             f"Допустимое {ABS_ALLOW:.2f} МПа (strength.py: {ABS_STRENGTH_LAYER:g} МПа поперёк слоёв / запас {ABS_SAFETY:g}); требуемый запас не меньше {STRENGTH_MARGIN_MIN:g}, то есть напряжение не выше {ABS_ALLOW / STRENGTH_MARGIN_MIN:.2f} МПа.",
+             f"  Три винта (A, B, C) делят удар по статике: F_A {force['A']:+.1f}, F_B {force['B']:+.1f}, F_C {force['C']:+.1f} Н (сумма {sum(force.values()):+.1f} = -{KNOCK_N:g})."]
+    for what, case_, sg, how in rows:
+        lines.append(f"    {what:6s} {case_:7s} {sg:5.2f} МПа (запас {ABS_ALLOW / sg:4.1f}): {how}")
+    lines.append(f"  Наихудшее сечение при ударе {knock:.2f} МПа ({[r[0] for r in rows if r[2] == knock][0]}), запас {ABS_ALLOW / knock:.2f}; от веса {grav_sigma:.2f} МПа.")
+    lines.append(f"  Для сравнения, прежняя конструкция (плита {10:g} мм, ножка {11:g} x {28:g} мм): ножка при ударе {abs(KNOCK_N / (11 * 28) + KNOCK_N * (uK - 121.5) * 6 / (28 * 11 ** 2) + KNOCK_N * (nK + 20) * 6 / (11 * 28 ** 2)):.1f} МПа, "
+                 f"хребет {abs(force['C']) * (nC - BRACKET_LEG_N[1]) * 6 / (spine_w * 10 ** 2):.1f} МПа, планка {abs(force['B']) * (uB - 128.0) * 6 / (bar_w * 10 ** 2):.1f} МПа (ножка была не худшим сечением).")
+    lines.append(f"  Растяжение болтов M3 в ребре (2 штуки, давление на дальнем краю ножки): не больше {bolt:.0f} Н на болт; прочность вставки на вырыв в данных проекта нет, strength.py её не считает.")
+    return dict(rows=rows, worst=float(worst), knock=float(knock), margin=float(ABS_ALLOW / worst), forces=force, bolt=float(bolt), lines=lines)
+
+
+def post_strength(v_up=None, col_w=None):
+    """Hand calculation of the card's post under PULL_N along -X (v) on a cable at the lintel (revision 13, item 6). Returns dict(rows, worst, margin, stiffness, lines).
+    The post is a foot on beam_mid, two columns (the high-u one 18.9 wide, the low-u one GPU_POST_COL_W) joined by a lintel and standing on the slab under the window; the pull
+    bends the columns about the u axis over the arm from the top of that slab to the lintel's middle. Worst case for the stress: the high column alone carries all of it (the
+    low one, hanging from the lintel, taken as not there); the stiffness is given for both ways (both columns of equal curvature, and the high column alone)."""
+    v_up = GPU_POST_V_UP if v_up is None else v_up
+    col_w = GPU_POST_COL_W if col_w is None else col_w
+    t = v_up[1] - v_up[0]
+    w_high = GPU_POST_U_RANGE[1] - GPU_POST_U_WINDOW[1]
+    n_load = (GPU_POST_N_WINDOW[1] + GPU_POST_N_RANGE[1]) / 2       # the lintel's mid-height
+    arm = n_load - GPU_POST_N_WINDOW[0]                               # from the top of the slab under the window
+    height = n_load - GPU_POST_N_RANGE[0]                             # from the foot
+    m = PULL_N * arm
+    sig_b = m * 6 / (w_high * t ** 2)
+    sig_low = m * 6 / (col_w * t ** 2)                                # the case in which the pull's whole moment goes into the low column instead
+    u_load = sum(GPU_POST_U_WINDOW) / 2
+    torque = PULL_N * abs(u_load - (GPU_POST_U_WINDOW[1] + GPU_POST_U_RANGE[1]) / 2)
+
+    def torsion_shear(width, tq):      # the largest shear of a rectangular section width x t under the torque tq (at the middle of its long side): tau = T / (alpha a b^2)
+        a, b = max(width, t), min(width, t)
+        al = float(np.interp(a / b, [1.0, 1.2, 1.5, 2.0, 2.5, 3.0, 4.0, 5.0, 10.0], [0.208, 0.219, 0.231, 0.246, 0.258, 0.267, 0.282, 0.291, 0.312]))
+        return tq / (al * a * b ** 2), a / b, al
+    a_b = (max(w_high, t), min(w_high, t))
+    tau, _ratio, alpha = torsion_shear(w_high, torque)
+    vm = float(np.hypot(sig_b, np.sqrt(3.0) * tau))
+    # the low column carrying the whole pull is loaded off its own centre too (found by the outside review of revision 13): the same combination, bending with the largest torsion shear
+    torque_low = PULL_N * abs(u_load - (GPU_POST_U_WINDOW[0] - col_w / 2))
+    tau_low = torsion_shear(col_w, torque_low)[0]
+    vm_low = float(np.hypot(sig_low, np.sqrt(3.0) * tau_low))
+    lintel_n = GPU_POST_N_RANGE[1] - GPU_POST_N_WINDOW[1]
+    span = GPU_POST_U_WINDOW[1] - GPU_POST_U_WINDOW[0]
+    sig_lintel = PULL_N * span * 6 / (lintel_n * t ** 2)               # a cantilever the width of the window, the pull at its free end
+    I_h, I_l = w_high * t ** 3 / 12, col_w * t ** 3 / 12
+    d_one = PULL_N * height ** 3 / (3 * ABS_E * I_h)
+    d_both = PULL_N * height ** 3 / (3 * ABS_E * (I_h + I_l))
+    rows = [("high column above the slab", "pull at the lintel's middle, the high column alone", sig_b),
+            ("the same with torsion", "von Mises with the torque of the load's offset", vm),
+            ("low column above the slab", "the whole moment in the low column", sig_low),
+            ("the same with torsion", f"von Mises with the torque of the load's offset from the low column ({torque_low:.0f} N mm, shear {tau_low:.2f} MPa)", vm_low),
+            ("lintel", "pull at the window's free end, a cantilever the width of the window", sig_lintel)]
+    worst = max(r[2] for r in rows)
+    lines = [f"  Нагрузка (план, п. 6): тяга кабеля {PULL_N:g} Н вдоль -X в середине перемычки (n {n_load:.2f}); допустимое {ABS_ALLOW:.2f} МПа, запас не меньше {STRENGTH_MARGIN_MIN:g}.",
+             f"  Окно: u {GPU_POST_U_WINDOW[0]:.1f}..{GPU_POST_U_WINDOW[1]:.1f} ({span:.1f} мм, вся толщина карты {hw.GPU_BS[3] - hw.GPU_BS[2]:.1f} и по {GPU_POST_CLEAR:g} мм с каждой стороны) x n {GPU_POST_N_WINDOW[0]:g}..{GPU_POST_N_WINDOW[1]:g} "
+             f"({GPU_POST_N_WINDOW[1] - GPU_POST_N_WINDOW[0]:g} мм, зона n {hw.GPU_OUT_N[0]:g}..{hw.GPU_OUT_N[1]:g} и по {GPU_POST_CLEAR:g} мм), насквозь по v {t:g} мм.",
+             f"  Перемычка: n {GPU_POST_N_WINDOW[1]:g}..{GPU_POST_N_RANGE[1]:g} ({lintel_n:g} мм) x v {t:g} мм, на всю ширину рамки u {GPU_POST_U_RANGE[0]:.1f}..{GPU_POST_U_RANGE[1]:g}; верх n {GPU_POST_N_RANGE[1]:g} - место лапки планки карты (GPU_BRACKET_TAB_N, ЗАГЛУШКА).",
+             f"  Колонны: высокая u {GPU_POST_U_WINDOW[1]:.1f}..{GPU_POST_U_RANGE[1]:g} ({w_high:.1f} мм, в ней два болта M3 u {GPU_POST_U[0]:g} и {GPU_POST_U[1]:g}, стенка вокруг пилота {GPU_POST_U[0] - hw.M3_PILOT_D / 2 - GPU_POST_U_WINDOW[1]:.1f} мм), низкая u {GPU_POST_U_RANGE[0]:.1f}..{GPU_POST_U_WINDOW[0]:.1f} ({col_w:g} мм); "
+             f"плита под окном n {GPU_POST_N_RANGE[0]:g}..{GPU_POST_N_WINDOW[0]:g}. Наименьшая стенка сечения {min(lintel_n, col_w, w_high):g} мм (перемычка {lintel_n:g}, колонна {col_w:g}); вокруг пилота болта {GPU_POST_U[0] - hw.M3_PILOT_D / 2 - GPU_POST_U_WINDOW[1]:.1f} мм (правило {hw.M3_MIN_WALL:g}).",
+             f"  Момент тяги у верха плиты под окном: M = {PULL_N:g} x {arm:.2f} = {m:.0f} Н мм (плечо до середины перемычки; от ступни {height:.2f}).",
+             ]
+    for what, how, sg in rows:
+        lines.append(f"    {what:28s} {sg:5.2f} МПа (запас {ABS_ALLOW / sg:4.1f}): {how}")
+    lines.append(f"    сечение колонны {w_high:.1f} x {t:g} мм, W = {w_high * t ** 2 / 6:.0f} мм3 (низкая {col_w * t ** 2 / 6:.0f}); крутящий момент {torque:.0f} Н мм, касательное {tau:.2f} МПа (a/b = {a_b[0] / a_b[1]:.2f}, коэффициент {alpha:.3f}).")
+    lines.append(f"  Жёсткость: прогиб верха под {PULL_N:g} Н = F h^3 / (3 E I) при E = {ABS_E:g} МПа, h = {height:.2f} мм: обе колонны одной кривизны (I = {I_h + I_l:.0f} мм4) {d_both:.2f} мм ({PULL_N / d_both:.0f} Н/мм); "
+                 f"одна высокая (I = {I_h:.0f} мм4) {d_one:.2f} мм ({PULL_N / d_one:.0f} Н/мм). Податливость болтов и вставок не учтена; значения для сплошной стенки.")
+    return dict(rows=rows, worst=float(worst), margin=float(ABS_ALLOW / worst), stiffness=float(PULL_N / d_one), deflection=(float(d_both), float(d_one)), lines=lines)
+
+
+def check_strength(failures):
+    """Checks 17 and 18: the margins of bracket_strength() and post_strength()."""
+    out = {}
+    for tag, fn, what in (("CHECK17", bracket_strength, "fan bracket"), ("CHECK18", post_strength, "card post")):
+        r = fn()
+        out[what] = r
+        if r["margin"] < STRENGTH_MARGIN_MIN - 1e-9:
+            failures.append(f"{tag} {what}: the worst section carries {r['worst']:.2f} MPa, margin {r['margin']:.2f} against {ABS_ALLOW:.2f} MPa, needs {STRENGTH_MARGIN_MIN:g}")
+    return out
 
 
 # ---------------------------------------------------------------------------
@@ -2567,9 +2737,6 @@ def classify_corners(p, others, memo=None):
             why = "lap"                 # inside a lap zone, half the rib's thickness long, not a corner of the outline: the step where the rib's outline meets the other half's cut
         elif any(abs(y - dy) < 0.6 and abs(z - dz) < 0.6 for (dy, dz, _) in KEEP_SHARP.get(p.name, ())):
             why = "declared"
-        elif p.name.startswith("fan_bracket") and p.name in BRACKET_TAB and (abs(float(e["mid"][0])) > BRACKET_RAIL_X + 0.5
-                                                                            or un_of(y, z)[1] > hw.FAN_SIDE_N[1]):
-            why = reason_class(logged) if logged else "declared"        # the rail group of the right bracket
         elif p.name.startswith("fan_bracket") and e["length"] <= 7.0 and abs(abs(float(e["mid"][0])) - bracket_join_x(p.name)) <= 7.0:
             why = "junction"            # the run-out of the leg-to-plate fillet: a few mm long next to the plate's face
         elif logged:
@@ -3041,6 +3208,9 @@ def run_checks(hardware, parts, memo=None):
     # 14. the 420's bracket plates stay out of the fans' openings and keep the wall round every fan screw
     res["plates420"] = check_420_plates(parts, failures, memo)
 
+    # 17, 18. the side fan bracket and the card's post carry the plan's loads with a margin of 2 (hand calculation, revision 13)
+    res["strength"] = check_strength(failures)
+
     # 12. sharp outline corners that remain on the plates; fails only for a plate where nothing was rounded
     res["corners"] = check_corners(parts, hardware, pb, hb, failures, memo)
 
@@ -3397,7 +3567,7 @@ def format_report(hardware, parts, res, memo=None):
             w(f"    {nm}: {len(rr)} зенковки Ø{CLEAR_KINDS['6-32cb'][0]:g} (головка 6-32 {hw.UNC6_HEAD_D:g} + {SLED_CB_PLAY:g}), под головкой {min(r[2] for r in rr):.2f} мм, штатный винт {rr[0][3]:g} мм входит {rr[0][4]:.1f} мм")
     w(f"    ПРЕДПОЛОЖЕНИЯ, не измерены: штатный винт БП {hw.PSU_SCREW_LEN:g} мм (\"около 6 мм\") и штатный винт радиатора 360 {hw.RAD360_SCREW_LEN:g} мм (владелец радиатор не измерял); головка 6-32 {hw.UNC6_HEAD_D:g} x {hw.UNC6_HEAD_H:g} мм (как в DRIVE_FORMS).")
     w("")
-    w(f"Подпорки GPU: gpu_post (левый торец, M3 x {screw_fit(GPU_POST_STACK)[0]} через beam_mid) + gpu_rest (палец правого ребра A, плоскость u = {hw.GPU_BS[2]:.1f}).")
+    w(f"Подпорки GPU: gpu_post (левый торец, рамка с окном для видеовыходов, ревизия 13; M3 x {screw_fit(GPU_POST_STACK)[0]} через beam_mid) + gpu_rest (палец правого ребра A, плоскость u = {hw.GPU_BS[2]:.1f}).")
     w("")
     w("Намеренные контакты с нулевым зазором, деталь x железо:")
     for a, b in sorted(res["contacts"]):
@@ -3432,7 +3602,7 @@ def format_report(hardware, parts, res, memo=None):
     w(f"  360: вентиляторы на внешней стороне (n {hw.RAD360_FAN_N[0]:g}..{hw.RAD360_FAN_N[1]:g}) дуют внутрь от передней грани, "
       f"к плате (сердцевина n {hw.RAD360_CORE_N[0]:g}..{hw.RAD360_CORE_N[1]:g}).")
     fl, fr = hw.FAN_SIDE_X["fan_side_left"], hw.FAN_SIDE_X["fan_side_right"]
-    w(f"  Боковые 2 x 140 (ревизия 7): по одному под каждым концом 360, на флангах, дуют НАРУЖУ. Правый X {fr[0]:g}..{fr[1]:g}, левый X {fl[0]:g}..{fl[1]:g}, "
+    w(f"  Боковые 2 x 140 (ревизия 7, вынесены наружу в ревизии 13): по одному под каждым концом 360, на флангах, дуют НАРУЖУ. Правый X {fr[0]:g}..{fr[1]:g}, левый X {fl[0]:g}..{fl[1]:g}, "
       f"оба u {hw.FAN_SIDE_U[0]:g}..{hw.FAN_SIDE_U[1]:g}, n {hw.FAN_SIDE_N[0]:g}..{hw.FAN_SIDE_N[1]:g}. Передних вентиляторов нет: воздух входит "
       f"через оба радиатора, идёт над платой и выходит вбок.")
     w("")
@@ -3473,7 +3643,8 @@ def format_report(hardware, parts, res, memo=None):
       f"и до соседних отверстий >= {hw.M3_MIN_WALL:g} мм (вставка M3, проходные M3 и 6-32, зенковки и рассверловки)   "
       + ("PASS" if not any(f.startswith('CHECK7') for f in res['failures']) else "FAIL"))
     ev = res["envelope"]
-    w(f"  8. огибающая |X| <= {hw.ENVELOPE_X:g}, Y >= {hw.ENVELOPE_Y0:g}: детали max |X| {ev['parts'][0]:.1f} ({ev['parts'][1]}), "
+    w(f"  8. огибающая |X| <= {hw.ENVELOPE_X:g} (ревизия 13: кронштейны боковых вентиляторов до внешней грани вентилятора, |X| <= {hw.ENVELOPE_FAN_X:g}), Y >= {hw.ENVELOPE_Y0:g}: детали без кронштейнов вентиляторов max |X| {ev['parts_rest'][0]:.1f} ({ev['parts_rest'][1]}), "
+      f"кронштейны вентиляторов max |X| {ev['parts_fan'][0]:.1f} ({ev['parts_fan'][1]}), "
       f"min Y {ev['parts'][2]:.1f} ({ev['parts'][3]}); шланги (keep-out R 8.0/7.8) max |X| {ev['hoses'][0]:.1f} ({ev['hoses'][1]}), "
       f"min Y {ev['hoses'][2]:.1f} ({ev['hoses'][3]}); верх: не выше грани n = {hw.ENVELOPE_N:g} (верхняя грань 420), максимум n "
       f"{ev['top'][2]:.2f} ({ev['top'][3]}); верх каркаса Z = {ev['top'][0]:.1f} ({ev['top'][1]}), верх 420 Z = {ev['top'][4]:.1f}; "
@@ -3533,6 +3704,21 @@ def format_report(hardware, parts, res, memo=None):
       + ("PASS" if not any(f.startswith('CHECK15') for f in res['failures']) else "FAIL"))
     w(f"  16. (доп., ревизия 12) зенковки под штатные винты 6-32: {len(cbs)} (БП {sum(1 for r in cbs if r[0] == 'psu_bulkhead')}, 360 {sum(1 for r in cbs if r[0] != 'psu_bulkhead')}), под головкой измерено {min((r[2] for r in cbs), default=0):.2f}..{max((r[2] for r in cbs), default=0):.2f} мм (нужно {HW_SCREW_FLOOR:g})   "
       + ("PASS" if not any(f.startswith('CHECK16') for f in res['failures']) else "FAIL"))
+    st = res["strength"]
+    w(f"  17. (доп., ревизия 13) кронштейн бокового вентилятора держит удар {KNOCK_N:g} Н вдоль X в дальний угол вентилятора и его вес: наихудшее сечение {st['fan bracket']['knock']:.2f} МПа ("
+      f"допустимое {ABS_ALLOW:.2f}), запас {st['fan bracket']['margin']:.2f} (нужно не меньше {STRENGTH_MARGIN_MIN:g})   "
+      + ("PASS" if not any(f.startswith('CHECK17') for f in res['failures']) else "FAIL"))
+    w(f"  18. (доп., ревизия 13) рамка стойки карты держит тягу кабеля {PULL_N:g} Н вдоль -X на перемычке: наихудшее сечение {st['card post']['worst']:.2f} МПа, запас {st['card post']['margin']:.2f} (нужно не меньше {STRENGTH_MARGIN_MIN:g}), "
+      f"прогиб верха {st['card post']['deflection'][0]:.2f}..{st['card post']['deflection'][1]:.2f} мм   "
+      + ("PASS" if not any(f.startswith('CHECK18') for f in res['failures']) else "FAIL"))
+    w("")
+    w("Прочность кронштейна бокового вентилятора (ручной расчёт, ревизия 13, п. 5; расчёт - функция bracket_strength(), числа из модели)")
+    for ln in st["fan bracket"]["lines"]:
+        w(ln)
+    w("")
+    w("Прочность рамки стойки карты (ручной расчёт, ревизия 13, п. 6; функция post_strength())")
+    for ln in st["card post"]["lines"]:
+        w(ln)
     w("")
     w("Скругление (ревизии 8 и 8a)")
     ref = reference_parts()
@@ -4027,15 +4213,40 @@ DEVIATIONS: list[str] = [
     "Ревизия 12, органическая оболочка: материал PETG, запасной вариант ABS. organic_frame.py: PLA_RHO -> LAYER_RHO = 1.27 г/см³, PLA_GAP -> HOT_GAP (зазор 10 мм до карты и БП), толщина площадки PAD_H = hardware.ORGANIC_PAD_H (5.0, то, что зажимает винт); organic_strength.py: E 2000 МПа и 20 МПа поперёк слоёв, цифры ABS из strength.py, "
     "запас 2 как прежде, допустимое 10 МПа (запускает главная сессия, здесь не запускался); drive_access.py: _pla_gap -> _hot_gap, сообщение «it must keep»; shell_concepts.py, render_full.py (LAYER_RGB): комментарии и имена. Ни один элемент оболочки не сдвинут (165 элементов), "
     "но её поле считается вырезанием из каркаса, а каркас чуть другой (скругление, п. 3): объём слоя 1843 -> 1842 см³, крошек 1 -> 0.",
+    # --- ревизия 13
+    "Ревизия 13 (боковые вентиляторы вынесены наружу, стойка карты рамкой; docs/plans/b6-frame-v0.md), отступления от плана, каждое измерено. (1) Вентиляторы X +-235..+-260 как в плане: левый в 6.40 мм от cpu_hoses (нужно 5, "
+    "сдвигать дальше не пришлось), правый в 16.55 мм от gpu_hoses. Радиаторы, шланги, направляющие и 40 мм прямого у портов 420 не тронуты. hardware.py: ENVELOPE_FAN_X = 260 (из FAN_SIDE_X), FAN_SIDE_PARTS и FAN_SIDE_CABLES - "
+    "кому позволено выходить за |X| 229; GPU_OUT_ZONE_BS и keep-out gpu_out_zone (v -82..-2, u во всю толщину карты, n 10..100; ДОПУЩЕНИЕ: какая часть планки несёт выходы, не известно, открыта вся грань).",
+    "Ревизия 13, кронштейн вентилятора: плита 28 мм, а не 10 (ножка тогда 49 мм, а не 67). Удар плана, 20 Н вдоль X в дальний угол, делится тремя винтами (F_A +22.5, F_B -21.2, F_C -21.2 Н) и даёт на хребет 6 x 10 мм "
+    "20.4 МПа, на планку 7.5 x 10 мм 21.1 МПа; ножка 11 x 28, как оценил план, даёт 6.6 МПа, но она не худшее сечение. Плита 28 мм: хребет 2.61, планка 2.22 МПа (допустимое 6.67, запас 2.56; функция bracket_strength(), проверка 17). "
+    "Корневой блок u 128..150 (n -47..-33) соединяет планку с ножкой; хребет начинается на n -34, а не -40: на правой стороне при n -40 до gpu_hoses 3.02 мм (нужно 5). Ножка - трапеция (u 116..130 вверху, 116..150 внизу, n -34..-6), а не "
+    "прямоугольник: прямоугольник u 116..140 заходит в круг Ø134 вентилятора (проверка 11, 2189 мм³ в тесте), трапеция в 1.9 мм от круга; сечение 672 мм², при ударе 2.23 МПа.",
+    "Ревизия 13, кронштейн: строится правосторонним (на месте правого), левый - его зеркало (add_mirror), как все левые детали модуля. План говорит наоборот (правый - зеркало левого); форма та же, но скругление проверяется "
+    "по соседям той стороны, где строится, а справа шланги GPU (5.55 мм), то есть там строже. Правый кронштейн в 5.55 мм от gpu_hoses (нужно 5), левый в 24.85 мм от cpu_hoses; левый в 3.00 мм от gpu_out_zone, в 16.3 мм от io_zone. "
+    "Ушки A, B, C; угла D нет ни у одного, рельс, коленце и лапка ревизии 7a убраны. Проверка 11: пробный цилиндр круга идёт от внешней грани вентилятора до внешней грани ребра (был 60 мм внутрь от внутренней грани, "
+    "что покрывало ножку 12 и 33 мм; сейчас ножка 49), иначе блок у ребра в круге не находился бы.",
+    "Ревизия 13, стойка карты (gpu_post): рамка, а не блок. Окно u 75.1..127.1 (вся толщина карты 51 мм и по 0.5 мм) x n 9.5..100.5 (зона n 10..100 и по 0.5 мм; 0.5 мм запаса, а не точно n 10, чтобы не было контакта с keep-out), насквозь по v; "
+    "перемычка n 100.5..108 (7.5 мм), верх n 108 = GPU_BRACKET_TAB_N (ЗАГЛУШКА), колонны: низкая u 63.1..75.1 (12 мм), высокая u 127.1..146 (18.9 мм, в ней два болта M3 u 131 и 139, как раньше), плита под окном n -8.35..9.5. "
+    "Все размеры из hw.GPU_BS, hw.GPU_OUT_N и hw.GPU_BRACKET_TAB_N. Выше n -5 стойка толще: v -30..-5.5 (24.5 мм), а не -20..-5.5: тяга кабеля 20 Н по плану при 14.5 мм даёт на нижнюю колонну 6.8 МПа (запас 1.0), при 24.5 мм 1.6 (запас 4.2); "
+    "утолщение стоит над верхом ребра A (n -6) с зазором 1 мм. Углы окна скруглены R 1 (R 3 заполнил бы угол окна и подошёл бы к зоне на 0.0 мм); внешний угол ступени у beam_mid остаётся острым (иначе контакт теряет больше 3 %). "
+    "Жёсткость: прогиб верха под 20 Н 0.13 мм (обе колонны) .. 0.21 мм (одна высокая), 159 .. 97 Н/мм. Растяжение двух болтов M3 в beam_mid при опрокидывании 20 Н на плече 112.6 мм и рычаге 5 мм до ребра опоры около 225 Н на болт: "
+    "прочность вставки на вырыв в данных проекта нет, не проверено.",
+    "Ревизия 13, проверки и тесты. Проверка 8: предел |X| 260 для кронштейнов вентиляторов, 229 для всего остального (в том числе шлангов); cables.py: то же для проводов вентиляторов. Новые проверки 17 (кронштейн) и 18 (рамка стойки) - "
+    "ручной расчёт как функции чисел модели, запас не меньше 2. Новый cad_b6/zone_access.py: io_zone и gpu_out_zone свободны от деталей и кабелей, жгут Ø20 мм выходит из каждой к задней грани (шар R 10 + воксель на сетке 2 мм; "
+    "каждый слой сетки непуст). fit_gauges.py G6: ожидаемое число совпавших отверстий выводится из таблицы углов кронштейнов (3 из 4: угол D калибра остаётся без отверстия), прежде 4 (D совпадало с отверстием лапки). "
+    "strength.py берёт допустимое напряжение и массу вентилятора из frame_v0.py (числа те же).",
+    "Ревизия 13, organic_frame.py: только запущен, слой не перерисован. shell_concepts.X_LIM = ENVELOPE_FAN_X + 20 (сетка до |X| 280, была 252); organic_frame.REAR_BEND_X = 176.5: изгиб заднего свипа был привязан к X вентилятора "
+    "(центр - 16 = 176.5) и с вентиляторами на 247.5 уходил на 231.5, где кость пересекала путь отвёртки площадки rear_post_R; X оставлен прежним. Предел слоя |X| 229 (ENVELOPE_X) не менялся: кольца вокруг вентиляторов "
+    "(центр X +-247.5) срезаны им целиком, поэтому слой идёт без колец; фланги перерисуют в следующей ревизии. Проверки слоя пройдены: одно тело 1641 см³, 12 площадок, ось винта на оси пилота.",
 ]
 OPEN_ITEMS: list[str] = [
     "Отсеки под диски: глубина штекера и изгиба кабеля за диском 25 мм (DRIVE_PLUG_ZONE) - ПРЕДПОЛОЖЕНИЕ, источника нет. Головки винтов, нижний предел входа 2.5 дюйма, резиновые втулки (нет размеров), кабели SATA (данные от платы, питание от БП), "
     "задняя органическая панель - не в этом проходе. Салазки весят около 100 г при 100 % и 75 г при 4 стенках и 20 %; устойчивость на ребре 5 x 20 мм скида (диск 3.5 дюйма около 0.7 кг на плече 16 мм от плоскости пластины) и крепление двумя M4 на сдвиг "
     "не считались. Запас прохода в левом отсеке 2° (28° из 30° с зоной штекеров).",
-    "ПРАВЫЙ боковой вентилятор: три винта из четырёх (A, C с внутренней грани во вставки M3, D с внешней через лапку, проходное Ø3.4; ревизия 7a), угол B без винта: на внутренней грани "
-    "он в 4.10 мм от шланга GPU (нужно 5), с внешней планка до него не достаёт. Винт лапки идёт снаружи, головка выйдет за |X| = 229 на 2-3 мм: владелец принял это как допуск 15.11.2026 "
-    "(потайная головка не нужна, лапка 2.5 мм для неё тонка). Планка в 1.00 мм от бокса rad360_ports (воротники с запасом): если запас нужен больше, RAIL_INSET (1.0) можно увеличить: планка станет тоньше по X и уйдёт дальше от rad360_ports.",
-    "Боковые вентиляторы: винты M3 x 30 идут с внешней грани через вентилятор 25 мм (с шайбой) во вставки M3 кронштейна (глубина 6.7 мм, плита 10 мм), 5 штук (3 слева, 2 справа), штатные винты вентиляторов коротки и не нужны. Прочность хребта 6 мм и ног кронштейна, вибрация и вес вентилятора не считались. Кабели вентиляторов не проложены.",
+    "Боковые вентиляторы (ревизия 13): оба кронштейна - один проект (правый построен на месте, левый его зеркало), три винта из четырёх (A, B, C с внутренней грани во вставки M3); угла D нет ни у одного, "
+    "лапка и планка ревизии 7a убраны. Левый вентилятор в 6.4 мм от шлангов CPU, кронштейн правого в 5.55 мм от шлангов GPU (нужно 5).",
+    "Боковые вентиляторы: винты M3 x 30 идут с внешней грани через вентилятор 25 мм (с шайбой) во вставки M3 кронштейна (глубина 6.7 мм, плита 28 мм), 6 штук (3 слева, 3 справа), штатные винты вентиляторов коротки и не нужны. "
+    "Прочность кронштейна считана вручную (проверка 17, удар 20 Н и вес), вибрация не считалась. Растяжение болтов M3 крепления ножки к ребру под ударом около 150 Н на болт: прочность вставки на вырыв в данных проекта нет. Кабели вентиляторов проложены (cables.py).",
     "Фронт: передних вентиляторов нет, плоскость Y = 0 теперь задают лапы рёбер A и beam_front, а не вентиляторы; ближайшее железо (угол карты) на Y 7.4, "
     "то есть передние лапы можно было бы убрать назад примерно на 7 мм, если порог Y >= 0 не нужен. Не менялось.",
     "Обслуживание (RAM, блок CPU): откидывать 360 нельзя, шарнира нет (visor_swing.py: с осью за верхней кромкой 360 упирается в 420 через 15-20°, "

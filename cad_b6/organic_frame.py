@@ -89,6 +89,8 @@ LIP_BONE = [bp(LIP_U, FACE_N, -190), bp(LIP_U - 1, FACE_N + 1, -60), bp(LIP_U - 
 CARD_BONE = [bp(CARD_BONE_U, CARD_BONE_N, -SWEEP_X), bp(CARD_BONE_U + 1, CARD_BONE_N + 1, 0),
              bp(CARD_BONE_U, CARD_BONE_N, SWEEP_X)]
 RING_X = {1: sum(hw.FAN_SIDE_X["fan_side_right"]) / 2 + 2.5, -1: sum(hw.FAN_SIDE_X["fan_side_left"]) / 2}
+REAR_BEND_X = 176.5                        # revision 13: the rear sweep's bend above the rear post, X. It was the fan's mid-plane less 16 (the fans stood at 192.5); the fans moved out to 247.5, and a bend
+                                           # at 231.5 would cross the rear post's driver path, so it keeps its old X and the sweep reaches the ring over a longer stretch
 BASE = {s: [(160 * s, 40, -4), (163 * s, 110, -5), (161 * s, 196, -4), (166 * s, 290, -5), (166 * s, 356, -4)]
         for s in (1, -1)}
 
@@ -138,7 +140,7 @@ def rear_sweep(s):
     top = [bp(hw.FAN_SIDE_U[1] + RING_OFF, 84, x), bp(292, 20, 204 * s)] if s > 0 else \
         [bp(hw.FAN_SIDE_U[1] + RING_OFF, RING_L_GAP[0] - 2, x), bp(294, -6, 204 * s)]        # left: from the ring's lower end, under the hose guide
     return top + [bp(298 if s > 0 else 300, -28 if s > 0 else -30, 202 * s), bp(332, -38, 196 * s),
-            (x - 16 * s, 362, 150), (169 * s, 372, 44), (166 * s, 368, -6)]      # down the rear post close enough to lie on its pad
+            (REAR_BEND_X * s, 362, 150), (169 * s, 372, 44), (166 * s, 368, -6)]      # down the rear post close enough to lie on its pad
 
 
 def side_bone(s):
