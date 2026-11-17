@@ -42,6 +42,8 @@ from matplotlib.collections import PolyCollection
 from matplotlib.colors import to_rgb
 from matplotlib.patches import Patch
 from cadquery import Compound, Solid, Vector, Vertex
+from OCP.Bnd import Bnd_Box
+from OCP.BRepBndLib import BRepBndLib
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.dirname(HERE)
@@ -2011,15 +2013,25 @@ class BooleanFailure(RuntimeError):
     It is never turned into 0: callers either let it propagate or record a check failure."""
 
 
-_BBOX = weakref.WeakKeyDictionary()      # Shape -> bbox; BoundingBox() is the optimal one, 25 ms on a drilled part, and the
+_BBOX = weakref.WeakKeyDictionary()      # Shape -> bbox; the optimal box is 25 ms on a drilled part, and the
                                         # hole checks ask for the same part's box thousands of times
+
+
+def exact_box(shape):
+    """(xmin, xmax, ymin, ymax, zmin, zmax) of a shape from its geometry alone, never from a mesh. cadquery's BoundingBox() takes a face's
+    triangulation when the face has one and widens the box by its deflection. Any tessellation meshes a face (check 21's shadow, the voxel
+    grids of zone_access and drive_access, a render), and the mesh stays on the face, which every moved or rebuilt copy of the part shares:
+    the same solid then had another box depending on what ran before (a rebuilt sill read Y min -0.029 instead of 0.00 after a render)."""
+    b = Bnd_Box()
+    BRepBndLib.AddOptimal_s(shape.wrapped, b, False, False)
+    xmin, ymin, zmin, xmax, ymax, zmax = b.Get()
+    return (xmin, xmax, ymin, ymax, zmin, zmax)
 
 
 def bbox_of(shape):
     hit = _BBOX.get(shape)
     if hit is None:
-        b = shape.BoundingBox()
-        hit = (b.xmin, b.xmax, b.ymin, b.ymax, b.zmin, b.zmax)
+        hit = exact_box(shape)
         _BBOX[shape] = hit
     return hit
 
@@ -2441,7 +2453,7 @@ def part_n_max(p):
     referenced by the cache so its id cannot be reused."""
     hit = _NMAX.get(id(p.solid))
     if hit is None or hit[0] is not p.solid:
-        hit = (p.solid, float(hw.to_board(p.solid).BoundingBox().zmax))
+        hit = (p.solid, float(exact_box(hw.to_board(p.solid))[5]))
         _NMAX[id(p.solid)] = hit
     return hit[1]
 
@@ -2654,15 +2666,27 @@ def check_carrier(parts, hardware, failures):
     return out
 
 
-def check_sill_rear_wall(parts, failures):
+def check_sill_rear_wall(parts, failures, memo=None):
     """Check 22 (revision 14a review). The sill's rear wall behind the pocket, measured on the solid along +Y from the pocket's rear plane: every SILL_WALL_STEP along X over the pocket's length and along Z
     from the pocket's floor (beam_front's top) to its roof, apart from the cable window (a probe whose line runs through the window's cutter is skipped). The first run of material behind the pocket must
-    be at least SILL_WALL_MIN. Returns dict(min=(wall, X, Z), n=probes)."""
+    be at least SILL_WALL_MIN. Returns dict(min=(wall, X, Z), n=probes). The probing (about 8 s) is remembered in `memo` under the sill's solid and every number of the pocket and the window it reads."""
     sill = next((p for p in parts if p.name == "front_sill"), None)
     if sill is None:
         failures.append("CHECK22 front_sill is missing")
         return {}
     g = sill_geometry()
+    worst, n = memo_call(memo, (sill.solid,), "sill_wall", sill_wall_probes, sill.solid, g,
+                         extra=(CARRIER_X, SILL_POCKET_PLAY, g["z0"], g["roof"], g["pocket_rear"], g["y_rear"], g["window_xz"], SILL_WINDOW_R, SILL_WALL_STEP))
+    if n == 0:
+        failures.append("CHECK22 no probe of the sill's rear wall")
+        return {}
+    if worst[0] < SILL_WALL_MIN - 1e-3:
+        failures.append(f"CHECK22 the sill's rear wall behind the pocket is {worst[0]:.2f} mm thick at X {worst[1]:.1f}, Z {worst[2]:.1f}, needs {SILL_WALL_MIN:g}")
+    return dict(min=worst, n=n)
+
+
+def sill_wall_probes(solid, g):
+    """(thinnest wall (mm, X, Z) or None, number of probes) of check 22 on the sill's solid, for the pocket and window of sill_geometry() `g`."""
     x0, x1 = CARRIER_X[0] - SILL_POCKET_PLAY, CARRIER_X[1] + SILL_POCKET_PLAY
     z0, z1 = g["z0"], g["roof"]
     window, y_mid = g["cuts"]["window"], (g["pocket_rear"] + g["y_rear"]) / 2
@@ -2675,17 +2699,12 @@ def check_sill_rear_wall(parts, failures):
         for z in zs:
             if window.isInside(Vector(x, y_mid, z), 0.05):
                 continue                                             # the window itself (its rounded corners included)
-            spans = material_spans(sill.solid, probe_line((x, g["pocket_rear"] - 1.0, z), (0.0, 1.0, 0.0), g["y_rear"] - g["pocket_rear"] + 3.0))
+            spans = material_spans(solid, probe_line((x, g["pocket_rear"] - 1.0, z), (0.0, 1.0, 0.0), g["y_rear"] - g["pocket_rear"] + 3.0))
             wall = spans[0][1] - spans[0][0] + 2 * SPAN_MARGIN if spans else 0.0         # the first run of material behind the pocket
             n += 1
             if worst is None or wall < worst[0]:
                 worst = (wall, x, z)
-    if n == 0:
-        failures.append("CHECK22 no probe of the sill's rear wall")
-        return {}
-    if worst[0] < SILL_WALL_MIN - 1e-3:
-        failures.append(f"CHECK22 the sill's rear wall behind the pocket is {worst[0]:.2f} mm thick at X {worst[1]:.1f}, Z {worst[2]:.1f}, needs {SILL_WALL_MIN:g}")
-    return dict(min=worst, n=n)
+    return worst, n
 
 
 SHADOW_RES = 0.1                  # mm per pixel of the guide's shadow in the fan's circle (check 21)
@@ -3465,30 +3484,18 @@ CB_RIM_POINTS = 8          # check 16, M3 counterbores: the face round a counter
 CB_FACE_FLAT = 0.05        # mm: the rim points agree this well, or the counterbore is not sunk in one flat face
 
 
-def check_m3_counterbores(parts, failures):
+def check_m3_counterbores(parts, failures, memo=None):
     """Check 16, second half (revision 14a review). Every M3 counterbore (Hole kind "M3cb": the carrier's and the card rest's, recorded with the part's holes) measured on the solid along its axis:
     the face round it (CB_RIM_POINTS probes 0.5 mm outside its edge, which must agree within CB_FACE_FLAT), its floor (a probe between the screw's clearance bore and the counterbore's wall) and the
-    unbroken material under the floor. The depth from the face to the floor holds the head and the washer with M3_CB_SINK to spare (at least M3_CB_DEPTH). Returns [(part, item, position, depth, floor)]."""
+    unbroken material under the floor. The depth from the face to the floor holds the head and the washer with M3_CB_SINK to spare (at least M3_CB_DEPTH). Returns [(part, item, position, depth, floor)].
+    The probing (about 4 s for all of them) is remembered in `memo` under the part's solid and the hole."""
     rows = []
     for p in parts:
         for h in p.holes:
             if h.kind != "M3cb":
                 continue
-            d = np.array(h.d, float)
-            a = np.cross(d, [1.0, 0.0, 0.0])
-            if np.linalg.norm(a) < 0.1:
-                a = np.cross(d, [0.0, 1.0, 0.0])
-            a /= np.linalg.norm(a)
-            b = np.cross(d, a)
-            reach = h.length + 40.0
-
-            def first_span(rho, t):
-                off = rho * (math.cos(t) * a + math.sin(t) * b)
-                spans = material_spans(p.solid, Hole("probe", tuple(np.array(h.start) + off), h.d, 0.05, reach, 0.0, False))
-                return (spans[0][0] - SPAN_MARGIN, spans[0][1] + SPAN_MARGIN) if spans else None
             where = f"{p.name}: {h.describe()}"
-            rim = [first_span(h.r + 0.5, 2 * math.pi * k / CB_RIM_POINTS) for k in range(CB_RIM_POINTS)]
-            bottom = first_span((hw.M3_CLEAR_D / 2 + h.r) / 2, 0.0)
+            rim, bottom = memo_call(memo, (p.solid, h), "m3cb", m3_counterbore_probes, p.solid, h, extra=(CB_RIM_POINTS, hw.M3_CLEAR_D))
             if None in rim or bottom is None:
                 failures.append(f"CHECK16 {where}: no face round the counterbore or no floor under it")
                 continue
@@ -3500,6 +3507,23 @@ def check_m3_counterbores(parts, failures):
             if depth < M3_CB_DEPTH - COUNTERBORE_TOL / 2:
                 failures.append(f"CHECK16 {where}: the counterbore is {depth:.2f} mm deep, the head and the washer need {hw.M3_HEAD_H + hw.M3_WASHER_T:g} and {M3_CB_SINK:g} to spare ({M3_CB_DEPTH:g})")
     return rows
+
+
+def m3_counterbore_probes(solid, h):
+    """(the CB_RIM_POINTS spans of material 0.5 mm outside the counterbore's edge, the span under its floor) along the hole's axis, each (start, end) or None (check 16)."""
+    d = np.array(h.d, float)
+    a = np.cross(d, [1.0, 0.0, 0.0])
+    if np.linalg.norm(a) < 0.1:
+        a = np.cross(d, [0.0, 1.0, 0.0])
+    a /= np.linalg.norm(a)
+    b = np.cross(d, a)
+    reach = h.length + 40.0
+
+    def first_span(rho, t):
+        off = rho * (math.cos(t) * a + math.sin(t) * b)
+        spans = material_spans(solid, Hole("probe", tuple(np.array(h.start) + off), h.d, 0.05, reach, 0.0, False))
+        return (spans[0][0] - SPAN_MARGIN, spans[0][1] + SPAN_MARGIN) if spans else None
+    return [first_span(h.r + 0.5, 2 * math.pi * k / CB_RIM_POINTS) for k in range(CB_RIM_POINTS)], first_span((hw.M3_CLEAR_D / 2 + h.r) / 2, 0.0)
 
 
 def contact_area(a, b):
@@ -3699,7 +3723,7 @@ def run_checks(hardware, parts, memo=None):
     res["carrier"] = check_carrier(parts, hardware, failures)
 
     # 22. the sill's rear wall behind the pocket keeps SILL_WALL_MIN from the pocket's floor to its roof and over its length
-    res["sill_wall"] = check_sill_rear_wall(parts, failures)
+    res["sill_wall"] = check_sill_rear_wall(parts, failures, memo)
 
     # 14. the 420's bracket plates stay out of the fans' openings and keep the wall round every fan screw
     res["plates420"] = check_420_plates(parts, failures, memo)
@@ -3716,7 +3740,7 @@ def run_checks(hardware, parts, memo=None):
     # 15. the owner's screws: stack, length, entry, counts against the stock; 16. the counterbores for the hardware's own screws, and for the M3 heads and washers between printed parts
     res["screws"] = check_screws(parts, hardware, failures)
     res["counterbores"] = check_counterbores(parts, failures)
-    res["m3_counterbores"] = check_m3_counterbores(parts, failures)
+    res["m3_counterbores"] = check_m3_counterbores(parts, failures, memo)
 
     # 7. extra sanity: one connected solid per part, bolt positions inside outlines, every hole drilled
     #    with the wall its insert or screw needs

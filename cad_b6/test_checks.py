@@ -1,23 +1,39 @@
 #!/usr/bin/env python3
 """Prove that the model's checks fail when the solid is wrong.
 
-Builds the frame once, then for each case damages a copy in memory (or a hardware table, or a boolean),
+Builds the frame, then for each case damages a copy in memory (or a hardware table, or a boolean),
 runs frame_v0.run_checks and asserts that the failure the damage should cause is reported. The last case
 is the undamaged model, which must report nothing.
 
-    .venv/bin/python cad_b6/test_checks.py
+    .venv/bin/python cad_b6/test_checks.py                  # the sections in worker processes (about 5 min)
+    .venv/bin/python cad_b6/test_checks.py --serial         # everything in this process, as before (about 32 min)
+    .venv/bin/python cad_b6/test_checks.py --diff A.json B.json      # the two runs' case lists must be identical
+
+The cases are grouped in sections (@section below). Each section depends only on the prelude (the hardware, the
+frame and the undamaged model's checks), so a worker process runs the prelude once and then any section; the
+output is printed in the sections' order whatever order they finished in. Neither mode drops, merges or reorders
+a case.
 
 One line per case: PASS/FAIL, name, the failure that was expected, what was reported.
-Exit status 1 if any case fails.
+Exit status 1 if any case fails. The run's case list, its time and the counts of the expensive operations go
+to out/test_checks/<fast|serial>.json (check_budgets.py reads the fast one).
 """
 from __future__ import annotations
 
+import argparse
 import ast
+import collections
+import contextlib
 import dataclasses
+import functools
+import io
+import json
 import math
 import os
+import resource
 import sys
 import time
+import traceback
 import warnings
 
 warnings.filterwarnings("ignore")
@@ -29,10 +45,41 @@ import numpy as np  # noqa: E402
 import frame_v0 as f  # noqa: E402
 import hardware as hw  # noqa: E402
 import measure  # noqa: E402
+import cables  # noqa: E402
+import drive_access  # noqa: E402
+import zone_access  # noqa: E402
+import organic_frame as of  # noqa: E402
 
 HERE = os.path.dirname(os.path.abspath(__file__))
-RESULTS: list[tuple[bool, str]] = []
+ROOT = os.path.dirname(HERE)
+OUT_DIR = os.path.join(ROOT, "out", "test_checks")
+RESULTS: list[tuple[bool, str, str, str]] = []      # (passed, name, expected, reported), in the order printed
 MEMO: dict = {}      # solid-identity memo for run_checks: a damaged copy recomputes only what touches the damage
+SECTIONS: list[tuple[str, object]] = []             # (title, function(hardware, parts, base)), in the order printed
+
+# the expensive operations, counted per process: the budget of the time to verify gates on these (check_budgets.py)
+COUNTS: collections.Counter = collections.Counter()
+EXPENSIVE = ((f, "build_frame", "frame_builds"), (f, "run_checks", "run_checks"), (cables, "build_routes", "cable_routings"),
+             (cables, "evaluate", "cable_evaluations"), (zone_access, "run", "zone_access_runs"), (drive_access, "bay_maps", "drive_access_maps"))
+
+
+def _counted(fn, key):
+    @functools.wraps(fn)
+    def counted(*a, **k):
+        COUNTS[key] += 1
+        return fn(*a, **k)
+    return counted
+
+
+for _mod, _name, _key in EXPENSIVE:
+    setattr(_mod, _name, _counted(getattr(_mod, _name), _key))
+
+
+def section(title):
+    def register(fn):
+        SECTIONS.append((title, fn))
+        return fn
+    return register
 
 
 # ---------------------------------------------------------------------------
@@ -58,6 +105,14 @@ def refilled(p, hole):
     return p.solid.fuse(hole.solid.intersect(p.blank)).clean()
 
 
+def board_box(shape):
+    """The shape's box in board space (v, u, n as x, y, z), exact: from the geometry, never from a mesh (see f.exact_box)."""
+    return Box(*f.exact_box(hw.to_board(shape)))
+
+
+Box = collections.namedtuple("Box", "xmin xmax ymin ymax zmin zmax")
+
+
 def first_match(failures, *needles):
     for line in failures:
         if all(n in line for n in needles):
@@ -69,14 +124,16 @@ def case(name, expected, failures, *needles):
     """Record PASS when a failure containing every needle was reported."""
     got = first_match(failures, *needles)
     ok = got is not None
-    RESULTS.append((ok, name))
-    print(f"{'PASS' if ok else 'FAIL'}  {name}\n      expected: {expected}\n      reported: "
-          f"{got if ok else 'NOTHING MATCHING (' + str(len(failures)) + ' other failures: ' + '; '.join(failures[:3]) + ')'}")
+    record(ok, name, expected, got if ok else 'NOTHING MATCHING (' + str(len(failures)) + ' other failures: ' + '; '.join(failures[:3]) + ')')
 
 
 def check(name, ok, detail):
-    RESULTS.append((bool(ok), name))
-    print(f"{'PASS' if ok else 'FAIL'}  {name}\n      expected: {detail[0]}\n      reported: {detail[1]}")
+    record(bool(ok), name, detail[0], detail[1])
+
+
+def record(ok, name, expected, reported):
+    RESULTS.append((ok, name, str(expected), str(reported)))
+    print(f"{'PASS' if ok else 'FAIL'}  {name}\n      expected: {expected}\n      reported: {reported}")
 
 
 class patched:
@@ -143,8 +200,11 @@ def hardware_literals(source: str):
 
 
 # ---------------------------------------------------------------------------
-def main():
-    t_start = time.time()
+# ---------------------------------------------------------------------------
+# the prelude every process runs once, then the sections
+# ---------------------------------------------------------------------------
+def prelude():
+    """Build the hardware and the frame (twice), run every check on the undamaged model with an empty memo. Returns (hardware, parts, base)."""
     print("Building hardware and frame (twice, to prove the registries reset)...")
     hardware = hw.build_hardware()
     f.build_frame(hardware=hardware)
@@ -162,7 +222,12 @@ def main():
     base = f.run_checks(hardware, parts, MEMO)     # the memo is empty: every pair and every hole of the undamaged model is computed
     print(f"undamaged model: {len(base['failures'])} failures, {base['n_holes']} holes measured, "
           f"mounts derived from the solids {base['mounts']} ({time.time() - t0:.0f} s, nothing remembered)\n")
+    return hardware, parts, base
 
+
+
+@section("1. a pilot hole filled back in, a part undrilled")
+def s_pilot_holes(hardware, parts, base):
     # 1. a pilot hole filled back in
     p = part_named(parts, "beam_low")
     h = next(h for h in p.holes if h.kind == "M3")
@@ -178,6 +243,9 @@ def main():
          r["failures"], "CHECK5 board: 6 positions")
     case("  same damage, hole check", "CHECK7 beam_low ... is not drilled", r["failures"], "CHECK7 beam_low", "is not drilled")
 
+
+@section("2..2c. a part pushed into a component, into the hoses, near the hoses")
+def s_into_hardware(hardware, parts, base):
     # 2. a part pushed 5 mm into a neighbouring component
     ant = part_named(parts, "antler_right")
     mv = moved(ant, 0, -5, 0)
@@ -203,6 +271,9 @@ def main():
     check("check 9 leaves the guides out", not near_guide and "hose_guide_cpu" in f.GUIDE_PARTS,
           ("the guides are not measured against the hoses", f"{len(near_guide)} guide rows in the check 9 table"))
 
+
+@section("2d..2e. check 8: a hose pushed out, parts in front and above")
+def s_envelope(hardware, parts, base):
     # 2d. check 8: a hose pushed 20 mm outward, and a part in front of Y = 0
     import numpy as np
     import hoses
@@ -240,6 +311,9 @@ def main():
     case("visor_arm_right raised 3 mm (n 122 -> 124.12)", "CHECK8 visor_arm_right rises above the 420's top face",
          r["failures"], "CHECK8 visor_arm_right rises above")
 
+
+@section("2f. check 10: the hose guides' channels and mouths")
+def s_guides(hardware, parts, base):
     # 2f. check 10: a guide whose channel is 2 mm too small, one 2 mm too large, one whose mouth is too narrow
     for gname, build in (("hose_guide_cpu", f.build_hose_guide_cpu), ("hose_guide_gpu", f.build_hose_guide_gpu)):
         (solid, holes, blank), _ = build(shrink=2.0)
@@ -265,6 +339,9 @@ def main():
     case("hose_guide_cpu built with a 0.5 x diameter mouth", "CHECK10 hose_guide_cpu x ...: the mouth is not 9.3 mm wide",
          r["failures"], "CHECK10 hose_guide_cpu", "the mouth is not 9.3 mm wide")
 
+
+@section("2g. the side fans and their brackets")
+def s_side_fans(hardware, parts, base):
     # 2g. side fans and their brackets (revision 7, rebuilt in revision 13: one design, the right one built where it stands, the left one its mirror)
     br_l = part_named(parts, "fan_bracket_left")
     br_r = part_named(parts, "fan_bracket_right")
@@ -289,6 +366,11 @@ def main():
     r = f.run_checks(hardware, with_part(parts, "fan_bracket_right", solid=mv.solid, blank=mv.blank, holes=mv.holes), MEMO)
     case("fan_bracket_right moved 5 mm into fan_side_right", "CHECK2 part x hardware fan_bracket_right x fan_side_right",
          r["failures"], "CHECK2 part x hardware fan_bracket_right x fan_side_right")
+
+
+@section("2g. the side fans' brackets near the hoses and in the fans' open circle")
+def s_side_fans_circle(hardware, parts, base):
+    br_l, br_r = part_named(parts, "fan_bracket_left"), part_named(parts, "fan_bracket_right")
     # the bracket towards the hoses: the right one is the near one (gpu_hoses 5.55 mm from its spine's foot and the root block); 3 mm towards -u leaves about 2.5 mm
     d_gpu = f.solid_distance(br_r.solid, hardware["gpu_hoses"])
     mv = moved(br_r, 0, -3 * hw.C, -3 * hw.C)
@@ -317,6 +399,11 @@ def main():
     r = f.run_checks(hardware, with_part(parts, "fan_bracket_left", solid=br_l.solid.fuse(rect_leg).clean()), MEMO)
     case("fan_bracket_left with a rectangular leg 24 mm wide (the trapezoid leans away from the circle)", "CHECK11 fan_bracket_left has N mm3 inside the open circle",
          r["failures"], "CHECK11 fan_bracket_left", "inside the open circle")
+
+
+@section("2g. the side fans' screws and the limits of check 8")
+def s_side_fans_limits(hardware, parts, base):
+    br_l, br_r = part_named(parts, "fan_bracket_left"), part_named(parts, "fan_bracket_right")
     # fan corner holes are the revision-13 mount table: both brackets use A, B, C from the inner face and none reaches D (the CPU hoses pass there on the left)
     check("both fans have 3 screws", base["mounts"]["fan_side_left"] == 3 and base["mounts"]["fan_side_right"] == 3,
           ("left 3, right 3", f"left {base['mounts']['fan_side_left']}, right {base['mounts']['fan_side_right']}"))
@@ -347,6 +434,11 @@ def main():
     r = f.run_checks(hardware, with_part(parts, "antler_right", solid=mv.solid, blank=mv.blank, holes=mv.holes), MEMO)
     case("antler_right moved 2 mm outwards: the skeleton keeps the radiators' limit (|X| 229)", "CHECK8 antler_right reaches |X| = 230, limit 229",
          r["failures"], "CHECK8 antler_right reaches |X| = 230", "limit 229")
+
+
+@section("2g. a part moved into each keep-out, gpu_post's frame")
+def s_keepouts(hardware, parts, base):
+    br_l = part_named(parts, "fan_bracket_left")
     # a part moved into each keep-out (the check is 2: part x hardware, every keep-out is hardware)
     mv = moved(br_l, 20.0, 0, 0)                       # the left bracket's spine (u 116..122, n up to 95) then stands in gpu_out_zone (X -204..-124, u 75.6..126.6, n 10..100)
     r = f.run_checks(hardware, with_part(parts, "fan_bracket_left", solid=mv.solid, blank=mv.blank, holes=mv.holes), MEMO)
@@ -368,7 +460,7 @@ def main():
     probes = {"lintel": (-12.0, (hw.GPU_BS[2] + hw.GPU_BS[3]) / 2, hw.GPU_BRACKET_TAB_N - 1.0), "low column": (-12.0, hw.GPU_BS[2] - f.GPU_POST_CLEAR - 3.0, 50.0),
               "high column": (-12.0, hw.GPU_BS[3] + f.GPU_POST_CLEAR + 5.0, 50.0), "base": (-12.0, (hw.GPU_BS[2] + hw.GPU_BS[3]) / 2, hw.ATX_TRAY_N + 3.0)}
     solid_at = {k: post.solid.isInside(cq.Vector(*hw.bp(*pt))) for k, pt in probes.items()}
-    top = max(hw.to_board(post.solid).BoundingBox().zmax, 0.0)
+    top = max(board_box(post.solid).zmax, 0.0)
     check("gpu_post is a frame: nothing in the opening (the card's whole thickness in u, n GPU_OUT_N), material in both columns, the lintel and the base, top at the tab's seat",
           in_window < f.VOL_EPS and all(solid_at.values()) and abs(top - hw.GPU_BRACKET_TAB_N) < 1e-3,
           (f"0 mm3 in the opening, solid at {sorted(probes)}, top n {hw.GPU_BRACKET_TAB_N:g}", f"{in_window:.2f} mm3 in the opening, {solid_at}, top n {top:.2f}"))
@@ -383,6 +475,9 @@ def main():
     check("undamaged model: no failure at all, including both fan brackets, gpu_post and the two keep-outs", not base["failures"],
           ("0 failures", f"{len(base['failures'])}: {'; '.join(base['failures'][:3])}"))
 
+
+@section("2h. zone_access.py")
+def s_zone_access(hardware, parts, base):
     # 2h. revision 13, item 10: zone_access.py. The zones are free of printed parts and cables and a 20 mm bundle leaves each of them to the rear face; every layer of its grid is non-empty
     import drive_access
     import zone_access
@@ -391,15 +486,30 @@ def main():
     check("zone_access: the undamaged model passes (both zones free, a 20 mm bundle leaves each, every layer non-empty)",
           not za_fails and all(za["reach"]["out"][z] and za["reach"]["seeds"][z] > 0 for z in zone_access.ZONES) and all(m.any() for m in za["layers"].values()) and "organic" in za["layers"],
           ("0 failures, both zones reach the rear face, skeleton / hardware / cables / organic layers non-empty", f"{len(za_fails)} failures: {'; '.join(za_fails[:2])}; layers {{{', '.join(f'{k} {int(m.sum())}' for k, m in za['layers'].items())}}}"))
+
+
+@section("2h. zone_access.py: printed blocks in the zones")
+def s_zone_access_blocks(hardware, parts, base):
+    strands, _skipped = drive_access.cable_strands()
     _l, fz, _ = zone_access.run(parts=parts, hardware=hardware, strands=strands, extra_parts=[hw.bs_box(-60.0, -40.0, 160.0, 180.0, 0.0, 20.0)])
     case("zone_access: a printed block in io_zone", "ZONE_ACCESS io_zone: the printed part extra stands in it", fz, "ZONE_ACCESS io_zone", "printed part extra stands in it")
     _l, fz, _ = zone_access.run(parts=parts, hardware=hardware, strands=strands, extra_parts=[hw.bs_box(-50.0, -30.0, 90.0, 100.0, 30.0, 50.0)])
     case("zone_access: a printed block in gpu_out_zone", "ZONE_ACCESS gpu_out_zone: the printed part extra stands in it", fz, "ZONE_ACCESS gpu_out_zone", "printed part extra stands in it")
+
+
+@section("2h. zone_access.py: a cable through each zone")
+def s_zone_access_cables(hardware, parts, base):
+    strands, _skipped = drive_access.cable_strands()
     for zone, pt0, pt1 in (("io_zone", (-60.0, 200.0, 20.0), (-10.0, 200.0, 20.0)), ("gpu_out_zone", (-70.0, 100.0, 50.0), (-10.0, 100.0, 50.0))):
         bad = dict(strands, fake=[(np.array([hw.bp(*pt0), hw.bp(*pt1)]), 2.0)])
         _l, fz, _ = zone_access.run(parts=parts, hardware=hardware, strands=bad)
         case(f"zone_access: a cable through {zone}", f"ZONE_ACCESS {zone}: the cable fake stands in it", fz, f"ZONE_ACCESS {zone}", "the cable fake stands in it")
-    g0 = za["grid"]
+
+
+@section("2h. zone_access.py: a wall behind the zones, a cable's chord, no cables")
+def s_zone_access_wall(hardware, parts, base):
+    strands, _skipped = drive_access.cable_strands()
+    g0 = zone_access.Grid(parts)          # the grid run() builds for these parts: its hull is the parts' exact top and the fans' inner faces
     # a wall across the case behind both zones, only as wide and as high as the hull (between the fans' inner faces, up to the skeleton's top): the grid's margin beside the fans and above the
     # case must not count as a way round it (it did before the outside review of revision 13; the wall then had to cover the whole grid to block)
     _l, fz, _ = zone_access.run(parts=parts, hardware=hardware, strands=strands, extra_blocks=[(-g0.x_hull, g0.x_hull, 300.0, 310.0, hw.DESK_Z, g0.z_hull)])
@@ -413,6 +523,9 @@ def main():
     _l, fz, _ = zone_access.run(parts=parts, hardware=hardware, strands={})
     case("zone_access: no cables at all is reported, not passed", "ZONE_ACCESS layer cables is empty", fz, "ZONE_ACCESS layer cables is empty")
 
+
+@section("2i. checks 17 and 18")
+def s_strength(hardware, parts, base):
     # 2i. checks 17 and 18 (revision 13): the hand calculations bite when a section is made thinner
     st = base["strength"]
     check("checks 17 and 18: the fan bracket and the card's post carry the plan's loads with a margin of 2 or more", st["fan bracket"]["margin"] >= f.STRENGTH_MARGIN_MIN and st["card post"]["margin"] >= f.STRENGTH_MARGIN_MIN
@@ -438,6 +551,9 @@ def main():
           ("margin < 2", f"margin {thin['margin']:.2f}, worst {thin['worst']:.2f} MPa"))
     case("card post 14.5 mm thick with an 8 mm low column", "CHECK18 card post: the worst section carries 6.77 MPa, margin 0.99", fl, "CHECK18 card post", "needs 2")
 
+
+@section("3..4. two parts overlapping, a left-hand part")
+def s_overlaps(hardware, parts, base):
     # 3. two parts overlapping each other
     bf = part_named(parts, "beam_front")
     mv = moved(bf, 5, 0, 0)
@@ -459,6 +575,9 @@ def main():
           all(any(abs(a.start[0] + b.start[0]) < 1e-9 and a.start[1:] == b.start[1:] for b in rp.holes) for a in lp.holes),
           ("every rib_A_left hole is a rib_A_right hole mirrored in X", f"{len(lp.holes)} left holes checked"))
 
+
+@section("5..5b. hardware tables shifted, a hand-written count")
+def s_hardware_tables(hardware, parts, base):
     # 5. hardware table shifted by 5 mm, the hole in the part left where it was
     atx0 = hw.ATX_HOLES[0]
     hw.ATX_HOLES[0] = (atx0[0] + 5.0, atx0[1])
@@ -507,6 +626,9 @@ def main():
     case("hand-written rad360 count raised by one", "CHECK5 rad360: the fastener list says 5, the solids show 4",
          r["failures"], "CHECK5 rad360", "fastener list says 5")
 
+
+@section("6..6b. an intersect that raises or finds nothing")
+def s_booleans(hardware, parts, base):
     # 6. an intersect that raises
     victim = part_named(parts, "beam_mid").solid
 
@@ -555,6 +677,9 @@ def main():
     check("overlapping boxes, shapes apart: 0 confirmed by distance()", f.inter_vol(lshape, far) == 0.0,
           ("0 mm3", f"{f.inter_vol(lshape, far)} mm3, distance {f.solid_distance(lshape, far):.2f}"))
 
+
+@section("7. minimum wall")
+def s_walls(hardware, parts, base):
     # 7. minimum wall: two holes too close, a hole too close to the surface
     rpart = part_named(parts, "rib_A_right")
     base_hole = next(h for h in rpart.holes if h.kind == "M3c")
@@ -570,6 +695,9 @@ def main():
     case("psu_bulkhead: M3 hole 1.2 mm from the plate end", "CHECK7 psu_bulkhead ... wall 1.2x mm < 1.6 mm",
          r["failures"], "CHECK7 psu_bulkhead", "wall 1.2", "< 1.6 mm")
 
+
+@section("8. hardware literals in frame_v0.py")
+def s_literals(hardware, parts, base):
     # 8. hardware literals in frame_v0.py
     with open(os.path.join(HERE, "frame_v0.py"), encoding="utf-8") as fh:
         src = fh.read()
@@ -584,6 +712,9 @@ def main():
     check("no hardware.py hole value is retyped in frame_v0.py", not real,
           ("no hits", "no hits" if not real else ", ".join(f"line {ln}: {v}" for ln, v in real)))
 
+
+@section("9. check 12: plates built without rounding")
+def s_rounding(hardware, parts, base):
     # 9. check 12 (revision 8): a plate built without rounding is reported, a rounded plate passes
     ref = f.reference_parts()                 # the skeleton as built before revision 8: sharp corners
     for pname in ("antler_right", "neck_left", "rib_A_left"):
@@ -612,6 +743,9 @@ def main():
     check("the corner finder sees the four sharp edges of a cube and none once its long edges are rounded", n_plain == 4 and n_round == 0,
           ("4 sharp edges, then 0", f"{n_plain}, then {n_round}"))
 
+
+@section("10. contact areas")
+def s_contacts(hardware, parts, base):
     # 10. revision 8a's limit, measured on the solids: a contact keeps 97 % of its area and 4 mm of flat contact round every screw
     r = dict(base, failures=[])
     rows = f.check_contact_areas(parts, hardware, r)
@@ -650,6 +784,9 @@ def main():
     case("visor_arm_right with the flat contact round a radiator screw eaten to within 3 mm of the hole (area loss under 3 %)", "CONTACT visor_arm_right x rad360: the flat contact within 4 mm of the screw hole fell",
          r["failures"], "CONTACT visor_arm_right x rad360", "flat contact within 4 mm of the screw hole")
 
+
+@section("10b. the rounding's allowance")
+def s_round_plate(hardware, parts, base):
     # 10b. the rounding itself refuses a corner that would take a contact below 97 %, and shares the allowance out (rounding.Guard, on a plate on a base)
     import cadquery as _cq
 
@@ -680,6 +817,9 @@ def main():
           corner.radius == 3.0 and sorted(e.radius for e in log if e is not corner) == [6.0] * 3 and "flat contact" in corner.reason,
           ("corner next to the screw r = 3 with the screw reason, the rest 6", f"{corner.radius}: {corner.reason[:90]}; others {[e.radius for e in log if e is not corner]}"))
 
+
+@section("10c. the front sill, the module and the light line")
+def s_sill(hardware, parts, base):
     # 10c. revision 9: the front sill, the module and the light line
     sill = part_named(parts, "front_sill")
     check("front_sill is one valid solid across X -140..140, 290 mm or less, and every part has a material", len(sill.solid.Solids()) == 1 and sill.solid.isValid()
@@ -748,6 +888,9 @@ def main():
           (f"PA6/ABS mass ratio {f.PA6_DENSITY / f.ABS_DENSITY:.4f}", f"{f.mass_estimate(sill.solid, 'PA6')[1] / f.mass_estimate(sill.solid, 'ABS')[1]:.4f}"))
 
 
+@section("10c2. the front I/O module's carrier")
+def s_carrier(hardware, parts, base):
+    sill, carrier = part_named(parts, "front_sill"), part_named(parts, "front_io_carrier")
     # 10c2. revision 14a, item 2: the front I/O module's carrier. It holds the module (two pilots for the module's own screws, an inverted U with no back wall), hangs from the sill's end blocks on four
     # M3 into inserts in the sill, and its outside, not the module, sets the sill's pocket: a module that grows changes the carrier until its walls are used up, never the sill
     car_pilots = [h for h in carrier.holes if h.pilot and h.item == "front_io"]
@@ -768,88 +911,98 @@ def main():
           abs(cw["end"][0] - 11.6) < 0.02 and abs(cw["end"][1] - 11.6) < 0.02 and abs(cw["top"] - 2.7) < 0.02 and abs(cw["rear"] - 2.5) < 1e-6
           and abs(cw["grow"]["left"] - 3.3) < 0.02 and abs(cw["grow"]["right"] - 3.3) < 0.02 and abs(cw["grow"]["top"] - 0.2) < 0.02 and not [x for x in base["failures"] if x.startswith("CHECK20")],
           ("11.6, 11.6, 2.7, 2.5; growth 3.3 / 3.3 / 0.2 / 2.5", f"{[round(x, 2) for x in cw['end']]}, {cw['top']:.2f}, {cw['rear']:.2f}; growth {{{', '.join(f'{k}: {v:.2f}' for k, v in cw['grow'].items())}}}"))
-
-    def grown(dx0=0.0, dx1=0.0, dz1=0.0):
-        """run_checks with the module's box grown in the given directions (the module's two screws move with its end faces), the carrier rebuilt for it (it follows hw.FRONT_IO_W) and the sill left as it is
-        (its pocket follows the carrier's outside): returns (failures, the pocket's box as the sill_geometry gives it for that module, the carrier's walls)"""
-        old_w, old_s = hw.FRONT_IO_W, hw.FRONT_IO_SCREWS
-        new_w = (old_w[0] - dx0, old_w[1] + dx1, old_w[2], old_w[3], old_w[4], old_w[5] + dz1)
-        hw.FRONT_IO_W = new_w
-        hw.FRONT_IO_SCREWS = (((old_s[0][0][0] - dx0,) + old_s[0][0][1:], old_s[0][1]), ((old_s[1][0][0] + dx1,) + old_s[1][0][1:], old_s[1][1]))
-        try:
-            solid_, holes_, blank_ = f.build_front_io_carrier()
-            pocket_ = f.bbox_of(f.sill_geometry()["cuts"]["pocket"])
-            r_ = f.run_checks(dict(hardware, front_io=hw.wbox(*new_w)), with_part(parts, "front_io_carrier", solid=solid_, blank=blank_, holes=holes_), MEMO)
-        finally:
-            hw.FRONT_IO_W, hw.FRONT_IO_SCREWS = old_w, old_s
-        return r_["failures"], pocket_
-    fl, _ = grown(dx1=5.0)
+    fl, _ = grown(hardware, parts, dx1=5.0)
     case("the module 5 mm longer on the right (carrier rebuilt, its end block 6.6 mm): the walls are used up", "CHECK20 the right end block of front_io_carrier is 6.60 mm thick at the module's screw, needs 8.3",
          fl, "CHECK20 the right end block of front_io_carrier", "needs 8.3")
-    # revision 14a review: the module grown to the whole of its allowance, in each direction and all at once, with the whole frame rebuilt for it (not only the carrier): the sill comes out the same
-    # (volume, box, every hole), every check passes, the cables pass the sill; and one step of 0.1 mm beyond each allowance fails check 20. hardware.py itself, run again with only FRONT_IO_W changed,
-    # changes nothing else (the light strip, which the sill's channel is drawn round, used to follow the module's highest point)
-    import cables
 
-    from OCP.Bnd import Bnd_Box
-    from OCP.BRepBndLib import BRepBndLib
+
+def grown(hardware, parts, dx0=0.0, dx1=0.0, dz1=0.0):
+    """run_checks with the module's box grown in the given directions (the module's two screws move with its end faces), the carrier rebuilt for it (it follows hw.FRONT_IO_W) and the sill left as it is
+    (its pocket follows the carrier's outside): returns (failures, the pocket's box as the sill_geometry gives it for that module, the carrier's walls)"""
+    old_w, old_s = hw.FRONT_IO_W, hw.FRONT_IO_SCREWS
+    new_w = (old_w[0] - dx0, old_w[1] + dx1, old_w[2], old_w[3], old_w[4], old_w[5] + dz1)
+    hw.FRONT_IO_W = new_w
+    hw.FRONT_IO_SCREWS = (((old_s[0][0][0] - dx0,) + old_s[0][0][1:], old_s[0][1]), ((old_s[1][0][0] + dx1,) + old_s[1][0][1:], old_s[1][1]))
+    try:
+        solid_, holes_, blank_ = f.build_front_io_carrier()
+        pocket_ = f.bbox_of(f.sill_geometry()["cuts"]["pocket"])
+        r_ = f.run_checks(dict(hardware, front_io=hw.wbox(*new_w)), with_part(parts, "front_io_carrier", solid=solid_, blank=blank_, holes=holes_), MEMO)
+    finally:
+        hw.FRONT_IO_W, hw.FRONT_IO_SCREWS = old_w, old_s
+    return r_["failures"], pocket_
+
+
+# revision 14a review: the module grown to the whole of its allowance, in each direction and all at once, with the whole frame rebuilt for it (not only the carrier): the sill comes out the same
+# (volume, box, every hole), every check passes, the cables pass the sill; and one step of 0.1 mm beyond each allowance fails check 20. hardware.py itself, run again with only FRONT_IO_W changed,
+# changes nothing else (the light strip, which the sill's channel is drawn round, used to follow the module's highest point). One section per allowance: each rebuilds the whole frame.
+def sill_signature(p):
+    """Volume, exact box (f.exact_box: never a triangulation's) and every hole of a part."""
+    return (round(p.solid.Volume(), 6), tuple(round(x, 9) for x in f.exact_box(p.solid)),
+            sorted((h.kind, tuple(round(c, 9) for c in h.start), tuple(round(c, 9) for c in h.d), round(h.r, 9), round(h.length, 9)) for h in p.holes))
+
+
+def grown_full(hardware, parts, dx0=0.0, dx1=0.0, dz1=0.0, dy1=0.0, route=False):
+    """The module's box grown (its two screws move with its end faces), hardware.py's FRONT_IO_W and FRONT_IO_SCREWS and the hardware solid changed, the whole frame rebuilt with build_frame (the same
+    hardware set, so the same rounding context), every check run on the undamaged parts with the rebuilt sill and carrier in place (every other rebuilt part is compared with the undamaged one, and
+    must be the same), and with `route` the cables routed: (the rebuilt sill's signature, failures, cable failures or None, names of the other parts that changed). The module state the build resets
+    (fasteners, bolt checks, rounding log) is put back afterwards. The cables see the module only through its rear face (their start, cables.usb_start) and the parts: the X and Z growths leave the
+    start where it is and the carrier's outside as it was, so only the cases that move the rear face are routed (routing takes about 90 s)."""
     from OCP.BRepTools import BRepTools
 
-    def exact_box(shape):
-        """The shape's bounding box from its geometry alone. BoundingBox() uses a face's triangulation when it has one and widens the box by its deflection, and a rebuilt part shares faces (and so the
-        meshes earlier cases made) with the parts built before it: the same solid then has another box."""
-        b_ = Bnd_Box()
-        BRepBndLib.AddOptimal_s(shape.wrapped, b_, False, False)
-        return b_.Get()
+    old_w, old_s, old_io = hw.FRONT_IO_W, hw.FRONT_IO_SCREWS, hardware["front_io"]
+    new_w = (old_w[0] - dx0, old_w[1] + dx1, old_w[2], old_w[3] + dy1, old_w[4], old_w[5] + dz1)
+    saved = (list(f.FASTENERS), list(f.BOLT_CHECKS), list(f.ROUND_LOG), {k_: list(v_) for k_, v_ in f.KEEP_SHARP.items()}, dict(f._A_LAYER))
+    hw.FRONT_IO_W = new_w
+    hw.FRONT_IO_SCREWS = (((old_s[0][0][0] - dx0,) + old_s[0][0][1:], old_s[0][1]), ((old_s[1][0][0] + dx1,) + old_s[1][0][1:], old_s[1][1]))
+    hardware["front_io"] = hw.wbox(*new_w)
+    try:
+        parts_g, _ = f.build_frame(hardware=hardware)
+        by_g = {p_.name: p_ for p_ in parts_g}
+        others = [p_.name for p_ in parts if p_.name not in ("front_sill", "front_io_carrier")
+                  and (abs(by_g[p_.name].solid.Volume() - p_.solid.Volume()) > 1e-6 or any(abs(a_ - b_) > 1e-9 for a_, b_ in zip(f.exact_box(by_g[p_.name].solid), f.exact_box(p_.solid))))]
+        for n_ in ("front_sill", "front_io_carrier"):      # the rebuilt parts share faces with the undamaged ones, and their meshes (see f.exact_box): checked as freshly built
+            BRepTools.Clean_s(by_g[n_].solid.wrapped)
+        mixed = [by_g[p_.name] if p_.name in ("front_sill", "front_io_carrier") else p_ for p_ in parts]
+        r_ = f.run_checks(hardware, mixed, MEMO)
+        cf_ = None
+        if route:
+            routes_g = cables.build_routes()
+            cf_ = cables.failures(routes_g, cables.evaluate(routes_g, mixed, hardware))
+    finally:
+        hw.FRONT_IO_W, hw.FRONT_IO_SCREWS = old_w, old_s
+        hardware["front_io"] = old_io
+        f.FASTENERS[:], f.BOLT_CHECKS[:], f.ROUND_LOG[:] = saved[0], saved[1], saved[2]
+        f.KEEP_SHARP.clear()
+        f.KEEP_SHARP.update(saved[3])
+        f._A_LAYER.clear()
+        f._A_LAYER.update(saved[4])
+    return sill_signature(by_g["front_sill"]), r_["failures"], cf_, others
 
-    def sill_signature(p):
-        return (round(p.solid.Volume(), 6), tuple(round(x, 9) for x in exact_box(p.solid)),
-                sorted((h.kind, tuple(round(c, 9) for c in h.start), tuple(round(c, 9) for c in h.d), round(h.r, 9), round(h.length, 9)) for h in p.holes))
+
+ALLOWANCE = (("3.3 mm longer on the left", dict(dx0=3.3)), ("3.3 mm longer on the right", dict(dx1=3.3)), ("0.2 mm taller", dict(dz1=0.2)), ("2.5 mm deeper", dict(dy1=2.5, route=True)),
+             ("all of these at once", dict(dx0=3.3, dx1=3.3, dz1=0.2, dy1=2.5, route=True)))
+
+
+def s_allowance(hardware, parts, base, label_, kw_):
     base_sill_sig = sill_signature(part_named(parts, "front_sill"))
+    sig_, fl, cf_, others_ = grown_full(hardware, parts, **kw_)
+    check(f"the module {label_} (its whole allowance), the frame rebuilt: the sill is the same (volume, box, holes) and so is every part but the carrier, every check passes"
+          + (", every cable passes" if kw_.get("route") else ""),
+          sig_ == base_sill_sig and not others_ and not fl and not cf_,
+          ("same sill, no other part changed, 0 failures, 0 cable failures", f"sill same {sig_ == base_sill_sig} (volume {sig_[0]:.3f} against {base_sill_sig[0]:.3f}); changed {others_}; "
+                                                                            f"{len(fl)} failures {fl[:2]}; cable failures {None if cf_ is None else [t_ for _c, t_ in cf_[:2]]}"))
 
-    def grown_full(dx0=0.0, dx1=0.0, dz1=0.0, dy1=0.0, route=False):
-        """The module's box grown (its two screws move with its end faces), hardware.py's FRONT_IO_W and FRONT_IO_SCREWS and the hardware solid changed, the whole frame rebuilt with build_frame (the same
-        hardware set, so the same rounding context), every check run on the undamaged parts with the rebuilt sill and carrier in place (every other rebuilt part is compared with the undamaged one, and
-        must be the same), and with `route` the cables routed: (the rebuilt sill's signature, failures, cable failures or None, names of the other parts that changed). The module state the build resets
-        (fasteners, bolt checks, rounding log) is put back afterwards. The cables see the module only through its rear face (their start, cables.usb_start) and the parts: the X and Z growths leave the
-        start where it is and the carrier's outside as it was, so only the cases that move the rear face are routed (routing takes about 90 s)."""
-        old_w, old_s, old_io = hw.FRONT_IO_W, hw.FRONT_IO_SCREWS, hardware["front_io"]
-        new_w = (old_w[0] - dx0, old_w[1] + dx1, old_w[2], old_w[3] + dy1, old_w[4], old_w[5] + dz1)
-        saved = (list(f.FASTENERS), list(f.BOLT_CHECKS), list(f.ROUND_LOG), {k_: list(v_) for k_, v_ in f.KEEP_SHARP.items()}, dict(f._A_LAYER))
-        hw.FRONT_IO_W = new_w
-        hw.FRONT_IO_SCREWS = (((old_s[0][0][0] - dx0,) + old_s[0][0][1:], old_s[0][1]), ((old_s[1][0][0] + dx1,) + old_s[1][0][1:], old_s[1][1]))
-        hardware["front_io"] = hw.wbox(*new_w)
-        try:
-            parts_g, _ = f.build_frame(hardware=hardware)
-            by_g = {p_.name: p_ for p_ in parts_g}
-            others = [p_.name for p_ in parts if p_.name not in ("front_sill", "front_io_carrier")
-                      and (abs(by_g[p_.name].solid.Volume() - p_.solid.Volume()) > 1e-6 or any(abs(a_ - b_) > 1e-9 for a_, b_ in zip(exact_box(by_g[p_.name].solid), exact_box(p_.solid))))]
-            for n_ in ("front_sill", "front_io_carrier"):      # the rebuilt parts share faces with the undamaged ones, and their meshes (see exact_box): checked as freshly built
-                BRepTools.Clean_s(by_g[n_].solid.wrapped)
-            mixed = [by_g[p_.name] if p_.name in ("front_sill", "front_io_carrier") else p_ for p_ in parts]
-            r_ = f.run_checks(hardware, mixed, MEMO)
-            cf_ = None
-            if route:
-                routes_g = cables.build_routes()
-                cf_ = cables.failures(routes_g, cables.evaluate(routes_g, mixed, hardware))
-        finally:
-            hw.FRONT_IO_W, hw.FRONT_IO_SCREWS = old_w, old_s
-            hardware["front_io"] = old_io
-            f.FASTENERS[:], f.BOLT_CHECKS[:], f.ROUND_LOG[:] = saved[0], saved[1], saved[2]
-            f.KEEP_SHARP.clear()
-            f.KEEP_SHARP.update(saved[3])
-            f._A_LAYER.clear()
-            f._A_LAYER.update(saved[4])
-        return sill_signature(by_g["front_sill"]), r_["failures"], cf_, others
-    allowance = (("3.3 mm longer on the left", dict(dx0=3.3)), ("3.3 mm longer on the right", dict(dx1=3.3)), ("0.2 mm taller", dict(dz1=0.2)), ("2.5 mm deeper", dict(dy1=2.5, route=True)),
-                 ("all of these at once", dict(dx0=3.3, dx1=3.3, dz1=0.2, dy1=2.5, route=True)))
-    for label_, kw_ in allowance:
-        sig_, fl, cf_, others_ = grown_full(**kw_)
-        check(f"the module {label_} (its whole allowance), the frame rebuilt: the sill is the same (volume, box, holes) and so is every part but the carrier, every check passes"
-              + (", every cable passes" if kw_.get("route") else ""),
-              sig_ == base_sill_sig and not others_ and not fl and not cf_,
-              ("same sill, no other part changed, 0 failures, 0 cable failures", f"sill same {sig_ == base_sill_sig} (volume {sig_[0]:.3f} against {base_sill_sig[0]:.3f}); changed {others_}; "
-                                                                                f"{len(fl)} failures {fl[:2]}; cable failures {None if cf_ is None else [t_ for _c, t_ in cf_[:2]]}"))
+
+for _label, _kw in ALLOWANCE:
+    section(f"10c2. the module {_label}, the frame rebuilt")(functools.partial(s_allowance, label_=_label, kw_=_kw))
+
+
+@section("10c2. the module past its allowance, the carrier's holes")
+def s_past_allowance(hardware, parts, base):
+    sill, carrier = part_named(parts, "front_sill"), part_named(parts, "front_io_carrier")
+    car_pilots = [h for h in carrier.holes if h.pilot and h.item == "front_io"]
+    car_clear = [h for h in carrier.holes if h.kind == "M3c"]
+    sill_car = [h for h in sill.holes if h.pilot and h.item == "front_io_carrier"]
     for label_, kw_, needle_ in (("3.4 mm longer on the left", dict(dx0=3.4), "CHECK20 the left end block of front_io_carrier"),
                                  ("3.4 mm longer on the right", dict(dx1=3.4), "CHECK20 the right end block of front_io_carrier"),
                                  ("0.3 mm taller", dict(dz1=0.3), "CHECK20 the top plate of front_io_carrier"),
@@ -859,7 +1012,7 @@ def main():
             fl = []
             f.check_carrier(parts, deeper_, fl)
         else:
-            fl, _ = grown(**kw_)
+            fl, _ = grown(hardware, parts, **kw_)
         case(f"the module {label_}: 0.1 mm past its allowance", f"{needle_} ...", fl, needle_)
     import importlib.util
     import re as re_
@@ -874,7 +1027,7 @@ def main():
     check("hardware.py run again with only FRONT_IO_W grown by the whole allowance: nothing else in it changes (LIGHT_STRIP_BS, which the sill's light channel follows, included)",
           n_sub == 1 and changed == ["FRONT_IO_W"] and hw_g.LIGHT_STRIP_BS == hw.LIGHT_STRIP_BS,
           ("only FRONT_IO_W differs", f"{n_sub} substitution(s); differing names {changed}"))
-    fl, _ = grown(dz1=1.0)
+    fl, _ = grown(hardware, parts, dz1=1.0)
     case("the module 1 mm taller (carrier rebuilt: its top plate 1.7 mm)", "CHECK20 the top plate of front_io_carrier is 1.70 mm thick over the module, needs 2.5", fl, "CHECK20 the top plate of front_io_carrier", "needs 2.5")
     deep = dict(hardware, front_io=hw.wbox(hw.FRONT_IO_W[0], hw.FRONT_IO_W[1], hw.FRONT_IO_W[2], hw.FRONT_IO_W[3] + 3.0, hw.FRONT_IO_W[4], hw.FRONT_IO_W[5]))
     r = f.run_checks(deep, parts, MEMO)
@@ -901,6 +1054,9 @@ def main():
           f.screw_fit(f.CARRIER_STACK)[0] == 10 and abs(f.CARRIER_STACK - 4.3) < 1e-9 and sum(1 for r_ in base["screws"]["rows"] if r_["item"] == "front_io_carrier" and r_["length"] == 10 and abs(r_["stack"] - 4.3) < 1e-9) == 4,
           ("4 rows, M3 x 10, stack 4.3", f"{[(r_['part'], r_['length'], round(r_['stack'], 2)) for r_ in base['screws']['rows'] if r_['item'] == 'front_io_carrier']}"))
 
+
+@section("10c3. gpu_rest")
+def s_gpu_rest(hardware, parts, base):
     # 10c3. revision 14a, item 1: gpu_rest. The card's right-hand rest is a part of its own: a capsule on the diagonal's upper face (the rib keeps a flat seat), 2 x M3 along n from the diagonal's underside
     # through plain holes (no slots) into inserts in the part; the contact face with the card where the finger's was, u = hw.GPU_BS[2]
     rest = part_named(parts, "gpu_rest")
@@ -917,7 +1073,7 @@ def main():
            f"{len(rest_pilots)} pilots, {len(rest_clear)} clearance holes, {len(on_face)} faces at u = GPU_BS[2]; derived {base['mounts']['gpu_rest_screw']}"))
     check("gpu_rest's contact face and place follow hardware.py and the old finger: u = GPU_BS[2] (card 75.6), along n the capsule's axis -10..104 kept, standing on the diagonal's upper face n -6, as thick as the rib",
           abs(f.REST_U + f.REST_W / 2 - hw.GPU_BS[2]) < 1e-9 and f.REST_N_AXIS == (-10.0, 104.0) and abs(f.REST_SEAT_N - -6.0) < 1e-9 and f.REST_X == (f.X_IN, f.X_OUT)
-          and abs(hw.to_board(rest.solid).BoundingBox().zmin - f.REST_SEAT_N) < 1e-6 and ("gpu_rest", "gpu") in base["contacts"] and ("gpu_rest", "gpu") in f.INTENDED_CONTACTS
+          and abs(board_box(rest.solid).zmin - f.REST_SEAT_N) < 1e-6 and ("gpu_rest", "gpu") in base["contacts"] and ("gpu_rest", "gpu") in f.INTENDED_CONTACTS
           and any(set(x) == {"gpu_rest", "rib_A_right"} for x in base["pp_contact"]) and ("rib_A_right", "gpu") not in base["contacts"],
           ("contact with the card and the rib, not the rib's own finger", f"hardware contacts {[c for c in base['contacts'] if 'gpu' in c[0] or c[1] == 'gpu']}"))
     check("rib_A_right lost the finger and kept what else it carries: same outline as rib_A_left; the hose guide's pilot, the rail's tie pilots, its organic pads and 2 clearance holes for the rest",
@@ -978,6 +1134,9 @@ def main():
     f.check_m3_counterbores(with_part(parts, "rib_A_right", solid=sh_solid, blank=sh_blank, holes=sh_holes), fl)
     case("rib_A_right built with REST_CB_DEPTH 1 mm short (2.7: the head and washer 0.8 mm proud)", "CHECK16 rib_A_right: ... is 2.70 mm deep", fl, "CHECK16 rib_A_right", "is 2.70 mm deep")
 
+
+@section("10c4. the CPU hose guide")
+def s_guide_cpu(hardware, parts, base):
     # 10c4. revision 14a, item 3: the CPU hose guide is a comb on the left side fan's corner D. One M3 x 30 from the fan's outer face through the fan into an insert in the comb; both hoses in snap channels with
     # their mouths towards +X; the neck no longer carries it. The hoses cross the fan's open circle there, so the guide is held to a shadow, not to check 11's zero
     gd = part_named(parts, "hose_guide_cpu")
@@ -1023,6 +1182,10 @@ def main():
     check("neck_left is neck_right mirrored: the same holes apart from the organic layer's pad (the left pad stands where neck_top_L is), now that the guide's pilot is gone",
           sorted(nl_mirror) == sorted(nr_) and abs(neck_l.solid.Volume() - neck_r.solid.Volume()) < 0.005 * neck_r.solid.Volume(), ("same holes mirrored, volumes within 0.5 %", f"{len(nl_mirror)} / {len(nr_)} holes; volumes {neck_l.solid.Volume():.0f} / {neck_r.solid.Volume():.0f}"))
 
+
+@section("10c4. the CPU hoses shifted 1 mm, the guide rebuilt eight times")
+def s_guide_shifted(hardware, parts, base):
+    gd, gg = part_named(parts, "hose_guide_cpu"), f.guide_cpu_geometry()
     # revision 14a review: the comb's clearance holds by construction. Each CPU hose's route shifted 1 mm either way in two directions across the hose (towards the board, and square to that and to the
     # hose), the guide rebuilt for it: check 10 passes every time with the wall inside its window (it was 0.24 mm, 0.04 over the limit, and a 0.05 mm shift of hose 1 failed it)
     chains0 = f.hoses.keepout_chains()
@@ -1053,6 +1216,10 @@ def main():
           and all(abs(r_[3] - f.GUIDE_PLAY) < 0.005 for r_ in base["guides"] if r_[0] == "hose_guide_cpu"),
           ("hose 1's channel at the nearest point, walls 0.30", f"s {gg['s'][1]:.2f} mm, u {gg['u'][1]:.1f}; walls {[round(r_[3], 3) for r_ in base['guides'] if r_[0] == 'hose_guide_cpu']}"))
 
+
+@section("10d. the sill's cable window")
+def s_sill_window(hardware, parts, base):
+    sill = part_named(parts, "front_sill")
     # 10d. skeleton pass 1: the sill's cable window, and the insert pilots of the organic layer's twelve pads
     import numpy as np
     import organic_frame as of
@@ -1086,6 +1253,11 @@ def main():
     f.check_carrier(parts, dict(hardware, front_io=hw.wbox(*short_)), fl)
     case("a module whose rear face does not cover the window (10 mm shorter on the right, X -70..85): its cables could not reach all of it", "CHECK20 the sill's cable window ... is not behind the module's rear face",
          fl, "CHECK20 the sill's cable window", "is not behind the module's rear face")
+
+
+@section("10d. the sill's cable window filled back in: the USB cables hit the sill")
+def s_sill_window_filled(hardware, parts, base):
+    sill, g = part_named(parts, "front_sill"), f.sill_geometry()
     filled = sill.solid.fuse(g["cuts"]["window"].intersect(f.Poly(g["pts"]).solid(-f.SILL_HALF_X, f.SILL_HALF_X))).clean()     # the sill as it was without the window
     parts_nowin = with_part(parts, "front_sill", solid=filled)
     routes = cables.build_routes()
@@ -1093,10 +1265,18 @@ def main():
     bad = [t for n in ("usb3", "usbc") for _c, t in routes[n].fail if "front_sill" in t]
     check("the two front USB cables go through the window: with it filled back in both hit the sill", len(bad) == 2,
           ("USB 3 and USB-C each report 'N mm from front_sill, needs 3'", "; ".join(bad) or "no failure"))
+
+
+@section("10d. with the window every cable check passes")
+def s_sill_window_cables(hardware, parts, base):
     routes = cables.build_routes()
     ov = cables.evaluate(routes, parts, hardware)
     check("with the window every cable check passes", not cables.failures(routes, ov), ("0 failed cable checks", f"{len(cables.failures(routes, ov))}: {'; '.join(t for _c, t in cables.failures(routes, ov)[:2])}"))
 
+
+@section("10d2. check 22, the sill's rear wall")
+def s_sill_wall(hardware, parts, base):
+    sill, g = part_named(parts, "front_sill"), f.sill_geometry()
     # 10d2. revision 14a review, check 22: the sill's rear wall behind the pocket keeps 2 mm from the pocket's floor to its roof and over its length; the rear bottom edge stays sharp (a logged exception)
     sw_ = base["sill_wall"]
     logged_ = [e for e in f.ROUND_LOG if e.part == "front_sill" and e.radius == 0 and e.reason == f.SILL_REAR_EDGE_SHARP and abs(e.pt[1] - g["y_rear"]) < 0.01 and abs(e.pt[2] - g["z0"]) < 0.01]
@@ -1114,6 +1294,9 @@ def main():
     f.check_sill_rear_wall(with_part(parts, "front_sill", solid=sill.solid.cut(deeper_pocket)), fl)
     case("front_sill with its pocket 1 mm deeper (the rear wall thinned to 1.9 mm)", "CHECK22 the sill's rear wall behind the pocket is 1.90 mm thick ..., needs 2", fl, "CHECK22 the sill's rear wall", "is 1.90 mm", "needs 2")
 
+
+@section("10d3. the organic layer's pads")
+def s_pads(hardware, parts, base):
     pads = list(hw.ORGANIC_PADS.items())
     check("twelve pads, six a side, each with an M3 pilot in its part: derived from the solids", len(pads) == 12 and base["mounts"]["organic"] == 12 and f.EXPECTED_MOUNTS["organic"] == 12
           and sum(x["count"] for x in f.FASTENERS if x["item"] == "organic") == 12,
@@ -1164,6 +1347,8 @@ def main():
     check("pad_fits: a pilot 0.5 mm off the pad's axis is not its own, and is too close", why is not None and "too close" in why, ("'... mm too close to the part's M3 hole'", str(why)))
 
 
+@section("10e. the cable tie points and bridges")
+def s_tie_points(hardware, parts, base):
     # 10e. skeleton pass 2: the cable tie points and the one bridge shape
     tps = f.TIE_POINTS
     n_tie = len(tps)
@@ -1207,6 +1392,14 @@ def main():
     r = f.run_checks(hardware, with_part(parts, "rib_A_right", solid=refilled(hr, hole_r)), MEMO)
     case(f"{f.tie_name(tp_r)}: the rail's pilot filled back in", f"CHECK5 tie_pilot: {n_tie - 1} positions have a hole", r["failures"], f"CHECK5 tie_pilot: {n_tie - 1} positions")
     case("  same damage, check 7 on the rail", "CHECK7 rib_A_right ... M3 pilot ... is not drilled", r["failures"], "CHECK7 rib_A_right", "M3 pilot", "is not drilled")
+
+
+@section("10e. the tie bridges moved: off the pilot, lifted, pressed in, next to each other, in a cable's lane")
+def s_tie_bridges_moved(hardware, parts, base):
+    tps = f.TIE_POINTS
+    n_tie = len(tps)
+    tp0 = tps[0]
+    bridges = [part_named(parts, f.tie_name(tp)) for tp in tps]
     b0 = bridges[0]
     ax = hw.U_DIR if tp0["dir"][0] == 0.0 else tp0["dir"]
     mv = moved(b0, *(0.5 * c for c in ax))
@@ -1239,6 +1432,12 @@ def main():
     ov = cables.evaluate(routes, with_part(parts, far.name, solid=mv.solid, blank=mv.blank, holes=mv.holes), hardware)
     bad = [t for _c, t in cables.failures(routes, ov) if far.name in t]
     check("a bridge slid into USB 3's lane is a cable failure: cables.py keeps 3 mm from every bridge", len(bad) >= 1 and "needs 3" in bad[0], (f"'... mm from {far.name}, needs 3'", "; ".join(bad) or "no failure"))
+
+
+@section("10f. the tie rules of cables.py")
+def s_tie_rules(hardware, parts, base):
+    tps = f.TIE_POINTS
+    n_tie = len(tps)
     routes = cables.build_routes()
     ov = cables.evaluate(routes, parts, hardware)
 
@@ -1290,6 +1489,9 @@ def main():
     check("a tie failure is a cable failure, so cables.py ends with exit status 1: failures() carries it with the cable's name", any(t.startswith("ATX 24-pin: bend of 45 deg") for t in got),
           ("'ATX 24-pin: bend of 45 deg ...' among the failures", got[0] if got else "no failure"))
 
+
+@section("14. the drive bay")
+def s_drive_bay(hardware, parts, base):
     # 14. the drive bay (docs/plans/cables-and-organic.md, "Drive bays, pass 1"; one bay, the left: the PSU's cables run through the right side): hole patterns, seats, envelope, contacts.
     # The sled is built right-handed and mirrored, so the cutters of the damage below are built right-handed and mirrored too.
     lay = hw.drive_layout()
@@ -1318,6 +1520,9 @@ def main():
           {k_ for k_ in hw.HW_COLORS if k_.startswith("drive")} == set(hw.DRIVES + hw.DRIVE_PLUGS) == {k_ for k_ in __import__("render_vtk").HW_RGB if k_.startswith("drive")},
           ("drive_left, drive_plugs_left only", f"{sorted(k_ for k_ in hw.HW_COLORS if k_.startswith('drive'))}"))
 
+
+@section("14a. a drive's hole pattern shifted")
+def s_drive_patterns(hardware, parts, base):
     # 14a. a hole pattern shifted 5 mm in hardware.py, the sled left as it was: the screws of that drive have no holes (the 4 M3 holes of the other face still do)
     forms0 = hw.DRIVE_FORMS
     shifted = {k_: dict(v_) for k_, v_ in forms0.items()}
@@ -1332,6 +1537,10 @@ def main():
         r = f.run_checks(hardware, parts, MEMO)
     case("the 2.5 inch columns shifted 5 mm in hardware.py: the four M3 positions have no hole", "CHECK5 drive_left: 6 positions have a hole", r["failures"], "CHECK5 drive_left: 6 positions")
 
+
+@section("14b. the sled's seats and bores")
+def s_drive_seats(hardware, parts, base):
+    lay, sled_l = hw.drive_layout(), part_named(parts, "drive_sled_left")
     # 14b. a seat too thin or too thick: the counterbore cut 1 mm deeper under one head leaves 2 mm, and the screw enters 4.35 mm (3.5 inch, limit 3.56) or 3.00 mm (2.5 inch, limit 2.50)
     px0, px1 = lay["plate_x"]
     y_o, z_o = lay["faces"]["outer"]["holes"][0]
@@ -1365,6 +1574,10 @@ def main():
           and sum(1 for h_ in sled_l.holes if h_.pilot) == 2 == len(flank) and all(h_b.start[0] < 0 for h_b in flank),
           ("2 pilots, 2 clearance holes, same X and Z, none at X > 0", f"{[(h_.kind, round(h_.start[0], 1), round(h_.start[2], 1)) for h_ in flank]}"))
 
+
+@section("14c. the sled moved")
+def s_drive_moves(hardware, parts, base):
+    sled_l = part_named(parts, "drive_sled_left")
     # 14c. a sled moved into its drive, out of its envelope, off the bulkhead and the skid
     mv = moved(sled_l, -2, 0, 0)
     r = f.run_checks(hardware, with_part(parts, "drive_sled_left", solid=mv.solid, blank=mv.blank, holes=mv.holes), MEMO)
@@ -1379,6 +1592,10 @@ def main():
     r = f.run_checks(hardware, with_part(parts, "drive_sled_left", solid=mv.solid, blank=mv.blank, holes=mv.holes), MEMO)
     case("drive_sled_left moved 3 mm to the front: the flange leaves the bulkhead", "CHECK13 drive_sled_left does not stand against psu_bulkhead: no zero-gap contact", r["failures"], "CHECK13 drive_sled_left", "psu_bulkhead", "no zero-gap contact")
 
+
+@section("14d. drive_access.py")
+def s_drive_access(hardware, parts, base):
+    lay = hw.drive_layout()
     # 14d. cad_b6/drive_access.py: the sweep. The bay (the left; there is no right bay, the PSU cables run through it), without and with the plug zone
     import drive_access as da
     field = da.load_field()
@@ -1413,6 +1630,9 @@ def main():
     got = da.gap_failures(og2, "left")
     case("drive_access: a lump of the organic layer 5..8 mm from the left drive is reported (it must keep 10 mm)", "DRIVE_ACCESS left bay: the organic layer is ... mm from drive_left, it must keep 10", got, "DRIVE_ACCESS left bay", "drive_left", "it must keep 10")
 
+
+@section("15. the 420: core and fans, check 14")
+def s_rad420(hardware, parts, base):
     # 15. revision 11: the 420 is core + fans with a 3 mm gap, the hole table is the 125 mm pattern, and check 14 (the plates stay out of the fans' openings and keep the wall round every fan screw)
     solids = hardware["rad420"].Solids()
     gap = solids[0].distance(solids[1]) if len(solids) == 2 else float("nan")
@@ -1426,7 +1646,7 @@ def main():
           ("columns -202.5 -77.5 -62.5 62.5 77.5 202.5, rows -8.5 and 116.5", f"{list(hw.RAD420_HOLES_X)}, {list(hw.RAD420_HOLES_N)}"))
     op = hw.rad420_fan_opening(1, *hw.RAD420_PLATE_U)
     ob = op.BoundingBox()
-    bb_op = hw.to_board(op).BoundingBox()
+    bb_op = board_box(op)
     check("hardware: a fan opening is a circle of 140 cut to 136 across the flats on both axes, about the fan's centre",
           abs((bb_op.xmax - bb_op.xmin) - 136.0) < 1e-6 and abs((bb_op.zmax - bb_op.zmin) - 136.0) < 1e-6 and abs(op.Volume() / (hw.RAD420_PLATE_U[1] - hw.RAD420_PLATE_U[0]) - 15216.0) < 1.0,
           ("136 x 136 box, area about 15216 mm2 (a 140 circle less four 2 mm segments)", f"{bb_op.xmax - bb_op.xmin:.3f} x {bb_op.zmax - bb_op.zmin:.3f}, area {op.Volume() / 3.0:.0f} mm2"))
@@ -1459,9 +1679,13 @@ def main():
          r["failures"], "CHECK14 antler_left has", "inside the opening of the 420's fan 1")
     case("  same damage, the outer fan's opening", "CHECK14 antler_left has ... mm3 inside the opening of the 420's fan 0", r["failures"], "CHECK14 antler_left has", "opening of the 420's fan 0")
 
+
+@section("16. the antlers' webs and the fans' underside")
+def s_antler_webs(hardware, parts, base):
+    u0, u1 = f.ANTLER_U
     # 16. revision 11, second pass: the fans are 140 mm wide (the core 138), nothing of an antler is narrower than 2 mm, the chord keeps clear of the fans' underside
-    core_s, fans_s = sorted(hardware["rad420"].Solids(), key=lambda s_: hw.to_board(s_).BoundingBox().ymin)      # the core (u 310..348), then the fans (u 351..378)
-    fb, cb = hw.to_board(fans_s).BoundingBox(), hw.to_board(core_s).BoundingBox()
+    core_s, fans_s = sorted(hardware["rad420"].Solids(), key=lambda s_: board_box(s_).ymin)      # the core (u 310..348), then the fans (u 351..378)
+    fb, cb = board_box(fans_s), board_box(core_s)
     check("hardware: the 420's fans are 140 mm wide in n (-16..124), 1 mm more than the core (-15..123) on each long side, and ENVELOPE_N is the fans' top",
           abs(fb.zmin + 16.0) < 1e-6 and abs(fb.zmax - 124.0) < 1e-6 and abs(cb.zmin + 15.0) < 1e-6 and abs(cb.zmax - 123.0) < 1e-6 and hw.ENVELOPE_N == 124.0,
           ("fans n -16..124, core n -15..123, ENVELOPE_N 124", f"fans n {fb.zmin:.2f}..{fb.zmax:.2f}, core n {cb.zmin:.2f}..{cb.zmax:.2f}, ENVELOPE_N {hw.ENVELOPE_N:g}"))
@@ -1484,6 +1708,9 @@ def main():
     case("antler_right with a block on the chord standing right up to the fans' underside", "CHECK14 antler_right has ... mm3 within 1 mm below the underside of the 420's fans (n -16)",
          r["failures"], "CHECK14 antler_right has", "below the underside of the 420's fans")
 
+
+@section("17. screws, inserts, washers, counterbores")
+def s_screws(hardware, parts, base):
     # 17. revision 12: every screw between printed parts is an M3 cap screw of the owner's, into an M3 insert; check 15 measures the stack and counts against the stock, check 16 the counterbores
     want = {16.0: 20, 8.0: 14, 10.0: 16, 12.0: 18, 34.0: 40, 20.0: 25, 6.0: 12, 25.0: 30, 3.0: 8, 5.0: 10, 4.3: 10}      # revision 14a: 4.3 is the carrier's stack (4 mm of floor and the pocket's 0.3)
     got_len = {k_: f.screw_fit(k_)[0] for k_ in want}
@@ -1552,16 +1779,173 @@ def main():
           {h_.kind for p_ in parts for h_ in p_.holes} <= {"M3", "M3c", "6-32c", "M3r", "6-32cb", "M3cb"} and not any("M4" in k_ or "M5" in k_ for k_ in vars(hw)) and set(hw.INSERTS) == {"M3"},
           ("only M3 kinds", f"{sorted({h_.kind for p_ in parts for h_ in p_.holes})}, inserts {sorted(hw.INSERTS)}"))
 
+
+@section("last: the undamaged model with nothing remembered")
+def s_final(hardware, parts, base):
     # last: the undamaged model, once more with nothing remembered
     final = f.run_checks(hardware, parts)
     check("undamaged model reports no failure", not base["failures"] and not final["failures"],
           ("0 failures, first with an empty memo and again without a memo",
            f"{len(base['failures'])} and {len(final['failures'])}: {'; '.join((base['failures'] + final['failures'])[:3])}"))
 
-    bad = [n for ok, n in RESULTS if not ok]
-    print(f"\n{len(RESULTS) - len(bad)}/{len(RESULTS)} cases as expected   ({time.time() - t_start:.0f} s)")
-    if bad:
-        print("FAILED: " + "; ".join(bad))
+
+# ---------------------------------------------------------------------------
+# running: the sections in worker processes (default), or all in this process (--serial, as before)
+# ---------------------------------------------------------------------------
+WORKER_MB = 2000                # a worker's mean peak resident memory (17 Nov 2026, 6 workers: 0.85 GB for those that run no zone_access section, 2.8 to 4.1 GB for those that do; 10.6 to 12.5 GB together)
+MEMORY_SHARE = 0.66             # the workers may hold this share of the machine's memory together (6 workers on the owner's 18 GB)
+
+
+def _rss_mb():
+    """Peak resident memory of this process, MB (ru_maxrss is bytes on macOS, kB on Linux)."""
+    return resource.getrusage(resource.RUSAGE_SELF).ru_maxrss / (1024.0 * 1024.0 if sys.platform == "darwin" else 1024.0)
+
+
+def _captured(fn, *args):
+    """fn(*args) with its printed output captured: (value, record of text, cases, seconds, counts, error)."""
+    buf, n0, c0, t0 = io.StringIO(), len(RESULTS), COUNTS.copy(), time.time()
+    value, error = None, None
+    with contextlib.redirect_stdout(buf):
+        try:
+            value = fn(*args)
+        except Exception:
+            error = traceback.format_exc()
+    return value, dict(text=buf.getvalue(), results=RESULTS[n0:], seconds=time.time() - t0, counts=dict(COUNTS - c0), error=error)
+
+
+_WORKER: dict = {}
+
+
+def _worker_task(i):
+    """In a worker process: the prelude on the first call, then section i (i = -1: the prelude's own output)."""
+    first = "prelude" not in _WORKER
+    if first:
+        ctx, rec = _captured(prelude)
+        _WORKER.update(ctx=ctx, prelude=rec, memo_keys=set(MEMO))
+    pre = _WORKER["prelude"]
+    if pre["error"]:
+        rec = dict(text="", results=[], seconds=0.0, counts={}, error="the prelude failed in this worker:\n" + pre["error"])
+    elif i < 0:
+        rec = dict(pre)
+    else:
+        _, rec = _captured(SECTIONS[i][1], *_WORKER["ctx"])
+        for k in [k for k in MEMO if k not in _WORKER["memo_keys"]]:       # what the section's damaged copies left: no other section has those objects, so it only holds memory
+            del MEMO[k]
+    rec.update(i=i, pid=os.getpid(), rss_mb=_rss_mb(), prelude_here=dict(seconds=pre["seconds"], counts=pre["counts"]) if first else None)
+    return rec
+
+
+def default_workers(n_tasks):
+    """As many workers as there are cores less one, as the memory allows (WORKER_MB each), and tasks need. Not from the last run's peaks: fewer workers each hold more, which would lower the count again."""
+    total_mb = os.sysconf("SC_PAGE_SIZE") * os.sysconf("SC_PHYS_PAGES") / (1024.0 * 1024.0)
+    return max(1, min((os.cpu_count() or 2) - 1, int(MEMORY_SHARE * total_mb // WORKER_MB), n_tasks))
+
+
+def run_serial():
+    """Everything in this process, printed as it runs: the suite as it ran before the sections."""
+    records = []
+    n0, c0, t0 = len(RESULTS), COUNTS.copy(), time.time()
+    ctx = prelude()
+    records.append(dict(title="prelude", seconds=time.time() - t0, counts=dict(COUNTS - c0), n_cases=len(RESULTS) - n0))
+    for title, fn in SECTIONS:
+        n0, c0, t0 = len(RESULTS), COUNTS.copy(), time.time()
+        fn(*ctx)
+        records.append(dict(title=title, seconds=time.time() - t0, counts=dict(COUNTS - c0), n_cases=len(RESULTS) - n0))
+    return records, dict(rss_mb_per_worker={str(os.getpid()): _rss_mb()}, counts_all_processes=dict(COUNTS)), []
+
+
+def run_fast(workers, previous):
+    """The prelude once in each worker, the sections shared out longest first (the previous run's times), printed in their own order."""
+    import concurrent.futures as cf
+    import multiprocessing
+
+    cost = {s["title"]: s["seconds"] for s in (previous or {}).get("sections", [])}
+    order = [-1] + sorted(range(len(SECTIONS)), key=lambda i: -cost.get(SECTIONS[i][0], 0.0))
+    records, errors, rss, all_counts = [], [], {}, collections.Counter()
+    with cf.ProcessPoolExecutor(workers, mp_context=multiprocessing.get_context("spawn")) as ex:
+        futs = {i: ex.submit(_worker_task, i) for i in order}
+        for i in [-1] + list(range(len(SECTIONS))):
+            title = "prelude" if i < 0 else SECTIONS[i][0]
+            try:
+                rec = futs[i].result()
+            except Exception:                       # a worker died (BrokenProcessPool): every section it held is lost, and the run fails
+                rec = dict(text="", results=[], seconds=0.0, counts={}, error=traceback.format_exc(), pid=None, rss_mb=0.0, prelude_here=None)
+            sys.stdout.write(rec["text"])
+            if rec["error"]:
+                errors.append(f"{title}: {rec['error'].strip().splitlines()[-1]}")
+                print(f"ERROR in section '{title}':\n{rec['error']}")
+            sys.stdout.flush()
+            RESULTS.extend(tuple(x) for x in rec["results"])
+            records.append(dict(title=title, seconds=rec["seconds"], counts=rec["counts"], n_cases=len(rec["results"]), pid=rec["pid"]))
+            if rec["pid"] is not None:
+                rss[str(rec["pid"])] = max(rss.get(str(rec["pid"]), 0.0), rec["rss_mb"])
+            all_counts.update(rec["counts"] if i >= 0 else {})
+            if rec["prelude_here"]:
+                all_counts.update(rec["prelude_here"]["counts"])
+    return records, dict(rss_mb_per_worker=rss, counts_all_processes=dict(all_counts)), errors
+
+
+def suite_counts(records):
+    """The expensive operations the suite does, prelude once plus every section: the same in either mode and for any number of workers."""
+    total = collections.Counter()
+    for r in records:
+        total.update(r["counts"])
+    return {key: total.get(key, 0) for _m, _n, key in EXPENSIVE}
+
+
+def load_record(path):
+    with open(path, encoding="utf-8") as fh:
+        return json.load(fh)
+
+
+def diff(path_a, path_b):
+    """The two runs' case lists must be identical: same count, same order, each case's name, verdict, expected and reported text."""
+    a, b = load_record(path_a)["cases"], load_record(path_b)["cases"]
+    keys = ("name", "ok", "expected", "reported")
+    rows = [(k, x, y) for k, (x, y) in enumerate(zip(a, b)) if tuple(x[q] for q in keys) != tuple(y[q] for q in keys)]
+    for k, x, y in rows[:10]:
+        print(f"case {k + 1} differs:\n  {path_a}: {[x[q] for q in keys]}\n  {path_b}: {[y[q] for q in keys]}")
+    same = not rows and len(a) == len(b)
+    print(f"{'IDENTICAL' if same else 'DIFFERENT'}: {len(a)} and {len(b)} cases, {len(rows)} differ in name, verdict, expected or reported text")
+    return 0 if same else 1
+
+
+def main(argv=None):
+    ap = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
+    ap.add_argument("--serial", action="store_true", help="run everything in this process, in order (as before the sections)")
+    ap.add_argument("--workers", type=int, help="worker processes (default: cores less one, as memory allows)")
+    ap.add_argument("--out", help="where to write the run's record (default out/test_checks/<fast|serial>.json)")
+    ap.add_argument("--diff", nargs=2, metavar=("A", "B"), help="compare the case lists of two records and exit")
+    args = ap.parse_args(argv)
+    if args.diff:
+        sys.exit(diff(*args.diff))
+    mode = "serial" if args.serial else "fast"
+    out = args.out or os.path.join(OUT_DIR, f"{mode}.json")
+    prev_path = os.path.join(OUT_DIR, "fast.json")
+    previous = load_record(prev_path) if os.path.exists(prev_path) else None
+    workers = 1 if args.serial else (args.workers or default_workers(len(SECTIONS)))
+    load_before = os.getloadavg()
+    t_start = time.time()
+    if args.serial:
+        records, mem, errors = run_serial()
+    else:
+        print(f"{len(SECTIONS)} sections in {workers} worker processes (each runs the prelude once); the output follows the sections' order\n")
+        records, mem, errors = run_fast(workers, previous)
+    wall = time.time() - t_start
+    bad = [n for ok, n, _e, _r in RESULTS if not ok]
+    print(f"\n{len(RESULTS) - len(bad)}/{len(RESULTS)} cases as expected   ({wall:.0f} s)")
+    rss = mem["rss_mb_per_worker"]
+    print(f"{mode}: {workers} process(es), peak memory per process {max(rss.values()):.0f} MB, {sum(rss.values()):.0f} MB together; "
+          f"expensive operations {suite_counts(records)}")
+    os.makedirs(os.path.dirname(os.path.abspath(out)), exist_ok=True)
+    with open(out, "w", encoding="utf-8") as fh:
+        json.dump(dict(mode=mode, workers=workers, wall_s=round(wall, 1), finished=time.strftime("%Y-%m-%d %H:%M:%S"), load_before=load_before, load_after=os.getloadavg(),
+                       total=len(RESULTS), passed=len(RESULTS) - len(bad), errors=errors, counts=suite_counts(records), **mem,
+                       sections=[dict(r, seconds=round(r["seconds"], 1)) for r in records],
+                       cases=[dict(name=n, ok=ok, expected=e, reported=r) for ok, n, e, r in RESULTS]), fh, indent=1, ensure_ascii=False)
+    print(f"record: {os.path.relpath(out, ROOT)}")
+    if bad or errors:
+        print("FAILED: " + "; ".join(bad + errors))
         sys.exit(1)
 
 
