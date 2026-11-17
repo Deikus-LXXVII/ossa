@@ -17,8 +17,9 @@ a case.
 One line per case: PASS/FAIL, name, the failure that was expected, what was reported.
 Exit status 1 if any case fails, a section raises, a section records no case, or the run records fewer than
 EXPECTED_CASES cases. The run's case list, its time and the counts of the expensive operations go
-to out/test_checks/<fast|serial>.json, written atomically, with the SHA-256 of every file that decided the result
-(check_budgets.py reads the fast one and refuses it once one of those files has changed).
+to out/test_checks/<fast|serial>.json, written atomically, with the SHA-256 of every file that decided the result, taken
+before the model is imported and compared again at the end (a file that moved fails the run), and the versions of Python and
+of every third-party package the run loaded (check_budgets.py reads the fast one and refuses it once one of those has changed).
 """
 from __future__ import annotations
 
@@ -41,6 +42,10 @@ import warnings
 warnings.filterwarnings("ignore")
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
+import suite_record as sr  # noqa: E402
+
+START_HASHES = sr.tree_hashes()     # the files as they are before any of the model's modules is imported: the record names the code the run read
+
 import cadquery as cq  # noqa: E402
 import numpy as np  # noqa: E402
 
@@ -51,7 +56,6 @@ import cables  # noqa: E402
 import drive_access  # noqa: E402
 import zone_access  # noqa: E402
 import organic_frame as of  # noqa: E402
-import suite_record as sr  # noqa: E402
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.dirname(HERE)
@@ -64,7 +68,7 @@ SECTIONS: list[tuple[str, object]] = []             # (title, function(hardware,
 # A run that records fewer fails (a section emptied, cut short or skipped would otherwise pass as "N/N cases as expected"), and
 # so does a section, or the prelude, that records none. A run that records more passes and says to raise this in the same commit.
 # Not in budgets.json: check_budgets.py --write rewrites that file from a run's record, and the pin must not follow a run down.
-EXPECTED_CASES = 293
+EXPECTED_CASES = 301
 
 # the expensive operations, counted per process: the budget of the time to verify gates on these (check_budgets.py)
 COUNTS: collections.Counter = collections.Counter()
@@ -1819,6 +1823,43 @@ def s_memo_keys(hardware, parts, base):
     mounts = lambda fl, m: f.derive_mounts(parts, base["contacts"], fl, m)      # noqa: E731
     bites("check 5 from the memo: MOUNT_TOL -1 (no hole can match)", "CHECK5", mounts, patched(f, "MOUNT_TOL", -1.0), "MOUNT_TOL -1")
 
+    # The board frame (third review of the fast suite): web_section places its plane with hw.bp and folds with un_of, plate_accept places an edge
+    # with un_of, part_n_max reads hw.to_board, the guide's shadow hw.bs_of; all read hw.ORIGIN and hw.C when called. hw.U_DIR is computed at import,
+    # so a key that carried only it returned the old plane and the old edge list. Each case: the answer warm, then with the frame changed the
+    # remembered answer must equal a fresh one (no memo, or an emptied cache), and the fresh one must differ from the warm one (the change matters).
+    def follows(name, run, change, what):
+        warm = run(MEMO)
+        with change:
+            remembered, fresh = run(MEMO), run(None)
+        check(name, remembered == fresh and fresh != warm,
+              (f"with {what} the remembered answer equals a fresh call's, which differs from the answer before",
+               f"before {str(warm)[:90]}; fresh {str(fresh)[:90]}; remembered {'the same' if remembered == fresh else 'DIFFERENT: ' + str(remembered)[:90]}"))
+
+    o = hw.ORIGIN
+    down = lambda: patched(hw, "ORIGIN", (o[0], o[1], o[2] - 100.0))      # noqa: E731 - every board-space n of a fixed solid grows by 100 / (2 C), u falls as much
+    tilt = lambda: patched(hw, "C", math.cos(math.radians(40.0)))         # noqa: E731
+    ants = [p_ for p_ in parts if p_.name.startswith("antler")]
+    webs = lambda m: f.check_420_plates(ants, [], m)["webs"]      # noqa: E731
+    follows("check 14's narrowest web from the memo: the board origin moved 100 mm down (the section's plane with it)", webs, down(), "hw.ORIGIN Z - 100")
+    follows("check 14's narrowest web from the memo: hw.C of 40 deg (the section's plane and the fold to n)", webs, tilt(), "hw.C = cos 40 deg")
+    sharp = lambda m: f.classify_corners(ants[0], f.rd.Neighbors([]), m)      # noqa: E731
+    follows(f"the sharp edges from the memo ({ants[0].name}): the board origin moved 100 mm down (the tongue's rim edges count as corners)", sharp, down(), "hw.ORIGIN Z - 100")
+    corners = lambda m: f.explain_corners(ants, hardware, m)      # noqa: E731
+    follows("check 12's explained corners from the memo (the antlers): the board origin moved 100 mm down", corners, down(), "hw.ORIGIN Z - 100")
+    sharp0 = lambda m: f.check_corners(ants, hardware, None, None, [], m)      # noqa: E731
+    follows("check 12's counts from the memo, and the unrounded plates' counts: the board origin moved 100 mm down", sharp0, down(), "hw.ORIGIN Z - 100")
+    follows("check 12's unrounded plates' counts (cached by name until this review): hw.C of 40 deg", sharp0, tilt(), "hw.C = cos 40 deg")
+    n_max = lambda m: [f.part_n_max(p_) if m is not None else float(f.exact_box(hw.to_board(p_.solid))[5]) for p_ in ants]      # noqa: E731
+    follows("check 8's highest n of a part (cached per solid): the board origin moved 100 mm down", n_max, down(), "hw.ORIGIN Z - 100")
+    shadow = lambda m: f.check_guide_shadow(parts, []) if m is not None else _fresh_shadow(parts)      # noqa: E731
+    follows("check 21's shadow of the hoses (cached per fan): hw.C of 40 deg", shadow, tilt(), "hw.C = cos 40 deg")
+
+
+def _fresh_shadow(parts):
+    """check 21 with the hoses' shadow cache emptied for the call (and put back after)."""
+    with patched(f, "_SHADOW_TUBES", {}):
+        return f.check_guide_shadow(parts, [])
+
 
 @section("last: the undamaged model with nothing remembered")
 def s_final(hardware, parts, base):
@@ -1872,8 +1913,11 @@ def _worker_task(i):
         for k in [k for k in MEMO if k not in _WORKER["memo_keys"]]:       # what the section's damaged copies left: no other section has those objects, so it only holds memory
             del MEMO[k]
     rec.update(i=i, pid=os.getpid(), rss_mb=_rss_mb(), prelude_here=dict(seconds=pre["seconds"], counts=pre["counts"]) if first else None,
-               sources=sorted(sr.loaded_sources()))
+               sources=sorted(sr.loaded_sources()), modules=sorted(sr.loaded_top_levels()))
     return rec
+
+
+WORKER_TASK = _worker_task      # what run_fast submits for each task; test_runner.py puts a fake in its place to drive the pool without the model
 
 
 def default_workers(n_tasks):
@@ -1892,7 +1936,7 @@ def run_serial():
         n0, c0, t0 = len(RESULTS), COUNTS.copy(), time.time()
         fn(*ctx)
         records.append(dict(title=title, seconds=time.time() - t0, counts=dict(COUNTS - c0), n_cases=len(RESULTS) - n0))
-    return records, dict(rss_mb_per_worker={str(os.getpid()): _rss_mb()}, counts_all_processes=dict(COUNTS)), [], sr.loaded_sources()
+    return records, dict(rss_mb_per_worker={str(os.getpid()): _rss_mb()}, counts_all_processes=dict(COUNTS)), [], sr.loaded_sources(), sr.loaded_top_levels()
 
 
 def run_fast(workers, previous):
@@ -1902,15 +1946,15 @@ def run_fast(workers, previous):
 
     cost = {s["title"]: s["seconds"] for s in (previous or {}).get("sections", [])}
     order = [-1] + sorted(range(len(SECTIONS)), key=lambda i: -cost.get(SECTIONS[i][0], 0.0))
-    records, errors, rss, all_counts, sources = [], [], {}, collections.Counter(), sr.loaded_sources()
+    records, errors, rss, all_counts, sources, modules = [], [], {}, collections.Counter(), sr.loaded_sources(), sr.loaded_top_levels()
     with cf.ProcessPoolExecutor(workers, mp_context=multiprocessing.get_context("spawn")) as ex:
-        futs = {i: ex.submit(_worker_task, i) for i in order}
+        futs = {i: ex.submit(WORKER_TASK, i) for i in order}
         for i in [-1] + list(range(len(SECTIONS))):
             title = "prelude" if i < 0 else SECTIONS[i][0]
             try:
                 rec = futs[i].result()
             except Exception:                       # a worker died (BrokenProcessPool): every section it held is lost, and the run fails
-                rec = dict(text="", results=[], seconds=0.0, counts={}, error=traceback.format_exc(), pid=None, rss_mb=0.0, prelude_here=None, sources=[])
+                rec = dict(text="", results=[], seconds=0.0, counts={}, error=traceback.format_exc(), pid=None, rss_mb=0.0, prelude_here=None, sources=[], modules=[])
             sys.stdout.write(rec["text"])
             if rec["error"]:
                 errors.append(f"{title}: {rec['error'].strip().splitlines()[-1]}")
@@ -1921,10 +1965,11 @@ def run_fast(workers, previous):
             if rec["pid"] is not None:
                 rss[str(rec["pid"])] = max(rss.get(str(rec["pid"]), 0.0), rec["rss_mb"])
             sources.update(rec["sources"])
+            modules.update(rec["modules"])
             all_counts.update(rec["counts"] if i >= 0 else {})
             if rec["prelude_here"]:
                 all_counts.update(rec["prelude_here"]["counts"])
-    return records, dict(rss_mb_per_worker=rss, counts_all_processes=dict(all_counts)), errors, sources
+    return records, dict(rss_mb_per_worker=rss, counts_all_processes=dict(all_counts)), errors, sources, modules
 
 
 def suite_counts(records):
@@ -1979,13 +2024,18 @@ def main(argv=None):
     workers = 1 if args.serial else (args.workers or default_workers(len(SECTIONS)))
     load_before = os.getloadavg()
     t_start = time.time()
-    hashes = sr.tree_hashes()           # the files as they were when the run started: the record names the code it ran
     if args.serial:
-        records, mem, errors, loaded = run_serial()
+        records, mem, errors, loaded, modules = run_serial()
     else:
         print(f"{len(SECTIONS)} sections in {workers} worker processes (each runs the prelude once); the output follows the sections' order\n")
-        records, mem, errors, loaded = run_fast(workers, previous)
+        records, mem, errors, loaded, modules = run_fast(workers, previous)
     wall = time.time() - t_start
+    sources = sr.sources_of(loaded, START_HASHES)       # each file as it was before the model was imported (START_HASHES)
+    moved = sr.stale_sources(sources)                   # and now: a file that moved during the run may have been read as other bytes by a worker
+    if moved:
+        errors.append("a file the run read changed during the run, so the processes may have run different code: " + ", ".join(f"{r} {why}" for r, why in moved) + "; rerun")
+        print("ERROR: " + errors[-1])
+    env = sr.environment(modules)
     bad = [n for ok, n, _e, _r in RESULTS if not ok]
     short = sr.short_of_pin(len(RESULTS), [(r["title"], r["n_cases"]) for r in records], EXPECTED_CASES)
     print(f"\n{len(RESULTS) - len(bad)}/{len(RESULTS)} cases as expected   ({wall:.0f} s)"
@@ -1995,13 +2045,12 @@ def main(argv=None):
     rss = mem["rss_mb_per_worker"]
     print(f"{mode}: {workers} process(es), peak memory per process {max(rss.values()):.0f} MB, {sum(rss.values()):.0f} MB together; "
           f"expensive operations {suite_counts(records)}")
-    sources = sr.sources_of(loaded, hashes)
     sr.write_json_atomic(out, dict(mode=mode, workers=workers, wall_s=round(wall, 1), finished=time.strftime("%Y-%m-%d %H:%M:%S"), load_before=load_before, load_after=os.getloadavg(),
                                    total=len(RESULTS), passed=len(RESULTS) - len(bad), expected_cases=EXPECTED_CASES, short=short, errors=errors,
-                                   counts=suite_counts(records), **mem, sources=sources, digest=sr.digest(sources),
+                                   counts=suite_counts(records), **mem, sources=sources, environment=env, digest=sr.digest(sources, env),
                                    sections=[dict(r, seconds=round(r["seconds"], 1)) for r in records],
                                    cases=[dict(name=n, ok=ok, expected=e, reported=r) for ok, n, e, r in RESULTS]))
-    print(f"record: {os.path.relpath(out, ROOT)} ({len(sources)} files in its digest)")
+    print(f"record: {os.path.relpath(out, ROOT)} ({len(sources)} files and {len(env['packages'])} packages in its digest, Python {env['python']})")
     if bad or errors or short:
         print("FAILED: " + "; ".join(bad + errors + short))
         sys.exit(1)

@@ -1,8 +1,10 @@
 #!/usr/bin/env python3
 """Tests of check_budgets.py: each budget exceeded fails, a figure inside its margin passes, the wall time only warns,
 a missing input (no field, no suite record, a record of a failed or serial run) fails instead of passing, a figure under
-half its record fails (a wrong input, not a saving), the suite's record is refused when it is of other code (its digest),
-short of the pinned number of cases or half written, and --write records no figure that fails a hard limit.
+its floor fails (a count under its record, a mass or a volume more than 5 % under it: a saving is recorded on purpose),
+the suite's record is refused when it is of other code (its digest) or of other packages or another Python, short of the
+pinned number of cases or half written, and --write records no figure that fails a hard limit or is under its floor
+(unless --accept-lower).
 
     .venv/bin/python cad_b6/test_budgets.py          # a few seconds; builds no frame; exit status 1 on a failure
 """
@@ -24,6 +26,7 @@ BUDGETS = dict(skeleton_abs_g=dict(figure=1600.0, margin=0.02),
                organic_cm3=dict(figure=1700.0, margin=0.02, petg_stock_g=4000.0),
                suite=dict(counts=dict(frame_builds=20, run_checks=200, cable_routings=10), count_margin=0.10, wall_s=500.0, wall_margin=0.25))
 ABS_STOCK, RHO = 2000.0, 1.27
+ENV = cb.sr.environment({"cadquery", "numpy"})       # the interpreter running this test: cadquery and numpy as installed now
 
 
 def figures(**over):
@@ -50,12 +53,12 @@ def suite_with(**counts):
     return dict(counts=dict(BUDGETS["suite"]["counts"], **counts), wall_s=500.0, finished="t", workers=8)
 
 
-def suite_file(path, n_cases=3, sections=(("prelude", 1), ("a", 2)), sources=None, digest=None, **over):
-    """A clean fast record at `path` whose digest matches the working tree (hardware.py and this file as they are now), unless told otherwise."""
+def suite_file(path, n_cases=3, sections=(("prelude", 1), ("a", 2)), sources=None, digest=None, env=ENV, **over):
+    """A clean fast record at `path` whose digest matches the working tree (hardware.py and this file as they are now) and the interpreter, unless told otherwise."""
     if sources is None:
         sources = {r: cb.sr.file_sha(os.path.join(cb.ROOT, r)) for r in ("cad_b6/hardware.py", "cad_b6/test_budgets.py")}
     rec = dict(mode="fast", errors=[], short=[], counts=dict(BUDGETS["suite"]["counts"]), passed=n_cases, total=n_cases, wall_s=500.0, finished="t", workers=8,
-               sources=sources, digest=cb.sr.digest(sources) if digest is None else digest,
+               sources=sources, environment=env, digest=cb.sr.digest(sources, env) if digest is None else digest,
                sections=[dict(title=t, n_cases=n) for t, n in sections], cases=[dict(name=f"c{k}", ok=True, expected="", reported="") for k in range(n_cases)])
     rec.update(over)
     with open(path, "w") as fh:
@@ -79,30 +82,40 @@ def main():
     expect("organic layer of 2840 cm3 (3607 g of PETG, over 90 % of 4 kg) with a ratchet that would allow it: the stock limit fails",
            only(verdicts(figures(organic_cm3=2840.0), huge), "organic layer, PETG stock", cb.FAIL), True)
     for key, n in BUDGETS["suite"]["counts"].items():
-        over, inside = int(n * 1.1) + 1, int(n * 1.1)
-        expect(f"suite: {key} {over} against {n} recorded (over 10 %): fails", only(verdicts(figures(suite=suite_with(**{key: over}))), f"test suite, {key}", cb.FAIL), True)
-        expect(f"suite: {key} {inside} against {n} recorded (10 %): passes", only(verdicts(figures(suite=suite_with(**{key: inside}))), f"test suite, {key}", cb.PASS), True)
+        over, inside = cb.count_limit(n, 0.1) + 1, cb.count_limit(n, 0.1)
+        expect(f"suite: {key} {over} against {n} recorded (over its limit): fails", only(verdicts(figures(suite=suite_with(**{key: over}))), f"test suite, {key}", cb.FAIL), True)
+        expect(f"suite: {key} {inside} against {n} recorded (its limit): passes", only(verdicts(figures(suite=suite_with(**{key: inside}))), f"test suite, {key}", cb.PASS), True)
     slow = dict(suite_with(), wall_s=500.0 * 1.26)
     expect("suite 26 % slower than recorded: a warning, not a failure", only(verdicts(figures(suite=slow)), "test suite, wall time", cb.WARN), True)
     expect("suite 24 % slower: passes", only(verdicts(figures(suite=dict(suite_with(), wall_s=500.0 * 1.24))), "test suite, wall time", cb.PASS), True)
     expect("a count missing from the record fails (an operation the record no longer counts)",
            verdicts(figures(suite=dict(suite_with(), counts=dict(frame_builds=20, run_checks=200))))["test suite, cable_routings"], cb.FAIL)
 
-    # a figure under half its record is a wrong input, not a saving: it fails, alone
+    # a figure under its floor fails, alone: a count under its record (the suite did less work), a mass or a volume more than 5 % under it
     for key, n in BUDGETS["suite"]["counts"].items():
-        expect(f"suite: {key} 0 against {n} recorded: fails (a wrong input)", only(verdicts(figures(suite=suite_with(**{key: 0}))), f"test suite, {key}", cb.FAIL), True)
-    expect("suite: frame_builds 9 against 20 recorded (under half): fails", only(verdicts(figures(suite=suite_with(frame_builds=9))), "test suite, frame_builds", cb.FAIL), True)
-    expect("suite: frame_builds 10 against 20 recorded (half): passes", only(verdicts(figures(suite=suite_with(frame_builds=10))), "test suite, frame_builds", cb.PASS), True)
-    expect("organic layer of 0 cm3: the ratchet fails (a wrong input), the stock passes", only(verdicts(figures(organic_cm3=0.0)), "organic layer, ratchet", cb.FAIL), True)
-    expect("organic layer under half its record (849 cm3 against 1700): fails", only(verdicts(figures(organic_cm3=849.0)), "organic layer, ratchet", cb.FAIL), True)
-    expect("skeleton of 0 g: the ratchet fails (a wrong input)", only(verdicts(figures(skeleton_abs_g=0.0)), "skeleton ABS, ratchet", cb.FAIL), True)
-    expect("the failure under half says it is a wrong input", "wrong input" in next(r[7] for r in cb.judge(figures(organic_cm3=0.0), BUDGETS, ABS_STOCK, RHO) if r[1] == "organic layer, ratchet"), True)
-    # small counts: the limit is n x 1.1 rounded down, and the line says so
-    expect("count limits: 9 allows 9, 2 allows 2, 20 allows 22, 122 allows 134", [cb.count_limit(n, 0.1) for n in (9, 2, 20, 122)], [9, 2, 22, 134])
+        expect(f"suite: {key} 0 against {n} recorded: fails", only(verdicts(figures(suite=suite_with(**{key: 0}))), f"test suite, {key}", cb.FAIL), True)
+        expect(f"suite: {key} {n - 1}, one under its recorded {n}: fails", only(verdicts(figures(suite=suite_with(**{key: n - 1}))), f"test suite, {key}", cb.FAIL), True)
+        expect(f"suite: {key} {n}, exactly its record: passes", only(verdicts(figures(suite=suite_with(**{key: n}))), f"test suite, {key}", cb.PASS), True)
+    expect("the failure of a count under its record says the suite did less work and how to record a saving that is meant",
+           next(r[7] for r in cb.judge(figures(suite=suite_with(run_checks=199)), BUDGETS, ABS_STOCK, RHO) if r[1] == "test suite, run_checks").startswith(
+               "under its recorded 200: the suite did less work than its record") and "--write --accept-lower" in next(
+               r[7] for r in cb.judge(figures(suite=suite_with(run_checks=199)), BUDGETS, ABS_STOCK, RHO) if r[1] == "test suite, run_checks"), True)
+    for label, key, rec_ in (("skeleton", "skeleton_abs_g", 1600.0), ("organic layer", "organic_cm3", 1700.0)):
+        line = "skeleton ABS, ratchet" if key == "skeleton_abs_g" else "organic layer, ratchet"
+        expect(f"{label} at 96 % of its record: passes", only(verdicts(figures(**{key: 0.96 * rec_})), line, cb.PASS), True)
+        expect(f"{label} at exactly 95 % of its record (the floor): passes", only(verdicts(figures(**{key: 0.95 * rec_})), line, cb.PASS), True)
+        expect(f"{label} at 94 % of its record: fails", only(verdicts(figures(**{key: 0.94 * rec_})), line, cb.FAIL), True)
+        expect(f"{label} of 0: fails", only(verdicts(figures(**{key: 0.0})), line, cb.FAIL), True)
+    expect("the failure of a mass under its floor says it is a wrong input until a saving is recorded on purpose",
+           "wrong input" in next(r[7] for r in cb.judge(figures(organic_cm3=0.0), BUDGETS, ABS_STOCK, RHO) if r[1] == "organic layer, ratchet"), True)
+    # the count's limit: n x 1.1 rounded down, never under n + 1, and the line says so
+    expect("count limits: 0 allows 1, 2 allows 3, 6 allows 7, 9 allows 10, 12 allows 13, 20 allows 22, 122 allows 134",
+           [cb.count_limit(n, 0.1) for n in (0, 2, 6, 9, 12, 20, 122)], [1, 3, 7, 10, 13, 22, 134])
     small = dict(BUDGETS, suite=dict(BUDGETS["suite"], counts=dict(BUDGETS["suite"]["counts"], frame_builds=9)))
-    expect("9 frame builds recorded, 10 run: fails", only(verdicts(figures(suite=suite_with(frame_builds=10)), small), "test suite, frame_builds", cb.FAIL), True)
-    expect("the line of a count states its rounded limit", "limit 9 (+ 10 % rounded down)" in next(r[7] for r in cb.judge(figures(suite=suite_with(frame_builds=9)), small, ABS_STOCK, RHO)
-                                                                                                  if r[1] == "test suite, frame_builds"), True)
+    expect("9 frame builds recorded, 10 run (one more): passes", only(verdicts(figures(suite=suite_with(frame_builds=10)), small), "test suite, frame_builds", cb.PASS), True)
+    expect("9 frame builds recorded, 11 run: fails", only(verdicts(figures(suite=suite_with(frame_builds=11)), small), "test suite, frame_builds", cb.FAIL), True)
+    expect("the line of a count states its limit and floor", "recorded 9, limit 10 (the larger of + 1 and + 10 % rounded down), floor 9" in next(
+        r[7] for r in cb.judge(figures(suite=suite_with(frame_builds=9)), small, ABS_STOCK, RHO) if r[1] == "test suite, frame_builds"), True)
 
     expect("a budget file with no counts recorded fails (nothing would gate the suite)",
            verdicts(figures(), dict(BUDGETS, suite=dict(BUDGETS["suite"], counts={})))["test suite, counts"], cb.FAIL)
@@ -134,6 +147,26 @@ def main():
         expect("a digest that does not match the record's own list: refused", (got, "digest" in str(why)), (None, True))
         got, why = cb.read_suite(suite_file(rec, sources={}), pinned=3)
         expect("a record without a digest (written before digests): refused", (got, "digest" in str(why)), (None, True))
+        # the packages and the Python the record ran
+        old_cq = dict(ENV, packages=dict(ENV["packages"], cadquery="0.0.1"))
+        got, why = cb.read_suite(suite_file(rec, env=old_cq), pinned=3)
+        expect("a record of another cadquery (0.0.1 then): refused, the reason names the package and both versions",
+               (got, "other packages" in str(why) and f"cadquery 0.0.1 then, {ENV['packages']['cadquery']} now" in str(why)), (None, True))
+        got, why = cb.read_suite(suite_file(rec, env=dict(ENV, packages=dict(ENV["packages"], no_such_distribution="1.0"))), pinned=3)
+        expect("a record of a package not installed now: refused", (got, "no_such_distribution 1.0 then, not installed now" in str(why)), (None, True))
+        got, why = cb.read_suite(suite_file(rec, env=dict(ENV, python="2.7.18")), pinned=3)
+        expect("a record of another Python (2.7.18): refused", (got, "python 2.7.18 then" in str(why)), (None, True))
+        got, why = cb.read_suite(suite_file(rec, env=None), pinned=3)
+        expect("a record without the environment (written before this review): refused", (got, "packages" in str(why)), (None, True))
+        rec_env = suite_file(rec)
+        with open(rec_env, encoding="utf-8") as fh:
+            tampered = json.load(fh)
+        tampered["environment"]["packages"]["numpy"] = "0.0.1"
+        with open(rec_env, "w", encoding="utf-8") as fh:
+            json.dump(tampered, fh)
+        got, why = cb.read_suite(rec_env, pinned=3)
+        expect("a record whose environment was edited after its digest: refused by the digest", (got, "does not match" in str(why)), (None, True))
+        expect("the environment found from a module name: OCP is cadquery-ocp's", "cadquery-ocp" in cb.sr.environment({"OCP"})["packages"], True)
         got, why = cb.read_suite(suite_file(rec, n_cases=2, sections=(("prelude", 1), ("a", 1))), pinned=3)
         expect("too few cases (2, EXPECTED_CASES 3): refused", (got, "2 cases recorded, EXPECTED_CASES is 3" in str(why)), (None, True))
         got, why = cb.read_suite(suite_file(rec, sections=(("prelude", 1), ("a", 2), ("emptied", 0))), pinned=3)
@@ -177,6 +210,32 @@ def main():
         with open(bw) as fh:
             expect("--write with every figure inside the hard limits records them", json.load(fh)["skeleton_abs_g"]["figure"], 1600.0)
 
+        # --write never records a figure under its floor by accident
+        def try_write(fig, accept_lower=False):
+            with open(bw, "w") as fh:
+                json.dump(BUDGETS, fh)
+            try:
+                new, low = cb.write(fig, BUDGETS, bw, ABS_STOCK, RHO, accept_lower=accept_lower)
+                why = None
+            except SystemExit as e:
+                new, low, why = None, None, str(e)
+            with open(bw) as fh:
+                return why, json.load(fh), low
+        why, now, _ = try_write(figures(organic_cm3=0.94 * 1700.0, suite_why=None))
+        expect("--write with the organic layer at 94 % of its record: refused, says why and how, budgets.json as it was",
+               ("under its floor" in str(why) and "organic layer, ratchet" in str(why) and "--accept-lower" in str(why), now), (True, BUDGETS))
+        why, now, _ = try_write(figures(suite=suite_with(run_checks=199), suite_why=None))
+        expect("--write with run_checks 199 against 200 recorded: refused, budgets.json as it was",
+               ("test suite, run_checks 199 under its floor 200" in str(why), now), (True, BUDGETS))
+        why, now, low = try_write(figures(organic_cm3=800.0, suite=suite_with(run_checks=199), suite_why=None), accept_lower=True)
+        expect("--write --accept-lower with both: recorded, and the lower figures are named",
+               (why, now["organic_cm3"]["figure"], now["suite"]["counts"]["run_checks"], sorted(x[0] for x in low)),
+               (None, 800.0, 199, ["organic layer, ratchet", "test suite, run_checks"]))
+        why, now, low = try_write(figures(organic_cm3=0.96 * 1700.0, suite_why=None))
+        expect("--write with the organic layer at 96 % (inside its floor): recorded without the flag", (why, now["organic_cm3"]["figure"], low), (None, round(0.96 * 1700.0, 1), []))
+        why, now, _ = try_write(figures(suite=dict(suite_with(), counts=dict(frame_builds=20, run_checks=200)), suite_why=None))
+        expect("--write with a record that lacks a count budgets.json holds: refused (the gate would be dropped)", ("no count 'cable_routings'" in str(why), now), (True, BUDGETS))
+
         v = verdicts(figures(organic_cm3=None, suite=None))
         expect("no field: both organic budgets fail", (v["organic layer, ratchet"], v["organic layer, PETG stock"]), (cb.FAIL, cb.FAIL))
         expect("no suite record: every suite budget fails, the wall time too", {k: x for k, x in v.items() if k.startswith("test suite")},
@@ -198,6 +257,13 @@ def main():
         with open(bpath) as fh:
             expect("--write with inputs missing is refused and leaves budgets.json as it was", (refused, json.load(fh)), (True, BUDGETS))
         expect("the output says which lines are gates and which a warning", "[gate]" in out.getvalue() and "[warning]" in out.getvalue(), True)
+        try:
+            with contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(io.StringIO()):
+                cb.main(["--accept-lower", "--budgets", bpath, "--field", nofield, "--suite", nosuite], skeleton=lambda: 1600.0)
+            code = 0
+        except SystemExit as e:
+            code = e.code
+        expect("--accept-lower without --write is an error", code, 2)
 
     bad = RESULTS.count(False)
     print(f"\n{len(RESULTS) - bad}/{len(RESULTS)} as expected: {'PASS' if not bad else 'FAIL'}")

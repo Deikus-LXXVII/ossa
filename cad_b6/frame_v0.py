@@ -2112,6 +2112,12 @@ def span_numbers():
     return (SPAN_STEP, SPAN_MARGIN)
 
 
+def frame_numbers():
+    """The board frame as it is now: what hw.bp, hw.bp_yz, hw.bs_of, hw.to_board and un_of read at call time. Every memo key whose measurement goes
+    through one of them carries these (hw.U_DIR and hw.N_DIR are tuples computed at import, so they do not show a changed hw.C or hw.ORIGIN)."""
+    return (tuple(hw.ORIGIN), hw.C, hw.TILT_DEG, tuple(hw.U_DIR), tuple(hw.N_DIR))
+
+
 def inter_vol(a, b):
     """Volume of a x b in mm^3. Raises BooleanFailure when the answer cannot be trusted:
     intersect() raised, or it found nothing for two shapes whose boxes overlap and that are not
@@ -2478,10 +2484,11 @@ _NMAX: dict = {}
 def part_n_max(p):
     """Highest board-space n of a part (the solid expressed in board space). Cached per solid object, which stays
     referenced by the cache so its id cannot be reused."""
-    hit = _NMAX.get(id(p.solid))
+    key = (id(p.solid),) + frame_numbers()       # hw.to_board reads the frame
+    hit = _NMAX.get(key)
     if hit is None or hit[0] is not p.solid:
         hit = (p.solid, float(exact_box(hw.to_board(p.solid))[5]))
-        _NMAX[id(p.solid)] = hit
+        _NMAX[key] = hit
     return hit[1]
 
 
@@ -2740,10 +2747,11 @@ SHADOW_FAN = {"hose_guide_cpu": "fan_side_left"}      # the parts that may stand
 _SHADOW_TUBES: dict = {}
 
 
-def projection_mask(shape, window, res=SHADOW_RES):
+def projection_mask(shape, window, res=None):
     """Boolean image (rows = n, columns = u) of the pixels of `window` = (u0, u1, n0, n1) that `shape`'s projection along X covers, in board space: the shape is tessellated and every
     triangle filled. The boundary pixels count, so an area read from it is a little over the true one (by about half a pixel along the outline: under 0.1 % of the circle here)."""
     from PIL import Image, ImageDraw
+    res = SHADOW_RES if res is None else res       # read at call time, as guide_shadow's cache key and its pixel centres read it
     u0, u1, n0, n1 = window
     w, h = int(math.ceil((u1 - u0) / res)), int(math.ceil((n1 - n0) / res))
     img = Image.new("1", (w, h), 0)
@@ -2761,7 +2769,7 @@ def guide_shadow(solid, fan, tubes):
     cu, cn = hw.FAN_CENTRE_UN
     r = hw.FAN_APERTURE_D / 2
     window = (cu - r - 1.0, cu + r + 1.0, cn - r - 1.0, cn + r + 1.0)
-    key = (round(cu, 3), round(cn, 3))
+    key = (round(cu, 3), round(cn, 3), r, SHADOW_RES) + frame_numbers()       # projection_mask reads the frame (hw.bs_of)
     if key not in _SHADOW_TUBES or _SHADOW_TUBES[key][0] is not tubes[0]:
         _SHADOW_TUBES[key] = (tubes[0], np.logical_or.reduce([projection_mask(t, window) for t in tubes]))
     hoses_mask = _SHADOW_TUBES[key][1]
@@ -3004,10 +3012,11 @@ MIN_WEB = 2.0              # nothing of an antler may be narrower than this, mea
 WEB_RES = 0.1              # mm per pixel of that section; the radius found is good to about one pixel, so a failure is a web under MIN_WEB - 0.1
 
 
-def web_section(solid, res=WEB_RES):
+def web_section(solid, res=None):
     """The section of `solid` by the plane through the plate's middle (u = ANTLER_U mid), rasterised in (X, n): (mask, xs, ns, res)."""
     import trimesh
     from matplotlib.path import Path
+    res = WEB_RES if res is None else res       # read at call time, as the memo key reads it (a default would keep the value at import)
     vs, fs = tessellate(solid, 0.05)
     mesh = trimesh.Trimesh(vs, fs, process=False)
     sec = mesh.section(plane_origin=np.array(hw.bp(0.0, sum(ANTLER_U) / 2.0, 0.0)), plane_normal=np.array(hw.U_DIR))
@@ -3099,7 +3108,7 @@ def check_420_plates(parts, failures, memo=None):
     for p in parts:
         if p.name.startswith("antler"):
             w, xr, nr = _guard(failures, "CHECK14", f"{p.name} narrowest web", memo_call, memo, (p.blank if p.blank is not None else p.solid,), "web", narrowest_web,
-                               p.blank if p.blank is not None else p.solid, extra=(tuple(ANTLER_U), tuple(hw.U_DIR), WEB_RES)) or (float("nan"), None, None)
+                               p.blank if p.blank is not None else p.solid, extra=(tuple(ANTLER_U), WEB_RES) + frame_numbers()) or (float("nan"), None, None)
             out["webs"].append((p.name, w, xr, nr))
             if w < MIN_WEB - 0.1:
                 failures.append(f"CHECK14 {p.name} has a web {w:.2f} mm wide at |X| {abs(xr[0]):.1f}..{abs(xr[1]):.1f}, n {nr[0]:.1f}..{nr[1]:.1f}: nothing of the plate may be narrower than {MIN_WEB:g} mm")
@@ -3179,9 +3188,10 @@ _REF_SHARP: dict = {}
 
 def ref_sharp(name):
     """Number of sharp outline corners on the unrounded part."""
-    if name not in _REF_SHARP:
-        _REF_SHARP[name] = len(rd.sharp_axial_edges(reference_parts()[name].solid, plate_axes(name), accept=plate_accept(name), caps=False))
-    return _REF_SHARP[name]
+    key = sharp_numbers(name)                   # not the name alone: plate_accept reads the frame and the plate's numbers
+    if key not in _REF_SHARP:
+        _REF_SHARP[key] = len(rd.sharp_axial_edges(reference_parts()[name].solid, plate_axes(name), accept=plate_accept(name), caps=False))
+    return _REF_SHARP[key]
 
 
 def log_reason(p, y, z):
@@ -3208,9 +3218,10 @@ def reason_class(text):
 
 
 def sharp_numbers(name):
-    """What sharp_axial_edges reads for plate `name` besides its solid: the plate's axes, the numbers its filter (plate_accept) reads, the angle that makes an edge sharp."""
+    """What sharp_axial_edges reads for plate `name` besides its solid: the plate's axes, the numbers its filter (plate_accept) reads, the angle that makes an edge sharp,
+    and the board frame (plate_accept places an edge with un_of)."""
     axes = plate_axes(name)
-    return (name, None if axes is None else tuple(map(tuple, axes)), tuple(TONGUE_X), tuple(TONGUE_N), NECK_X[0], ARM_NOTCH_X, rd.SHARP_DEG)
+    return (name, None if axes is None else tuple(map(tuple, axes)), tuple(TONGUE_X), tuple(TONGUE_N), NECK_X[0], ARM_NOTCH_X, rd.SHARP_DEG) + frame_numbers()
 
 
 def classify_corners(p, others, memo=None):
