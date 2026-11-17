@@ -2,7 +2,7 @@
 
 Ossa is an open, 3D-printed PC case for a liquid-cooled build, modelled as CadQuery scripts. A rigid plate skeleton holds every component. An organic outer layer of bones and thread-like films is decoration fixed to that skeleton and carries nothing.
 
-This is a design study. Nothing has been printed yet.
+This is a design study. Some fit gauges have been printed and tried; no case part has been printed yet.
 
 | Skeleton with hardware | Organic layer (sketch) |
 |---|---|
@@ -16,11 +16,13 @@ The current layout is called B6.
 - The graphics card's 360 mm radiator lies parallel to the board, above it.
 - The CPU's 420 mm radiator stands at 90° to the board, behind its top edge.
 - Neither pump is the highest point of its loop. That was the reason for the layout.
-- Radiator fans sit on the outside and blow in. Two 140 mm fans on the flanks exhaust.
+- Radiator fans sit on the outside and blow in. Two 140 mm fans stand on the flanks, outside the radiators' ends since revision 13 (|X| 235..260), and exhaust.
 - The power supply sits under the board. A sill at the front holds the I/O module and a light line.
 - Both hose pairs run inside the envelope, so nothing sticks out to snag.
 
-The envelope is about 460 × 385 × 405 mm (width × depth × height). Every printed part is 290 mm or shorter, to fit a 300 mm printer bed.
+The case is 520.0 mm wide, 382.0 mm deep and 400.0 mm high. The skeleton itself stays inside |X| 229; the side-fan brackets reach the fans' inner face at |X| 235. Every printed part is 290 mm or shorter, to fit a 300 mm printer bed.
+
+The skeleton is 37 printed parts: 3224 cm³, 3356 g solid, ~1754 g at 4 walls and 20 % infill. The organic layer is a separate solid, counted in its own report. Revision 14a made the card's right-hand rest (`gpu_rest`) and the front I/O module's carrier (`front_io_carrier`) separate small parts, and put the CPU hose clip on the left fan's free corner.
 
 | Component | Model |
 |---|---|
@@ -59,11 +61,18 @@ python3 -m venv .venv
 
 .venv/bin/python cad_b6/frame_v0.py      # build, run every check, write the report and STEP
 .venv/bin/python cad_b6/test_checks.py   # prove the checks bite
+.venv/bin/python cad_b6/test_properties.py  # property tests of the helper functions; ends PASS (a known failure is listed, not hidden)
+.venv/bin/python cad_b6/test_organic.py  # the organic layer's checks fail when the field is damaged
+.venv/bin/python cad_b6/zone_access.py   # plug zones free; bundles 52 mm and 72 mm, and 52 mm and 56 mm with the layer; a hand, 50 mm without the layer and 44 mm with it
+.venv/bin/python cad_b6/parts_manifest.py --expect <parts>  # exit 1 names any part or hardware solid that changed outside the list
 .venv/bin/python cad_b6/render_vtk.py    # previews/b6_v0_*.png
 .venv/bin/python cad_b6/render_full.py   # previews/b6_full_*.png, the whole design
 .venv/bin/python cad_b6/render_blender.py # meshes for the Blender render (cad_b6/blender_scene.py, previews/b6_render_*.png)
-.venv/bin/python cad_b6/strength.py 7 2  # strength and plastic, about 7 minutes
+.venv/bin/python cad_b6/organic_strength.py  # a 30 N push on the layer; exits with an error if a push is over the allowable stress or the layer moves more than 5 mm
+.venv/bin/python cad_b6/strength.py 7 2  # strength and plastic, about 3.5 minutes on Apple silicon (Accelerate through the macldlt package)
 ```
+
+`cad_b6/parts_manifest.py --write` rewrites `cad_b6/parts_manifest.json`. Use it only in the commit that carries the revision, after its table has been read.
 
 Run them from the repository root.
 
@@ -99,11 +108,17 @@ A separate check keeps each contact face at 97 % of its area or more after round
 
 ## Not done yet
 
-- The front I/O module is a placeholder until the real module is measured.
-- The organic layer has fixings and checks, but no print split yet. Its surface is still lumpy and it has no rear panel.
-- External cables cannot be plugged in yet: the left side fan stands 58 mm in front of the board's rear connectors and the card's end post covers its video outputs (`docs/plans/external-cables.md`).
-- Cable routes are drawn and checked, and eleven tie points for hook-and-loop straps shape them. The graphics card's power cable stands about 10 mm in front of the front plane, which the owner accepted.
-- No test prints yet. The fit gauges and coupons are ready to print (`docs/fit-gauges-check-sheet.ru.md`).
+- The rear panel of the organic layer round the PSU.
+- The layer's lumpy surface.
+- The split of the layer into pieces that fit the 290 mm bed.
+- The print test of the layer in PETG against ABS: the trial piece exists (`cad_b6/organic_trial.py` writes `out/organic/trial_base_mid_R.stl`), it has not been printed.
+- The front I/O module's real dimensions.
+- The heat-set insert's real diameter and length.
+- The second pass of the fit gauges with the PC apart (G1, G2, G3, G4a, G4b) and the coupons C1 and C2.
+- The owner's decision on the hand's access against closed fan rings (`docs/plans/cables-and-organic.md`, "second pass: result").
+- A faster test suite and budgets (in work).
+- The Blender pictures (stale since revision 13).
+- Cable routes are drawn and checked, and eleven tie points for hook-and-loop straps shape them. The graphics card's power cable stands 10.4 mm in front of the front plane, which the owner accepted, up to 11 mm.
 
 ## Working with coding agents
 
