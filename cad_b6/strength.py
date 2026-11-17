@@ -67,7 +67,7 @@ REPORT_WHY = ("Допустимое напряжение пластин пров
               "чего настоящий радиатор не допускает. Это поправка модели нагрузки, не послабление допуска: допустимое то же.")
 
 # --- loads, kg (see docs/plans and the hardware reports; rounded up) ----------
-KG = dict(board=1.0, cpu_block=0.45, ram_ssd=0.2, card=1.6, rad360=1.3, rad420=1.9, psu=3.2, fan140=frame_v0.FAN_KG)
+KG = dict(board=1.0, cpu_block=0.45, ram_ssd=0.2, card=frame_v0.CARD_KG, rad360=1.3, rad420=1.9, psu=3.2, fan140=frame_v0.FAN_KG)      # revision 14a: the card's mass lives in frame_v0.py, whose hand calculation of gpu_rest uses it
 U_DIR = np.array([0.0, math.sqrt(0.5), math.sqrt(0.5)])
 N_DIR = np.array([0.0, -math.sqrt(0.5), math.sqrt(0.5)])
 DOWN = np.array([0.0, 0.0, -1.0])
@@ -75,7 +75,9 @@ DOWN = np.array([0.0, 0.0, -1.0])
 
 def structural_parts():
     parts, _ = frame_v0.build_frame()
-    return [p for p in parts if not p.name.startswith("hose_guide")]
+    # revision 14a: front_io_carrier hangs from the sill's end blocks on four screws with 0.3 mm of play all round and touches nothing: as a body in the bonded mesh it would be free (no support,
+    # a singular system), and it carries no load of the skeleton (the module's weight is not in the model's loads)
+    return [p for p in parts if not p.name.startswith("hose_guide") and p.name != "front_io_carrier"]
 
 
 # ---------------------------------------------------------------------------

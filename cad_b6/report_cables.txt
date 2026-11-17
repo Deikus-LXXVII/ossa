@@ -20,10 +20,10 @@ per route: every clearance under 10 mm, and every failed check
   EPS 1            hw:board (route without the plug's descent) 3.5; hw:dimms 4.0; hw:rad420 4.0; rib_A_right 4.5; rib_B_right 4.5; hw:atx24 7.1; hw:psu (route after its socket leg) 8.0
   EPS 2            hw:board (route without the plug's descent) 3.5; hw:dimms 3.5; hw:psu (route after its socket leg) 3.6; beam_top 3.9; hw:rad420 4.0; tie_bridge_skid_1 4.3; rib_A_right 4.5; rib_B_right 4.5; tie_bridge_top_2 7.4
   USB 3 front      beam_mid 3.5; tie_bridge_low_2 4.0; hw:board (route without the plug's descent) 5.5; tie_bridge_low_1 5.5; rib_A_right 6.5; front_sill 6.6; tie_bridge_mid_3 8.2; beam_low 8.5; tie_bridge_leg_2 8.7
-  USB-C front      hw:gpu (from n 11 up) 3.0; hw:board (route without the plug's descent) 3.4; rib_A_right 4.4; tie_bridge_low_2 4.5; front_sill 6.6; fan_bracket_right 7.3; beam_low 9.3
-  Power switch     front_sill 4.2
-  Light line       front_sill 4.3; hw:front_io 9.7
-  Audio            front_sill 3.8; hw:board (route without the plug's descent) 8.7
+  USB-C front      hw:gpu (from n 11 up) 3.0; hw:board (route without the plug's descent) 3.4; gpu_rest 4.4; tie_bridge_low_2 4.5; rib_A_right 5.9; front_sill 6.6; fan_bracket_right 7.3; beam_low 9.3
+  Power switch     front_sill 4.2; front_io_carrier 7.7
+  Light line       front_sill 4.3; front_io_carrier 7.8; hw:front_io 9.7
+  Audio            front_sill 3.8; front_io_carrier 8.0; hw:board (route without the plug's descent) 8.7
   Pump / 420 fans  hw:dimms 3.5; hw:rad420 9.0; hw:atx24 9.7
   Right side fan   neck_right 4.6; hw:gpu_hoses 7.3
   Left side fan    hw:gpu 6.4
@@ -44,11 +44,11 @@ Socket numbers and assumptions used
 
 What the skeleton has to provide (coordinates only; item 1 is built, nothing else is cut)
 
-1. The sill's cable window: BUILT (frame_v0.py, front_sill). PLACEHOLDER like the module: X 40..90, Z 14..46 through the rear wall (Y 42.4..47.4), corners R 8, given as offsets from hw.FRONT_IO_W. The USB cables start on the module's rear face (Y 42) and pass through it:
+1. The sill's cable window: BUILT (frame_v0.py, front_sill). PLACEHOLDER like the module: X 40..90, Z 14..46 through the rear wall (Y 44.5..47.4), corners R 8, given as offsets from hw.FRONT_IO_W. The USB cables start on the module's rear face (Y 42) and pass through it:
    USB 3 front      starts at world (60, 42, 30) board (182, -13, 13); its first stretch (u < 16, where it passes the sill and the board's bottom edge) is 6.57 mm from the sill and 5.55 mm from the board (3 wanted)
    USB-C front      starts at world (70, 42, 30) board (192, -13, 13); its first stretch (u < 16, where it passes the sill and the board's bottom edge) is 6.57 mm from the sill and 5.56 mm from the board (3 wanted)
    Power switch (X 82) and audio (X 48) lie inside the window's X range but start behind the rear face (Y 55) and do not use it. The light line's lead needs no window: the light channel is open through both ends of the sill.
-2. Rail notch: none. No route comes within 3 mm of the ribs; the USB-C cable, which passes over the rail in the board's plane (n 4), is 4.4 mm from rib_A_right at the closest.
+2. Rail notch: none. No route comes within 3 mm of the ribs; the USB-C cable, which passes over the rail in the board's plane (n 4), is 5.9 mm from rib_A_right at the closest.
 3. Proposed clip points (where a cable changes direction under the board, and where it enters the gap), arc midpoints of each bend under the board (n < -2):
    ATX 24-pin:
       148 deg, R 30.0: world (47, 136, 34) board (169, 57, -51)

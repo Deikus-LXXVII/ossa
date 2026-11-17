@@ -19,6 +19,7 @@ import os
 import sys
 from dataclasses import dataclass, field
 
+import numpy as np
 import cadquery as cq                      # before vtk: with vtk imported first OCC booleans run about 10 times slower
 from cadquery import Solid, Vector
 
@@ -540,23 +541,28 @@ def build_c2():
 
 
 def build_c3(parts_by_name):
+    """The hose clip coupon: the slice of hose_guide_cpu round the channel of the nearer hose (revision 14a: the guide is a comb on the left fan's corner D, its shelves are no longer square to u).
+    The slice is the comb's strip across that channel: all of X, 2 x (channel radius + rim) across the hose, C3_LEN along it, cut in a frame at the channel's crossing (x' across the hose, y' along it,
+    z' towards the mouth). Printed with the face that lies on the fan down and the channel horizontal, the mouth up."""
     part = parts_by_name["hose_guide_cpu"]
-    (_, _), centres, _, _ = fv.guide_cpu_geometry()
+    g = fv.guide_cpu_geometry()
+    p, d, _ = fv.hose_at("cpu", 1, g["u"][1])
+    d_in = float(hw.FAN_SIDE_IN[fv.GUIDE_CPU_FAN])
+    xh = np.array([d_in, 0.0, 0.0])
+    w = np.cross(d, xh)
+    w /= np.linalg.norm(w)
+    loc = cq.Location(cq.Plane(origin=tuple(float(c) for c in p), xDir=tuple(float(c) for c in w), normal=tuple(float(c) for c in xh)))
     r_ch = hw.CPU_HOSE_R + fv.GUIDE_PLAY
-    n_c = centres[0][2]
-    n0, n1 = n_c - r_ch - fv.GUIDE_RIM, n_c + r_ch + fv.GUIDE_RIM          # the first shelf's own n range
-    u0 = fv.GUIDE_CPU_FOOT_U[0]
-    box = hw.bs_box(-1000.0, 1000.0, u0, u0 + C3_LEN, n0, n1)
+    half = r_ch + fv.GUIDE_RIM
+    box = Solid.makeBox(2 * half, C3_LEN, 80.0, Vector(-half, -C3_LEN / 2, -40.0)).moved(loc)
     sl = one_solid(part.solid.intersect(box), "C3 slice")
-    rem = part.solid.Volume()
-    board = hw.to_board(sl)                                              # (v, u, n) as (x, y, z)
-    out = board.rotate(Vector(0, 0, 0), Vector(0, 1, 0), 90.0)           # x' = n, y' = u, z' = -v: the face on the neck down, the shelf standing up
+    out = sl.moved(loc.inverse)                                         # x' = across the hose, y' = along it, z' = towards the mouth (+X for the left fan)
     bb = out.BoundingBox()
     out = out.translate(Vector(-bb.xmin, -bb.ymin, -bb.zmin))
     it = Item("C3_hose_clip", "C3 hose_clip", "PA6", one_solid(out, "C3"), None, (), [])
     it.slice = sl
-    it.notes.append(f"slice of hose_guide_cpu: first shelf (n {n0:.2f}..{n1:.2f}) over u {u0:g}..{u0 + C3_LEN:g}; the shelf itself is only {fv.GUIDE_LEN:g} mm long along the hose, the rest of the slice is the foot; "
-                    "turned so the face on the neck lies on the bed and the shelf stands up, the channel horizontal with its mouth up; no engraving (the part's own shape)")
+    it.notes.append(f"slice of hose_guide_cpu: the comb's strip {2 * half:g} across the nearer hose's channel (hose 1, u {g['u'][1]:.1f}) and {C3_LEN:g} along the hose, all of X; the comb itself is only {fv.GUIDE_CPU_W:g} mm wide along the hose; "
+                    "turned so the face that lies on the fan is on the bed and the channel horizontal with its mouth up; no engraving (the part's own shape)")
     return it
 
 
@@ -644,10 +650,12 @@ def coupon_checks(items: dict, parts_by_name: dict):
     c3 = items["C3"]
     part = parts_by_name["hose_guide_cpu"]
     r_ch = hw.CPU_HOSE_R + fv.GUIDE_PLAY
-    cyl_r = sorted({round(e.radius(), 4) for e in c3.slice.Edges() if e.geomType() == "CIRCLE"})
+    # revision 14a: the comb's side faces are not square to the channel, so the channel ends in ellipses and the slice has no circular edge; the channel's radius is read off its cylindrical faces instead
+    from OCP.BRepAdaptor import BRepAdaptor_Surface
+    cyl_r = sorted({round(BRepAdaptor_Surface(f_.wrapped).Cylinder().Radius(), 4) for f_ in c3.slice.Faces() if f_.geomType() == "CYLINDER"})
     same_vol = abs(c3.solid.Volume() - c3.slice.Volume()) < 1e-3
     c3.checks.append((same_vol and any(abs(r - r_ch) < 1e-3 for r in cyl_r),
-                      f"slice volume {c3.slice.Volume():.1f} mm3 (of the part's {part.solid.Volume():.1f}), channel radius in the slice {r_ch:g} = CPU_HOSE_R + GUIDE_PLAY: circle radii {cyl_r}; turned copy has the same volume: {same_vol}"))
+                      f"slice volume {c3.slice.Volume():.1f} mm3 (of the part's {part.solid.Volume():.1f}), channel radius in the slice {r_ch:g} = CPU_HOSE_R + GUIDE_PLAY: cylinder radii {cyl_r}; turned copy has the same volume: {same_vol}"))
 
 
 # ---------------------------------------------------------------------------

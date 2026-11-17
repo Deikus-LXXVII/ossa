@@ -312,7 +312,7 @@ ENVELOPE_X = float(RAD420_BS[1] - RAD420_BS[0]) / 2          # 229
 # Revision 13: the side fans stand beyond the radiators' ends, so for the fans, their brackets and their own leads the limit is the fans' outer face. Everything else
 # (the skeleton, the hoses, the other cables) keeps ENVELOPE_X.
 ENVELOPE_FAN_X = max(abs(x) for xs in FAN_SIDE_X.values() for x in xs)      # 260
-FAN_SIDE_PARTS = ("fan_bracket_left", "fan_bracket_right")                    # the printed parts that may stand out to ENVELOPE_FAN_X
+FAN_SIDE_PARTS = ("fan_bracket_left", "fan_bracket_right", "hose_guide_cpu")      # the printed parts that may stand out to ENVELOPE_FAN_X (revision 14a: the CPU hose guide stands on the left fan's inner face, |X| 235)
 FAN_SIDE_CABLES = ("fan_left", "fan_right")                                  # the cables that may (cables.py)
 ENVELOPE_Y0 = 0.0                                            # the front plane (it was the front fans' face until revision 7)
 # Revision 6: no frame part may rise above the 420's top edge. The 420 stands at 45 deg, so "above" is meant in board space:
@@ -473,7 +473,8 @@ SLAB_BEND = 15.0
 # (docs/plans/cables-and-organic.md, "Skeleton pass 1"). name -> (part name, centre of the pad = the mouth of the insert pilot on the part's
 # outer face, world (X, Y, Z), sign along X of the face's outward normal). The pilot is cut by frame_v0.py along -sign * X into the part;
 # organic_frame.py puts its pads here and checks that each screw axis lies on a pilot. The rows are organic_frame.py's pads of the first
-# build, except neck_top_L, which moved (8, 8) from its target (216, 289) because the left neck's CPU hose guide has a pilot of its own there.
+# build, except neck_top_L, which moved (8, 8) from its target (216, 289) because the left neck's CPU hose guide had a pilot of its own there (revision 14a took the guide off the neck;
+# the pad stays where it is until the layer is redrawn in revision 14b).
 # ---------------------------------------------------------------------------
 ORGANIC_PADS = {
     "front_foot_R": ("rib_A_right", (158.0, 60.0, 12.0), +1),

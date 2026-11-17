@@ -14,6 +14,8 @@ material per part: ABS for the skeleton, PA6 for the two hose guides.
 Revision 12 puts every screw between printed parts on M3: an M3 socket head cap screw of the owner's kits into an M3 heat-set insert, a washer under the head
 (hardware.py has the stock, the pilot and the clearances; screw_fit picks the length; checks 15 and 16 measure it). The PSU's and the 360's own 6-32 screws stay,
 their heads in counterbores.
+Revision 14a makes three supports parts of their own, so that a misplaced one costs a small reprint: gpu_rest (the card's right-hand rest, screwed to rib_A_right), front_io_carrier (holds the front I/O module,
+screwed into front_sill, whose pocket follows the carrier's outside) and hose_guide_cpu (a comb on the left side fan's corner D, screwed through the fan).
 
 Run from the repo root:  .venv/bin/python cad_b6/frame_v0.py
 Out: cad_b6/report_frame_v0.txt, cad_b6/b6_frame_v0.step,
@@ -203,7 +205,7 @@ COLLAR = 4.0                                                # mm: a box member k
 ROUND_LOG: list = []                                        # rounding.Entry per corner / edge, reset by build_frame
 KEEP_SHARP: dict = {}                                       # part name -> [(y, z, reason)] corners declared sharp (a face that touches something)
 ROUND = None                                                # RoundCtx while a rounded frame is being built, else None
-_A_LAYER: dict = {}                                         # with_rest -> rib_A's outline prism, for rib_B's lap cut
+_A_LAYER: dict = {}                                         # right (True) / left (False) -> rib_A's outline prism, for rib_B's lap cut
 _CTX: dict = {}                                             # id(hardware) -> (hardware, RoundCtx)
 
 
@@ -528,20 +530,36 @@ def joint_pilots(org, d, stack, item, washer=True):
 # ---------------------------------------------------------------------------
 # Rib outlines (Y, Z)
 # ---------------------------------------------------------------------------
-P_DIAG0 = hw.bp_yz(-10, -20)
-P_DIAG1 = hw.bp_yz(280, -20)
+DIAG_N, DIAG_W = -20.0, 28.0            # the diagonal's axis along n and its width: n -34..-6, whose upper face is the flat seat of gpu_rest (revision 14a)
+P_DIAG0 = hw.bp_yz(-10, DIAG_N)
+P_DIAG1 = hw.bp_yz(280, DIAG_N)
 
 FOOT_W = 20.0
 SHAPE_A = [
     Cap((hw.ENVELOPE_Y0 + FOOT_W / 2, -5), (40, -5), FOOT_W),    # foot pad; the plan starts it at Y 8, which is 2 mm in front of the fans
     Cap((40, -5), P_DIAG0, 20),                      # web (deviation, see report)
-    Cap(P_DIAG0, P_DIAG1, 28),                       # diagonal under the board
+    Cap(P_DIAG0, P_DIAG1, DIAG_W),                   # diagonal under the board
     Cap((195, 136), (195, -3), 22),                  # mid leg
     Cap((188, -5), (212, -5), 20),                   # mid leg foot
 ]
-REST_W = 16.0           # gpu_rest finger width; its upper face is the card's lower face (u = GPU_BS[2])
+# Revision 14a: the card's right-hand rest is a part of its own, gpu_rest (ABS). It was a capsule 16 mm wide in rib_A_right's outline; it now stands on the diagonal's upper face (n DIAG_N + DIAG_W / 2,
+# the rib keeps a flat seat) and is screwed to the rib by two M3 along n, from the diagonal's underside, through plain clearance holes in the rib into inserts in the part. Its contact face with the card is
+# where it was: u = hw.GPU_BS[2], along n over the capsule's axis n REST_N_AXIS (literals, as before). The finger is REST_W wide (it was 16): the 20 N knock along X at its tip bent the 16 mm finger with a
+# margin of 1.93 (revision 14a, check 19); the extra width goes to lower u, away from the card, so the contact face and the USB-C riser's distance do not change.
+REST_W = 20.0           # the finger's width along u; its upper face is the card's lower face (u = GPU_BS[2])
 REST_U = hw.GPU_BS[2] - REST_W / 2
-SHAPE_A_REST = [Cap(hw.bp_yz(REST_U, -10), hw.bp_yz(REST_U, 104), REST_W)]   # gpu_rest, right only
+REST_N_AXIS = (-10.0, 104.0)                         # the capsule's axis along n (where the finger was), the round tip stands REST_W / 2 beyond the upper end
+REST_SEAT_N = DIAG_N + DIAG_W / 2                    # n of the diagonal's upper face: the foot of the part lies on it
+REST_X = (X_IN, X_OUT)                               # the part is as thick as the rib, and flush with both its faces
+REST_SCREW_DU = 5.0                                  # the two screws stand this far either side of the finger's middle, along u, on X = the rib's middle
+REST_SCREW_DU_LIST = (-REST_SCREW_DU, REST_SCREW_DU)
+REST_SCREW_V = hw.x_to_v((X_IN + X_OUT) / 2)
+# The head and its washer sit in a counterbore in the diagonal's underside, REST_CB_DEPTH deep: through the whole 28 mm of the diagonal no length of the owner's kit fits the 6.7 mm pilot (M3 x 35 would
+# enter 6.5, 0.3 over the limit, and the relief bore under it that screw_fit then asks for fails check 7's wall), through 25 mm M3 x 30 does (entry 4.5). The heads are flush with the underside, which has the
+# rail's tie bridges and the cables on it.
+REST_CB_DEPTH = 3.0
+REST_CB_D = hw.M3_WASHER_D + 0.8                     # the counterbore: the washer on its floor, 0.4 of play round it
+REST_STACK = DIAG_W - REST_CB_DEPTH                  # what a rest screw clamps: from the counterbore's floor to the seat
 
 # board beams: three rows, section n BEAM_N0..tray, half-width in u
 BEAM_N0 = -28.5
@@ -663,9 +681,17 @@ GUIDE_MOUTH = 0.75        # the open side is this x the hose diameter wide, so t
 GUIDE_RIM = 2.5           # material around a channel, in n
 GUIDE_WALL_MIN, GUIDE_WALL_MAX = 0.2, 0.5     # check 10: channel wall to the true hose, mm
 GUIDE_T = 10.0            # plate thickness on the neck / rib face
-GUIDE_CPU_U = (274.0, 274.0 + GUIDE_LEN)       # on the last straight run into the 420's port (its keep-out ends at u 288)
-GUIDE_CPU_FOOT_U = (272.0, 300.0)              # the foot reaches over the neck, which starts at u 284
-GUIDE_CPU_BOLT_U = 294.0
+# Revision 14a: the CPU hose guide is a comb on the left side fan's free corner D, holding both hoses where they pass the fan (they cross its open circle there, 6.4 mm from the fan's face).
+# One screw, M3 from the fan's outer face through the fan into an insert in the comb, like a bracket's ear. The comb is a bar from the screw's axis along a line through the nearer hose's crossing
+# (hose 1, board u GUIDE_CPU_U1, on its straight run, which ends at u 240.2: a shelf GUIDE_LEN long along the hose must stay on it) to the farther hose's (hose 0, where the line meets it),
+# GUIDE_CPU_W wide along the hoses and as thick as it takes to reach past the hoses' axes by a channel radius, from the fan's face (X -235) to the tip; two snap channels cut round the true hoses,
+# mouths towards +X (towards the board, away from the fan).
+GUIDE_CPU_FAN = "fan_side_left"
+GUIDE_CPU_CORNER = "D"                         # the fan's free corner: high u, high n (the brackets use A, B, C)
+GUIDE_CPU_U1 = 235.4                           # board u where the comb's line crosses the nearer hose (hose index 1): a vertex of its keep-out chain, where the tube is straight 3.6 mm either way (the route bends from u 240.2)
+GUIDE_CPU_W = GUIDE_LEN                        # the comb's width along the hoses: the shelf length of every guide
+GUIDE_CPU_REACH = 45.0                         # the farther channel's centre may be at most this far from the screw's axis (else the guide is not stretched: report)
+GUIDE_SHADOW_MAX = 400.0                       # mm2: what the guide's projection along X may cover inside the fan's open circle outside the two hoses' own projection (3 % of the circle)
 GUIDE_GPU_U = (166.0, 166.0 + GUIDE_LEN)       # on the up-slope run behind the board, where both hoses are straight
 GUIDE_GPU_BOLT_N = -20.0                       # on rib_A's diagonal, whose axis is n = -20
 GUIDE_GPU_PLATE_N1 = -6.0
@@ -734,11 +760,11 @@ def drill(blank, holes, extra_cuts=()):
     return cut_all(blank, holes), list(holes), blank
 
 
-def lap_cut_boxes(half: str, with_rest: bool = True):
+def lap_cut_boxes(half: str, right: bool = True):
     """Boxes removed from A (outer half) or B (inner half, only where A is) inside the lap zones. B follows the rib A it
-    laps with (`with_rest`: the right one), as rounded, so the two halves still fit."""
+    laps with (`right`: the right one), as rounded, so the two halves still fit."""
     out = []
-    a_slab = _A_LAYER.get(with_rest)
+    a_slab = _A_LAYER.get(right)
     if a_slab is None:
         a_slab = outline_solid(SHAPE_A, X_IN - 1, X_MID)
     for (y0, y1, z0, z1) in LAP_ZONES:
@@ -762,7 +788,24 @@ def end_pilot_holes(name):
     return holes
 
 
-def rib_a_holes(with_rest: bool):
+def rest_screw_points():
+    """The two gpu_rest screws' axis points, world (X, Y, Z): on the diagonal's upper face (the seat, where the insert's pilot opens) and on the floor of the counterbore in its underside (where the washer bears)."""
+    out = []
+    for du in REST_SCREW_DU_LIST:
+        out.append((hw.bp(REST_SCREW_V, REST_U + du, REST_SEAT_N), hw.bp(REST_SCREW_V, REST_U + du, REST_SEAT_N - REST_STACK)))
+    return out
+
+
+def rest_counterbores():
+    """The counterbores in rib_A_right's underside for gpu_rest's two screws: from 1 mm outside the underside to REST_CB_DEPTH in, along n."""
+    out = []
+    for du in REST_SCREW_DU_LIST:
+        start = hw.bp(REST_SCREW_V, REST_U + du, REST_SEAT_N - DIAG_W - OVERSHOOT)
+        out.append(cyl(start, hw.N_DIR, REST_CB_D, REST_CB_DEPTH + OVERSHOOT))
+    return out
+
+
+def rib_a_holes(right: bool):
     holes = []
     for name, pts in END_BOLTS.items():
         if "A" in HOLDING_RIB[name]:
@@ -771,22 +814,25 @@ def rib_a_holes(with_rest: bool):
         holes += joint_pilots((X_MID, y, z), (-1, 0, 0), LAP_STACK, "lap A<->B")
     for (y, z) in BRACKET_BOLTS:  # fan bracket bolts: clearance through the rib, the insert is in the bracket's leg
         holes.append(x_clear(y, z))
-    if with_rest:                 # right rib only: the GPU hose guide's bolt, into the outer face
+    if right:                     # right rib only: the GPU hose guide's bolt, into the outer face
         holes += joint_pilots((X_OUT, *guide_gpu_bolt()), (-1, 0, 0), GUIDE_T, "hose_guide_gpu")
         holes += tie_pilots("rib_A_right")     # the cable tie points under the rail (the diagonal's underside)
-    holes += organic_pilots("rib_A_right" if with_rest else "rib_A_left", mirrored=not with_rest)     # the organic layer's pads, on the outer face
+        for seat, floor in rest_screw_points():     # gpu_rest's two screws: plain clearance holes along n from the counterbores' floor through the diagonal to the seat (the insert is in the part)
+            holes.append(clear_hole("M3c", tuple(c - OVERSHOOT * k for c, k in zip(floor, hw.N_DIR)), hw.N_DIR, REST_STACK + 2 * OVERSHOOT))
+    holes += organic_pilots("rib_A_right" if right else "rib_A_left", mirrored=not right)     # the organic layer's pads, on the outer face
     return holes
 
 
-def build_rib_a(with_rest: bool):
-    prims = SHAPE_A + (SHAPE_A_REST if with_rest else [])
-    name = "rib_A_right" if with_rest else "rib_A_left"
-    holes = rib_a_holes(with_rest)
-    cuts = lap_cut_boxes("A")
-    s = outline_solid(prims, X_IN, X_OUT)
-    s = rounded_like(s, (1, 0, 0), name, sides=(1,) if with_rest else (-1,), own=(name,),
+def build_rib_a(right: bool):
+    """rib_A, right or left: the same outline (revision 14a: the right one lost the finger of the card's rest, which is gpu_rest now), the right one with the GPU hose guide's
+    pilot, the rail's tie pilots and gpu_rest's two clearance holes."""
+    name = "rib_A_right" if right else "rib_A_left"
+    holes = rib_a_holes(right)
+    cuts = lap_cut_boxes("A") + (rest_counterbores() if right else [])
+    s = outline_solid(SHAPE_A, X_IN, X_OUT)
+    s = rounded_like(s, (1, 0, 0), name, sides=(1,) if right else (-1,), own=(name,),
                      rings=hole_rings(holes), post_cuts=cuts)
-    _A_LAYER[with_rest] = s
+    _A_LAYER[right] = s
     return drill(cut_all(s, cuts), holes)
 
 
@@ -837,12 +883,28 @@ SILL_STACK = BEAM_FRONT_Z[1] - BEAM_FRONT_Z[0]                  # what a sill sc
 SILL_HALF_X = 140.0
 SILL_FACE_WALL = 5.0          # material between the module (and the channel) and the face, normal to it: the skin the port cut-outs will go through
 SILL_TOP_WALL = 10.0          # behind the channel along the face, so the ridge can take a 6 mm rounding and keep SILL_RING_WALL
-SILL_REAR_WALL = 5.0          # behind the pocket
-SILL_POCKET_PLAY = 0.4        # the pocket is the module's box plus this on the ends, the rear and the top (it is open at the front and at the bottom)
+# Revision 14a: the module sits in a carrier (front_io_carrier), the carrier sits in the sill's pocket. The pocket follows the carrier's OUTSIDE (CARRIER_X, CARRIER_Y1, CARRIER_Z below), which is a set of
+# numbers of its own, not the module's: a later change of hw.FRONT_IO_W changes the carrier's inside and nothing in the sill, until the module grows past the carrier's walls (check 20).
+SILL_POCKET_PLAY = 0.3        # the pocket is the carrier's outside plus this on the ends, the rear and the top (it is open at the front and at the bottom)
+SILL_Y_REAR = 47.4            # the sill's rear plane: where it always was (the module's rear 42 + 0.4 + a wall of 5); the pocket's rear moved forward of it, so the rear wall is thinner now
 SILL_CHANNEL_PLAY = 0.3       # the channel is the strip's box plus this on every side, and runs through both ends of the sill
 SILL_RING_WALL = 3.0          # a rounding keeps this much material round the channel
 SILL_BOLTS = [(-105.0, 10.0), (-105.0, 30.0), (118.0, 10.0), (118.0, 30.0)]      # (X, Y): M3 from below, clearance through beam_front, pilot in the sill
-SILL_PROBE_DEPTH = 3.0        # check 5: the axis point of a module screw lies this far into the wall of the pocket
+CARRIER_PROBE_DEPTH = 3.0     # check 5: the axis point of a module screw lies this far into the carrier's end wall
+# The carrier (front_io_carrier, ABS): an inverted U round the module, two end blocks and a top plate, no back wall (the module's cables leave through the sill's window), open at the front and at the bottom.
+# Its inside follows hw.FRONT_IO_W (plus CARRIER_PLAY on the ends and CARRIER_TOP_PLAY on top); its outside is fixed:
+CARRIER_X = (-82.0, 107.0)     # ends: the module's X -70 / 95 plus 0.4 of play plus an end block of 11.6 each
+CARRIER_Y1 = 44.2             # rear plane: 0.3 short of the pocket's rear, 2.5 behind the module's rear (the module may be that much deeper before the sill has to change)
+CARRIER_Z = (BEAM_FRONT_Z[1] + SILL_POCKET_PLAY, 48.9)     # 0.3 above beam_front (the module rests on the beam, the carrier hangs from the sill); the top is 0.3 under the pocket's roof, which stops 2 mm short of the light channel (Z 49.2)
+CARRIER_PLAY = 0.4            # module to the carrier's end blocks (the module's own screws cross it)
+CARRIER_TOP_PLAY = 0.2        # module to the carrier's top plate
+CARRIER_TOP_MIN = 2.5         # the top plate's least thickness (check 20): the plan asks for 3, the room under the light channel gives 2.7 (see the report)
+CARRIER_SCREW_FLOOR = 4.0     # material under the washer of a carrier screw, from the counterbore's floor to the end block's outer face
+CARRIER_CB_D = hw.M3_WASHER_D + 0.8                       # the counterbore: the washer on its floor, 0.4 of play round it
+CARRIER_CB_BELOW = hw.M3_HEAD_H + hw.M3_WASHER_T + 0.2    # the head and the washer stand this far under the end block's inner face at least
+CARRIER_END_MIN = max(CARRIER_SCREW_FLOOR + CARRIER_CB_BELOW, hw.M3_PILOT_DEPTH + hw.M3_MIN_WALL)      # the end block's least thickness (check 20): the carrier's own screw head and the module's pilot
+CARRIER_SCREWS_YZ = ((8.0, 28.0), (34.0, 28.0))           # the carrier's own screws, along X into the sill's end blocks, on each end: (Y, Z). Fixed (they are the sill's interface), 13 mm either side of the module's screw
+CARRIER_STACK = CARRIER_SCREW_FLOOR + SILL_POCKET_PLAY    # what a carrier screw clamps: the floor under its washer and the pocket's play, to the pilot's mouth in the sill
 # Cable window (skeleton pass 1): one opening through the rear wall for the module's front cables (USB 3, USB-C, power switch, audio). PLACEHOLDER like the
 # module it follows: its numbers are offsets from hw.FRONT_IO_W, so it moves with the module when the real one is measured. The light line's lead
 # needs no window of its own: the channel is open through both ends of the sill (see the notes).
@@ -857,8 +919,10 @@ def sill_geometry():
     """Everything about the sill that follows from hardware.py's module and strip: the section (Y, Z) polygon, the cutters, the ring."""
     z0 = BEAM_FRONT_Z[1]
     io, ls = hw.FRONT_IO_W, hw.LIGHT_STRIP_BS
-    y_rear = io[3] + SILL_POCKET_PLAY + SILL_REAR_WALL
-    n_pocket = hw.bs_of(0.0, hw.ENVELOPE_Y0, io[5] + SILL_POCKET_PLAY)[2]       # the pocket's top front edge, along the board's normal
+    y_rear = SILL_Y_REAR
+    roof = CARRIER_Z[1] + SILL_POCKET_PLAY
+    pocket_rear = CARRIER_Y1 + SILL_POCKET_PLAY
+    n_pocket = hw.bs_of(0.0, hw.ENVELOPE_Y0, roof)[2]       # the pocket's top front edge, along the board's normal
     n_face = max(n_pocket, ls[5] + SILL_CHANNEL_PLAY) + SILL_FACE_WALL
     u_top = ls[3] + SILL_CHANNEL_PLAY + SILL_TOP_WALL
     u_front = n_face + (hw.ENVELOPE_Y0 - hw.ORIGIN[1]) / hw.C               # the face reaches the front plane Y = ENVELOPE_Y0 here
@@ -868,16 +932,19 @@ def sill_geometry():
     u_c = (ls[2] + ls[3]) / 2
     wx1 = io[1] - SILL_WINDOW_INSET
     window_xz = (wx1 - SILL_WINDOW_W, wx1, io[4] + SILL_WINDOW_Z_LOW, io[5] + SILL_WINDOW_Z_TOP)
-    window = hw.wbox(window_xz[0], window_xz[1], io[3] + SILL_POCKET_PLAY - 1.0, y_rear + 1.0, window_xz[2], window_xz[3])
+    window = hw.wbox(window_xz[0], window_xz[1], pocket_rear - 1.0, y_rear + 1.0, window_xz[2], window_xz[3])
     window = window.fillet(SILL_WINDOW_R, [e for e in window.Edges() if abs(e.startPoint().x - e.endPoint().x) < 1e-6 and abs(e.startPoint().z - e.endPoint().z) < 1e-6])
     cuts = dict(
-        pocket=hw.wbox(io[0] - SILL_POCKET_PLAY, io[1] + SILL_POCKET_PLAY, hw.ENVELOPE_Y0 - 1.0, io[3] + SILL_POCKET_PLAY, z0 - 1.0, io[5] + SILL_POCKET_PLAY),
+        pocket=hw.wbox(CARRIER_X[0] - SILL_POCKET_PLAY, CARRIER_X[1] + SILL_POCKET_PLAY, hw.ENVELOPE_Y0 - 1.0, pocket_rear, z0 - 1.0, roof),
         channel=hw.bs_box(v0, v1, ls[2] - SILL_CHANNEL_PLAY, ls[3] + SILL_CHANNEL_PLAY, ls[4] - SILL_CHANNEL_PLAY, ls[5] + SILL_CHANNEL_PLAY),
         slit=hw.bs_box(ls[0], ls[1], u_c - hw.LIGHT_LINE_W / 2, u_c + hw.LIGHT_LINE_W / 2, ls[5] - 1.0, n_face + 1.0),
         window=window)
     ring = hw.bs_box(v0, v1, ls[2] - SILL_CHANNEL_PLAY - SILL_RING_WALL, ls[3] + SILL_CHANNEL_PLAY + SILL_RING_WALL,
                      ls[4] - SILL_CHANNEL_PLAY - SILL_RING_WALL, ls[5] + SILL_CHANNEL_PLAY + SILL_RING_WALL)
-    return dict(z0=z0, pts=pts, cuts=cuts, ring=ring, n_face=n_face, u_top=u_top, y_rear=y_rear, window_xz=window_xz)
+    return dict(z0=z0, pts=pts, cuts=cuts, ring=ring, n_face=n_face, u_top=u_top, y_rear=y_rear, window_xz=window_xz, roof=roof, pocket_rear=pocket_rear)
+
+
+SILL_REAR_WALL = SILL_Y_REAR - (CARRIER_Y1 + SILL_POCKET_PLAY)      # the wall behind the pocket, 2.9 mm (it was 5 behind the module, and would be 2.1 behind a carrier with a back wall)
 
 
 def organic_pilots(name, mirrored=False):
@@ -1005,14 +1072,27 @@ def tie_pilots(host):
     return [h for tp in TIE_POINTS if tp["host"] == host for h in joint_pilots(tie_face_point(tp), tuple(-c for c in tp["normal"]), TIE_FOOT_T, "tie bridge")]
 
 
+def carrier_screw_points():
+    """The carrier's screws, one per (end, CARRIER_SCREWS_YZ): (sign of X of the end, pocket wall point where the sill's pilot opens, point on the carrier's outer face), world (X, Y, Z); the screw
+    goes from the carrier's inside, outwards along (sign, 0, 0), through the end block and the pocket's play into the sill."""
+    out = []
+    for sgn, x_out in ((-1.0, CARRIER_X[0]), (1.0, CARRIER_X[1])):
+        for (y, z) in CARRIER_SCREWS_YZ:
+            out.append((sgn, (x_out + sgn * SILL_POCKET_PLAY, y, z), (x_out, y, z)))
+    return out
+
+
+def carrier_sill_pilots():
+    """The sill's four pilots for the carrier's screws, in the pocket's end walls, along X into the end blocks."""
+    return [h for sgn, wall, _face in carrier_screw_points() for h in joint_pilots(wall, (sgn, 0.0, 0.0), CARRIER_STACK, "front_io_carrier")]
+
+
 def sill_holes():
     g = sill_geometry()
     holes = []
     for (x, y) in SILL_BOLTS:                                                             # from beam_front's top face up into the sill
         holes += joint_pilots((x, y, g["z0"]), (0, 0, 1), SILL_STACK, "front_sill -> beam_front")
-    for (pt, d) in hw.FRONT_IO_SCREWS:                                                    # the module's screws, along X into the pocket's end walls (the module's own; no stack known)
-        org = tuple(c + k * SILL_POCKET_PLAY for c, k in zip(pt, d))
-        holes.append(pilot(org, d, hw.FRONT_IO_SCREW_KIND, item="front_io"))
+    holes += carrier_sill_pilots()                                                        # the carrier's four screws, along X into the end blocks (revision 14a; the module's own pilots are in the carrier now)
     holes += organic_pilots("front_sill")                                                 # the organic layer's two pads, on the end faces
     return holes
 
@@ -1026,6 +1106,31 @@ def build_front_sill():
     rings.append(g["ring"])
     s = rounded_like(prism, (1, 0, 0), "front_sill", sides=(1,), own=("front_sill",), rings=rings, post_cuts=cuts)
     return drill(s, holes, cuts)
+
+
+def carrier_inside():
+    """The carrier's inside, from the module: world (x0, x1, z1); the module's box plus CARRIER_PLAY on the ends and CARRIER_TOP_PLAY on top."""
+    io = hw.FRONT_IO_W
+    return io[0] - CARRIER_PLAY, io[1] + CARRIER_PLAY, io[5] + CARRIER_TOP_PLAY
+
+
+def build_front_io_carrier():
+    """The carrier of the front I/O module (revision 14a): an inverted U, X CARRIER_X, Y ENVELOPE_Y0..CARRIER_Y1, Z CARRIER_Z, with the module's box (plus its plays) cut out, open at the front, the rear and
+    the bottom. Two insert pilots for the module's own screws (hw.FRONT_IO_SCREWS, in the end blocks from the inside) and four clearance holes for the carrier's own screws (CARRIER_SCREWS_YZ), each
+    with a counterbore from the inside for the washer and the head that leaves CARRIER_SCREW_FLOOR under the washer, whatever the end block's thickness. Not rounded: it is not an outline of a plate."""
+    x_in0, x_in1, z_in = carrier_inside()
+    blank = hw.wbox(CARRIER_X[0], CARRIER_X[1], hw.ENVELOPE_Y0, CARRIER_Y1, CARRIER_Z[0], CARRIER_Z[1])
+    blank = blank.cut(hw.wbox(x_in0, x_in1, hw.ENVELOPE_Y0 - 1.0, CARRIER_Y1 + 1.0, CARRIER_Z[0] - 1.0, z_in)).clean()
+    holes, cbores = [], []
+    for (pt, d) in hw.FRONT_IO_SCREWS:                                                    # the module's screws, along X into the end blocks (the module's own; no stack known)
+        org = tuple(c + k * CARRIER_PLAY for c, k in zip(pt, d))
+        holes.append(pilot(org, d, hw.FRONT_IO_SCREW_KIND, item="front_io"))
+    for sgn, _wall, face in carrier_screw_points():
+        x_floor = face[0] - sgn * CARRIER_SCREW_FLOOR                                     # the counterbore's floor: CARRIER_SCREW_FLOOR in from the outer face
+        x_inner = x_in0 if sgn < 0 else x_in1
+        cbores.append(cyl((x_inner - sgn * OVERSHOOT, face[1], face[2]), (sgn, 0.0, 0.0), CARRIER_CB_D, abs(x_inner - x_floor) + OVERSHOOT))
+        holes.append(clear_hole("M3c", (x_floor - sgn * OVERSHOOT, face[1], face[2]), (sgn, 0.0, 0.0), CARRIER_SCREW_FLOOR + 2 * OVERSHOOT))
+    return drill(blank, holes, extra_cuts=cbores)
 
 
 def build_beam_front():
@@ -1289,7 +1394,7 @@ JOINT_BOLTS = [hw.bp_yz(JOINT_U, n) for n in JOINT_N]      # (Y, Z), along X thr
 JOINT_STACK = NECK_X[1] - NECK_X[0]                        # what a joint screw clamps: the neck's strut
 
 
-def build_neck_right(guide_pilot=False, side=1):
+def build_neck_right(side=1):
     """Straight strut along n at |X| 180..192, u 284..307, and the spacer pad |X| 158..180 behind its lower end. The two
     joint bolts to the visor arm pass through it at n 114 and 93.5. Returns solid, holes, blank and the YZ outlines of
     strut and pad for the bolt checks."""
@@ -1297,8 +1402,6 @@ def build_neck_right(guide_pilot=False, side=1):
     holes = [x_clear(y, z, NECK_X[0] - OVERSHOOT, NECK_X[1] + OVERSHOOT) for (y, z) in JOINT_BOLTS]
     for (y, z) in NECK_BOLTS:
         holes.append(x_clear(y, z, X_OUT - OVERSHOOT, X_OUT - OVERSHOOT + 35.0))
-    if guide_pilot:                         # the left neck carries the CPU hose guide: one pilot in its outer face
-        holes += joint_pilots((NECK_X[1], *guide_cpu_geometry()[3]), (-1, 0, 0), GUIDE_T, "hose_guide_cpu")
     holes += organic_pilots(name, mirrored=side < 0)      # the organic layer's pad on the strut's outer face
     rings = hole_rings(holes)
     sides = (1,) if side > 0 else (-1,)
@@ -1346,9 +1449,28 @@ def build_arm_right(notched=True):
     return drill(s, holes)
 
 
+GUIDE_ON_CHAIN = ("cpu",)       # the pairs whose guides are drawn round the keep-out chain (the true tube's own axis: a polyline of every third route point) and not round the route
+CHAIN_VERTEX_TOL = 0.1          # mm of u: a crossing this close to a vertex of the chain is put on it, and the axis there bisects the two chords (the tube is built round those chords)
+
+
 def hose_at(pair, idx, u):
-    """Hose `idx` of a pair where its route (hoses.routes()) crosses board-space u: the world centre point, the
-    unit direction there (world) and the point in board space (v, u, n)."""
+    """Hose `idx` of a pair where its route crosses board-space u: the world centre point, the unit direction there (world) and the point in board space (v, u, n). For a pair of GUIDE_ON_CHAIN
+    the route is the keep-out chain, the polyline the true tube is swept along (check 10 measures a guide against that tube: where the hose bends, the chords of the chain are 0.1 mm or so off the
+    route points, which is more than a snug channel can take); for the other pair it is hoses.routes()'s own points."""
+    if pair in GUIDE_ON_CHAIN:
+        pts = [np.array(p, float) for p in hoses.keepout_chains()[f"{pair}_hoses"][idx]]
+        q = [hoses.world_to_bs(p) for p in pts]
+        unit = lambda v: v / float(np.linalg.norm(v))      # noqa: E731
+        for k in range(len(pts) - 1):
+            u0, u1 = q[k][1], q[k + 1][1]
+            if not (u1 > u0 and u0 - CHAIN_VERTEX_TOL <= u <= u1 + CHAIN_VERTEX_TOL):
+                continue
+            for kv in (k, k + 1):
+                if 0 < kv < len(pts) - 1 and abs(u - q[kv][1]) <= CHAIN_VERTEX_TOL:
+                    return pts[kv], unit(unit(pts[kv] - pts[kv - 1]) + unit(pts[kv + 1] - pts[kv])), hoses.world_to_bs(pts[kv])
+            p = pts[k] + (u - u0) / (u1 - u0) * (pts[k + 1] - pts[k])
+            return p, unit(pts[k + 1] - pts[k]), hoses.world_to_bs(p)
+        raise ValueError(f"hose {pair}[{idx}] never reaches u = {u}")
     pts = hoses.routes()[pair][0][idx]["pts"]
     q = [hoses.world_to_bs(p) for p in pts]
     for k in range(len(pts) - 1):
@@ -1389,13 +1511,23 @@ def guide_tip(pair, idx_list, u_lo, u_hi, side):
 
 
 def guide_cpu_geometry():
-    """(n range of the guide, board-space centres of the two channels, n of the bolt, (Y, Z) of the bolt)."""
-    u_mid = sum(GUIDE_CPU_U) / 2
+    """The comb's layout: dict(axis=(Y, Z) of the fan's corner hole, e=unit vector in (Y, Z) from the axis along the comb, f=the unit vector across it (about along the hoses), s=[distance along e of
+    hose 0's and hose 1's crossing], u=[board u of those crossings], centres=[board-space (v, u, n) of the two channels' axes], s_end=the bar's far end), world (Y, Z) throughout."""
+    du, dn = hw.FAN_SIDE_HOLES_UN[GUIDE_CPU_CORNER]
+    axis = np.array(hw.bp_yz(du, dn))
+    p1, _d1, _ = hose_at("cpu", 1, GUIDE_CPU_U1)
+    e = p1[1:] - axis
+    s1 = float(np.linalg.norm(e))
+    e = e / s1
+    p0, d0, _ = hose_at("cpu", 0, GUIDE_CPU_U1 - 10.0)       # a point of hose 0's straight run: its line in (Y, Z) meets the comb's line where the second channel goes
+    s0, _t = np.linalg.solve(np.array([[e[0], -d0[1]], [e[1], -d0[2]]]), p0[1:] - axis)
+    q0 = axis + s0 * e
+    u0 = hw.bs_of(0.0, float(q0[0]), float(q0[1]))[1]
+    u = [u0, GUIDE_CPU_U1]
+    centres = [hose_at("cpu", i, u[i])[2] for i in (0, 1)]
     r_ch = hw.CPU_HOSE_R + GUIDE_PLAY
-    centres = [hose_at("cpu", i, u_mid)[2] for i in (0, 1)]
-    n_lo, n_hi = centres[0][2] - r_ch - GUIDE_RIM, centres[1][2] + r_ch + GUIDE_RIM
-    n_bolt = (n_lo + n_hi) / 2
-    return (n_lo, n_hi), centres, n_bolt, hw.bp_yz(GUIDE_CPU_BOLT_U, n_bolt)
+    s = [float(s0), s1]
+    return dict(axis=axis, e=e, f=np.array([-e[1], e[0]]), s=s, u=u, centres=centres, s_end=max(s) + r_ch + GUIDE_RIM)
 
 
 def guide_not_rounded(name):
@@ -1408,24 +1540,24 @@ def guide_not_rounded(name):
                                   f"takes the wall to 0 at the shelf's end faces, a 2 mm radius leaves 0.5 mm; the foot's corners are corners of the shelves"))
 
 
-def build_hose_guide_cpu(shrink=0.0):
-    """Left-hand guide: a foot on the left neck's outer face and two shelves that carry the CPU pair on the last straight
-    run into the 420's port. Each shelf has a channel of hose diameter + 0.6 mm, open towards -X through a mouth of
-    0.75 x the hose diameter."""
-    u_mid = sum(GUIDE_CPU_U) / 2
-    (n_lo, n_hi), centres, n_bolt, (y, z) = guide_cpu_geometry()
-    r_ch = hw.CPU_HOSE_R + GUIDE_PLAY
-    x_neck = -NECK_X[1]
-    x_foot = x_neck - GUIDE_T
-    x_tip = guide_tip("cpu", (0, 1), *GUIDE_CPU_U, -1)
-    foot = bsx(x_foot, x_neck, GUIDE_CPU_FOOT_U[0], GUIDE_CPU_FOOT_U[1], n_lo, n_hi)
-    shelves = [bsx(x_tip, x_neck, GUIDE_CPU_U[0], GUIDE_CPU_U[1], n - r_ch - GUIDE_RIM, n + r_ch + GUIDE_RIM)
-               for _, _, n in centres]
-    s = fuse_all([foot] + shelves)
-    s = s.cut(*[c for i in (0, 1) for c in guide_channel("cpu", i, u_mid, -1, shrink)])
-    holes = [x_clear(y, z, x_foot - OVERSHOOT, x_neck + OVERSHOOT)]
+def build_hose_guide_cpu(shrink=0.0, width=None):
+    """The CPU hose guide, a comb on the left side fan's corner D (see GUIDE_CPU_*): a bar GUIDE_CPU_W wide (`width`: the tests use another) from a round end round the screw's axis to the farther channel
+    and a channel's rim beyond it, X from the fan's inner face to past the hoses' axes by a channel radius; two channels of hose diameter + 0.6 mm round the true hoses, open towards +X through a mouth of
+    0.75 x the hose diameter; one insert pilot in the face on the fan, along +X, for the M3 x 30 from the fan's outer face. Returns (solid, holes, blank), (Y, Z) of the screw."""
+    width = GUIDE_CPU_W if width is None else width
+    g = guide_cpu_geometry()
+    fan = GUIDE_CPU_FAN
+    x_face, d_in = hw.FAN_SIDE_INNER_X[fan], hw.FAN_SIDE_IN[fan]
+    tips = [guide_tip("cpu", (i,), g["u"][i], g["u"][i], d_in) for i in (0, 1)]
+    x_tip = max(tips) if d_in > 0 else min(tips)                                                      # the tip, world X: past the farther hose's axis by a channel radius
+    ax, e, f = g["axis"], g["e"], g["f"]
+    h = width / 2
+    corners = [ax + a * e + b * f for a, b in ((0.0, -h), (g["s_end"], -h), (g["s_end"], h), (0.0, h))]
+    bar = fuse_all([Poly([tuple(map(float, c)) for c in corners]).solid(*sorted((x_face, x_tip))), Disc(tuple(map(float, ax)), width).solid(*sorted((x_face, x_tip)))])
+    s = bar.cut(*[c for i in (0, 1) for c in guide_channel("cpu", i, g["u"][i], d_in, shrink)])
+    holes = joint_pilots((x_face, float(ax[0]), float(ax[1])), (d_in, 0.0, 0.0), FAN_STACK, "hose_guide_cpu")
     guide_not_rounded("hose_guide_cpu")
-    return drill(s, holes), (y, z)
+    return drill(s, holes), (float(ax[0]), float(ax[1]))
 
 
 def guide_gpu_bolt():
@@ -1511,6 +1643,20 @@ def build_fan_bracket():
     return drill(s, holes)
 
 
+def build_gpu_rest():
+    """The card's right-hand rest (revision 14a): the finger that was in rib_A_right's outline, as a part of its own. A capsule REST_W wide whose upper face is the card's lower face (u = hw.GPU_BS[2]), along n over
+    REST_N_AXIS, X as thick as the rib, standing on the diagonal's upper face (n REST_SEAT_N: the capsule's lower end is cut off flat there, so the foot is flat on the rib). Two insert pilots in the foot, along n,
+    for the screws that come from the diagonal's underside. Not rounded: the contact faces are flat, the capsule's tip is round already."""
+    cap = Cap(hw.bp_yz(REST_U, REST_N_AXIS[0]), hw.bp_yz(REST_U, REST_N_AXIS[1]), REST_W)
+    blank = cap.solid(*REST_X)
+    below = hw.bs_box(hw.x_to_v(REST_X[0] - 1.0), hw.x_to_v(REST_X[1] + 1.0), REST_U - REST_W, REST_U + REST_W, REST_SEAT_N - REST_W - 10.0, REST_SEAT_N)
+    blank = blank.cut(below).clean()
+    holes = []
+    for seat, _floor in rest_screw_points():
+        holes += joint_pilots(seat, hw.N_DIR, REST_STACK, "gpu_rest")
+    return drill(blank, holes)
+
+
 def build_gpu_post():
     """The card's post as a frame: a foot on beam_mid (v GPU_POST_V thick) and, above n GPU_POST_N_STEP, a plate GPU_POST_V_UP thick along v with a window that leaves the card bracket open over the
     card's whole thickness in u and from n GPU_OUT_N[0] to the lintel's underside. Two columns outside the card's thickness, a base under the window, a lintel under the tab's seat.
@@ -1581,14 +1727,17 @@ def _build_frame():
         solid, holes, blank = built
         parts.append(Part(name, mirror_x(solid), note, [h.mirrored() for h in holes], mirror_x(blank), material=material))
 
-    add("rib_A_right", build_rib_a(True), "right rib, front + diagonal + mid leg + gpu_rest finger")
+    add("rib_A_right", build_rib_a(True), "right rib, front + diagonal + mid leg; 2 x M3 clearance (in counterbores) for gpu_rest")
     add_mirror("rib_A_left", build_rib_a(False), "left rib, front + diagonal + mid leg")
+    add("gpu_rest", build_gpu_rest(), f"the card's right-hand rest: a capsule {REST_W:g} mm wide on the right rib's diagonal, contact face u = {hw.GPU_BS[2]:g}, 2 x M3 along n from the diagonal's underside")
     add("rib_B_right", build_rib_b(1), "right rib, rear post: runner, post, nose, tail post")
     add_mirror("rib_B_left", build_rib_b(-1), "left rib, rear post")
 
     add("beam_front", build_beam_front(), "front beam, ties the front feet; carries the front sill (4 x M3 from below)")
     add("front_sill", build_front_sill(),
-        "front sill X +-140: 45 deg face parallel to the board, pocket for the I/O module (PLACEHOLDER box), channel and slit for the light line, 4 x M3 into beam_front, 2 x M3 for the module (PLACEHOLDER)")
+        "front sill X +-140: 45 deg face parallel to the board, pocket for the I/O module's carrier (the carrier's outside, not the module's PLACEHOLDER box), channel and slit for the light line, 4 x M3 into beam_front, 4 x M3 inserts for the carrier")
+    add("front_io_carrier", build_front_io_carrier(),
+        f"carrier of the front I/O module (PLACEHOLDER box): an inverted U, end blocks and a top plate {CARRIER_Z[1] - carrier_inside()[2]:.1f} mm, no back wall; 2 x M3 for the module (PLACEHOLDER), 4 x M3 into the sill's end blocks")
     bracket = build_fan_bracket()      # revision 13: one design, built where the right one stands, mirrored for the left
     add("fan_bracket_right", bracket,
         f"right side fan bracket: plate {BRACKET_T:g} mm on the fan's inner face (corners A, B, C, spine, bar, root block), leg to rib_A_right's outer face, 2 x M3")
@@ -1612,15 +1761,15 @@ def _build_frame():
 
     *neck, neck_prims = build_neck_right(side=1)
     add("neck_right", tuple(neck), "neck: strut along n + spacer pad, right; 2 x M3 clearance to the visor arm")
-    *neck_l, _ = build_neck_right(guide_pilot=True, side=-1)
-    add_mirror("neck_left", tuple(neck_l), "neck: strut along n + spacer pad, left; 2 x M3 clearance to the visor arm; carries the CPU hose guide")
+    *neck_l, _ = build_neck_right(side=-1)
+    add_mirror("neck_left", tuple(neck_l), "neck: strut along n + spacer pad, left; 2 x M3 clearance to the visor arm (revision 14a: the CPU hose guide is on the fan now)")
     add("visor_arm_right", build_arm_right(True), "360 visor arm, right (2 x M3 to the neck, knee below the bar, radiator screws counterbored), notched at the port tank")
     add_mirror("visor_arm_left", build_arm_right(False), "360 visor arm, left (2 x M3 to the neck, knee below the bar, radiator screws counterbored)")
 
     add("gpu_post", build_gpu_post(), "card bracket post, left side: a frame with a window for the card's video outputs, columns outside the card's thickness, a lintel under the tab's seat (tab height PLACEHOLDER)")
 
     g_cpu, _ = build_hose_guide_cpu()
-    add("hose_guide_cpu", g_cpu, "CPU hose guide: foot on the left neck, two channels open to -X, 1 x M3", material="PA6")
+    add("hose_guide_cpu", g_cpu, f"CPU hose guide: a comb on the left side fan's inner face at corner {GUIDE_CPU_CORNER}, two channels open to +X (towards the board), 1 x M3 through the fan", material="PA6")
     g_gpu, _ = build_hose_guide_gpu()
     add("hose_guide_gpu", g_gpu, "GPU hose guide: plate on rib_A_right's outer face, two channels open to +X, 1 x M3", material="PA6")
 
@@ -1643,10 +1792,14 @@ def _build_frame():
     for fan, holder in (("fan_side_left", "fan_bracket_left"), ("fan_side_right", "fan_bracket_right")):
         fastener(fan, holder, m3(FAN_STACK), len(BRACKET_CORNERS[holder]),
                  f"corners {', '.join(BRACKET_CORNERS[holder])} of 4 (needs >= {FAN_MIN_SCREWS}): screws from the fan's outer face through the {FAN_STACK:g} mm fan into the plate")
-    fastener("front_io", "front_sill", hw.FRONT_IO_SCREW_KIND + " insert", len(hw.FRONT_IO_SCREWS),
-             "PLACEHOLDER: 2 along X into the end walls of the sill's pocket; the module's screws are not known until it is measured")
-    fastener("gpu", "gpu_post (left) + rib_A_right gpu_rest (right)", m3(GPU_POST_STACK), 2,
-             "post: 2 M3 through beam_mid into the post; rest: bears the card edge, no screw")
+    fastener("front_io", "front_io_carrier", hw.FRONT_IO_SCREW_KIND + " insert", len(hw.FRONT_IO_SCREWS),
+             "PLACEHOLDER: 2 along X into the carrier's end blocks (revision 14a: they were in the sill's pocket); the module's screws are not known until it is measured")
+    fastener("front_io_carrier", "front_io_carrier -> front_sill", m3(CARRIER_STACK), 2 * len(CARRIER_SCREWS_YZ),
+             f"2 per end block along X: from the carrier's inside, head and washer in a Ø{CARRIER_CB_D:g} counterbore, {CARRIER_SCREW_FLOOR:g} mm of block under the washer and {SILL_POCKET_PLAY:g} mm of play, into an insert in the sill's end block; a screwdriver reaches them along X with the module out")
+    fastener("gpu", "gpu_post (left)", m3(GPU_POST_STACK), 2,
+             "2 M3 through beam_mid into the post")
+    fastener("gpu_rest", "gpu_rest -> rib_A_right (right)", m3(REST_STACK), len(REST_SCREW_DU_LIST),
+             f"2 along n from the diagonal's underside (heads and washers in Ø{REST_CB_D:g} counterbores {REST_CB_DEPTH:g} mm deep), through {REST_STACK:g} mm of the diagonal, into inserts in the rest's foot; plain holes, no slots (the card's weight acts along u)")
     # structural
     fastener("lap A<->B", "rib_A/rib_B x2", m3(LAP_STACK), 2 * len(LAP_BOLTS),
              "3 per side (2 top, 1 bottom); clearance in B, pilot in A")
@@ -1659,7 +1812,8 @@ def _build_frame():
              "two per side, along X at u 289.2, n 114 and 93.5 (pilot in the arm, clearance in the neck); no hinge")
     fastener("fan brackets", "fan_bracket_L/R -> rib_A_L/R", m3(RIB_T), 2 * len(BRACKET_BOLTS),
              "2 per side along X at u 121, n -26 and -14: clearance through the rib, pilot in the bracket's leg; heads on the rib's inner face")
-    fastener("hose_guide_cpu", "hose_guide_cpu -> neck_left", m3(GUIDE_T), 1, "1 along X into the left neck's outer face")
+    fastener("hose_guide_cpu", "hose_guide_cpu -> fan_side_left (corner D)", m3(FAN_STACK), 1,
+             f"1 along X from the left fan's outer face through the {FAN_STACK:g} mm fan into an insert in the comb (the M3 x 16 into the neck is gone)")
     fastener("hose_guide_gpu", "hose_guide_gpu -> rib_A_right", m3(GUIDE_T), 1, "1 along X into the right rib's outer face")
     fastener("gpu_post", "gpu_post -> beam_mid", m3(GPU_POST_STACK), 2, "along n")
     fastener("front_sill", "front_sill -> beam_front", m3(SILL_STACK), len(SILL_BOLTS),
@@ -1731,12 +1885,21 @@ def check_bolts(neck_prims):
     for (x, y) in SILL_BOLTS:
         in_beam = BEAM_FRONT_Y[0] + cr + hw.M3_MIN_WALL <= y <= BEAM_FRONT_Y[1] - cr - hw.M3_MIN_WALL and abs(x) <= X_IN - cr - hw.M3_MIN_WALL
         in_sill = inside(sill_section, (y, g["z0"] + pr3 + 0.1), pr3)        # the pilot opens in the bottom face, so only the sides count
-        in_block = (-SILL_HALF_X + pr3 <= x <= io[0] - SILL_POCKET_PLAY - pr3) or (io[1] + SILL_POCKET_PLAY + pr3 <= x <= SILL_HALF_X - pr3)
+        in_block = (-SILL_HALF_X + pr3 <= x <= CARRIER_X[0] - SILL_POCKET_PLAY - pr3) or (CARRIER_X[1] + SILL_POCKET_PLAY + pr3 <= x <= SILL_HALF_X - pr3)
         BOLT_CHECKS.append((f"sill bolt (X {x:.1f}, Y {y:.1f}) inside beam_front's top face, the sill's section and an end block", in_beam and in_sill and in_block, ""))
+    # the carrier (revision 14a): the module's two screws and the carrier's own four inside the end blocks' faces (Y ENVELOPE_Y0..CARRIER_Y1, Z CARRIER_Z) with the wall their insert or counterbore needs, and the carrier's
+    # own screws' pilots inside the sill's section; the module's screws and the carrier's counterbores are the carrier's inside business and clear each other by the insert's wall
     pr_io = hw.INSERTS[hw.FRONT_IO_SCREW_KIND][0] / 2 + hw.INSERTS[hw.FRONT_IO_SCREW_KIND][2]
+    face = Rect(hw.ENVELOPE_Y0, CARRIER_Y1, CARRIER_Z[0], CARRIER_Z[1])
     for (pt, d) in hw.FRONT_IO_SCREWS:
-        ok = inside(sill_section, (pt[1], pt[2]), pr_io)
-        BOLT_CHECKS.append((f"I/O module screw (Y {pt[1]:.1f}, Z {pt[2]:.1f}) inside the sill's section with the {hw.FRONT_IO_SCREW_KIND} wall (PLACEHOLDER)", ok, ""))
+        ok = inside([face], (pt[1], pt[2]), pr_io)
+        BOLT_CHECKS.append((f"I/O module screw (Y {pt[1]:.1f}, Z {pt[2]:.1f}) inside the carrier's end block with the {hw.FRONT_IO_SCREW_KIND} wall (PLACEHOLDER)", ok, ""))
+    for sgn, wall, _face in carrier_screw_points():
+        y, z = wall[1], wall[2]
+        in_carrier = inside([face], (y, z), CARRIER_CB_D / 2 + hw.M3_MIN_WALL)
+        in_sill_ = inside(sill_section, (y, z), pr_io)
+        clear_io = min(math.dist((y, z), (pt[1], pt[2])) for pt, _d in hw.FRONT_IO_SCREWS) >= CARRIER_CB_D / 2 + pr_io
+        BOLT_CHECKS.append((f"carrier screw (X {wall[0]:.1f}, Y {y:.1f}, Z {z:.1f}) inside the carrier's end block (counterbore + wall), inside the sill's section, clear of the module's screws", in_carrier and in_sill_ and clear_io, ""))
     # beam end bolts also inside the member's own section (pilot + insert wall)
     for name, row in BEAM_ROW.items():
         lo, hi = BEAM_SPAN[name]
@@ -1986,7 +2149,8 @@ def check_holes(parts, failures, memo=None):
 # Check 5: mounts derived from the solids
 # ---------------------------------------------------------------------------
 DRIVE_SCREWS = sum(len(fc["holes"]) for fc in hw.drive_layout()["faces"].values())          # per bay: 6 on the 3.5 inch drive + 4 on the 2.5 inch drive
-EXPECTED_MOUNTS = {"board": 9, "rad420": 2 * len(antler_holes_xn(1)), "rad360": 4, "psu": 4, "gpu_post": 2, "gpu_rest": 1, "front_io": 2, "organic": 12,
+EXPECTED_MOUNTS = {"board": 9, "rad420": 2 * len(antler_holes_xn(1)), "rad360": 4, "psu": 4, "gpu_post": 2, "gpu_rest": 1, "gpu_rest_screw": len(REST_SCREW_DU_LIST), "front_io": len(hw.FRONT_IO_SCREWS),
+                   "front_io_carrier": 2 * len(CARRIER_SCREWS_YZ), "hose_guide_cpu": 1, "organic": 12,
                    "tie_pilot": len(TIE_POINTS), "tie_bridge": len(TIE_POINTS), **{k: DRIVE_SCREWS for k in hw.DRIVES}}
 ORGANIC_PROBE_DEPTH = 3.0      # check 5: the axis point of a pad's pilot lies this far in from the face
 MIN_MOUNTS = {"fan_side_left": FAN_MIN_SCREWS, "fan_side_right": FAN_MIN_SCREWS}     # at least this many of the four corner holes
@@ -2010,9 +2174,11 @@ def mount_points():
             out.append(("rad360", holder, hw.bp(hw.x_to_v(x), u, hw.RAD360_INNER_N - HW_SCREW_FLOOR / 2), hw.UNC6_CLEAR_D / 2, None))      # in the floor under the counterbore
     for (x, z) in hw.PSU_HOLES:
         out.append(("psu", "psu_bulkhead", (x, hw.PSU_REAR_Y + HW_SCREW_FLOOR / 2, z), hw.UNC6_CLEAR_D / 2, None))      # in the floor under the counterbore
-    for (pt, d) in hw.FRONT_IO_SCREWS:      # the module's screws: the axis point inside the pocket's end wall, which must be an empty bore of the insert's radius
-        probe = tuple(c + k * (SILL_POCKET_PLAY + SILL_PROBE_DEPTH) for c, k in zip(pt, d))
-        out.append(("front_io", "front_sill", probe, hw.INSERTS[hw.FRONT_IO_SCREW_KIND][0] / 2, None))
+    for (pt, d) in hw.FRONT_IO_SCREWS:      # the module's screws: the axis point inside the carrier's end wall (revision 14a: it was the sill's), which must be an empty bore of the insert's radius
+        probe = tuple(c + k * (CARRIER_PLAY + CARRIER_PROBE_DEPTH) for c, k in zip(pt, d))
+        out.append(("front_io", "front_io_carrier", probe, hw.INSERTS[hw.FRONT_IO_SCREW_KIND][0] / 2, None))
+    ax = guide_cpu_geometry()["axis"]      # the CPU hose guide's screw: the axis point inside the pilot, from the fan's face (the fan's own corner D has no hole in the bracket)
+    out.append(("hose_guide_cpu", "hose_guide_cpu", (hw.FAN_SIDE_INNER_X[GUIDE_CPU_FAN] + hw.FAN_SIDE_IN[GUIDE_CPU_FAN] * FAN_PROBE_DEPTH, float(ax[0]), float(ax[1])), hw.M3_PILOT_D / 2, None))
     for (holder, (x, y, z), sgn) in hw.ORGANIC_PADS.values():      # the organic layer's pads: the axis point inside the pilot, which must be an empty bore of the insert's radius
         out.append(("organic", holder, (x - sgn * ORGANIC_PROBE_DEPTH, y, z), hw.M3_PILOT_D / 2, None))
     for tp in TIE_POINTS:      # the cable tie points: an empty M3 pilot bore in the host (axis point 3 mm in from the underside) and an empty clearance bore in the bridge's foot, on the same axis
@@ -2028,6 +2194,20 @@ def mount_points():
         for corner, (u, n) in hw.FAN_SIDE_HOLES_UN.items():
             # an insert pilot in the plate at each corner, looked for at every corner of every fan; a corner counts once if it has one. The fan's flat inner face has no material at the probe.
             out.append((fan, holder, hw.bp(hw.x_to_v(x), u, n), hw.M3_PILOT_D / 2, corner))
+    return out
+
+
+def joint_mounts():
+    """The screws between two printed parts that check 5 reads from BOTH solids, like gpu_post's: (item, [(part, axis point, radius of the empty bore expected there)]). gpu_rest's two (the insert's pilot
+    in the part, 3 mm in from the seat; the clearance hole through the diagonal, half way) and the carrier's four (the insert's pilot in the sill's end block, 3 mm in from the pocket's wall; the clearance
+    hole in the end block, in the middle of the floor under the counterbore)."""
+    out = []
+    for seat, floor in rest_screw_points():
+        out.append(("gpu_rest_screw", [("gpu_rest", tuple(c + ORGANIC_PROBE_DEPTH * k for c, k in zip(seat, hw.N_DIR)), hw.M3_PILOT_D / 2),
+                                       ("rib_A_right", tuple((a + b) / 2 for a, b in zip(seat, floor)), hw.M3_CLEAR_D / 2)]))
+    for sgn, wall, face in carrier_screw_points():
+        out.append(("front_io_carrier", [("front_sill", (wall[0] + sgn * ORGANIC_PROBE_DEPTH, wall[1], wall[2]), hw.M3_PILOT_D / 2),
+                                         ("front_io_carrier", (face[0] - sgn * CARRIER_SCREW_FLOOR / 2, face[1], face[2]), hw.M3_CLEAR_D / 2)]))
     return out
 
 
@@ -2083,7 +2263,24 @@ def derive_mounts(parts, contacts, failures, memo=None):
                 failures.append(f"CHECK5 gpu_post screw at u = {u}: post {why_post or 'ok'}; beam_mid {why_beam or 'ok'}")
             else:
                 got["gpu_post"] += 1
-    if ("rib_A_right", "gpu") in contacts:
+    for item, pairs in joint_mounts():      # revision 14a: the rest's and the carrier's screws, a pilot in one part and a clearance hole in the other
+        whys = []
+        for holder, pt, r in pairs:
+            part = byname.get(holder)
+            if part is None:
+                whys.append(f"no holder part {holder}")
+                continue
+            try:
+                why = memo_call(memo, (part.solid,), "mount", hole_at, part, pt, r, extra=(tuple(pt), r))
+            except BooleanFailure as e:
+                why = f"BOOLEAN FAILED: {e}"
+            if why:
+                whys.append(f"{holder} at ({pt[0]:.1f}, {pt[1]:.1f}, {pt[2]:.1f}): {why}")
+        if whys:
+            failures.append(f"CHECK5 {item} screw: " + "; ".join(whys))
+        else:
+            got[item] += 1
+    if ("gpu_rest", "gpu") in contacts:
         got["gpu_rest"] = 1
     for item, n in EXPECTED_MOUNTS.items():
         if got[item] != n:
@@ -2092,8 +2289,8 @@ def derive_mounts(parts, contacts, failures, memo=None):
         if got[item] < n:
             failures.append(f"CHECK5 {item}: {got[item]} of 4 corner holes have a screw hole in {FAN_HOLDER[item]}, the plan needs at least {n}")
     # the hand-written registry must agree with what the solids show
-    registry = {"board": "board", "rad420": "rad420", "rad360": "rad360", "psu": "psu", "front_io": "front_io",
-                "fan_side_left": "fan_side_left", "fan_side_right": "fan_side_right", "gpu": "gpu_post",
+    registry = {"board": "board", "rad420": "rad420", "rad360": "rad360", "psu": "psu", "front_io": "front_io", "front_io_carrier": "front_io_carrier",
+                "fan_side_left": "fan_side_left", "fan_side_right": "fan_side_right", "gpu": "gpu_post", "gpu_rest": "gpu_rest_screw", "hose_guide_cpu": "hose_guide_cpu",
                 "organic": "organic", "tie_pilot": "tie_pilot", "tie_bridge": "tie_bridge",
                 **{k: k for k in hw.DRIVES}}       # fastener item -> derived item
     for item, derived_item in registry.items():
@@ -2111,7 +2308,9 @@ INTENDED_CONTACTS = {
     ("beam_low", "board"), ("beam_mid", "board"), ("beam_top", "board"),     # standoff bosses
     ("fan_bracket_left", "fan_side_left"), ("fan_bracket_right", "fan_side_right"),     # the plate on the fan's inner face
     ("skid_front", "psu"), ("skid_rear", "psu"), ("psu_bulkhead", "psu"),
-    ("rib_A_right", "gpu"),                                                  # gpu_rest finger
+    ("gpu_rest", "gpu"),                                                     # revision 14a: the rest's contact face under the card (it was rib_A_right's finger)
+    ("gpu_rest", "rib_A_right"),                                             # part x part: the rest's foot on the diagonal's upper face (screwed there; listed with the planned contacts, though the report's part x part list has no tag)
+    ("hose_guide_cpu", "fan_side_left"),                                     # revision 14a: the comb on the left fan's inner face, screwed through the fan at corner D
     ("beam_front", "front_io"),                                              # revision 9: the module's underside (Z 10, placeholder) is beam_front's top face
     ("visor_arm_right", "rad360"), ("visor_arm_left", "rad360"),
     ("antler_right", "rad420"), ("antler_left", "rad420"),
@@ -2266,8 +2465,10 @@ def mouth_probe(pair, idx, u, side, width):
     return cq.Workplane(plane).center(15.0, 0).rect(30.0, width).extrude(10.0).val()
 
 
-GUIDE_SPEC = {"hose_guide_cpu": ("cpu", "cpu_hoses", -1, sum(GUIDE_CPU_U) / 2),
-              "hose_guide_gpu": ("gpu", "gpu_hoses", 1, sum(GUIDE_GPU_U) / 2)}
+def guide_spec():
+    """guide -> (pair, hose keep-out name, side the mouths open to (world X sign), board u of each hose's channel, by hose index)."""
+    return {"hose_guide_cpu": ("cpu", "cpu_hoses", hw.FAN_SIDE_IN[GUIDE_CPU_FAN], guide_cpu_geometry()["u"]),
+            "hose_guide_gpu": ("gpu", "gpu_hoses", 1, [sum(GUIDE_GPU_U) / 2] * 2)}
 MOUTH_TOL = 0.4         # mm: a slab this much narrower than the mouth must pass it, one this much wider must not
 
 
@@ -2277,10 +2478,11 @@ def check_guides(parts, failures, memo=None):
     GUIDE_MOUTH x the hose diameter wide. Returns rows (guide, hose index, overlap mm3, wall mm, mouth ok)."""
     rows = []
     tubes = true_tubes()
+    spec = guide_spec()
     for p in parts:
-        if p.name not in GUIDE_SPEC:
+        if p.name not in spec:
             continue
-        pair, hose_name, side, u_mid = GUIDE_SPEC[p.name]
+        pair, hose_name, side, u_of = spec[p.name]
         mouth = GUIDE_MOUTH * 2 * guide_hose_r(pair)
         for i, tube in enumerate(tubes[hose_name]):
             label = f"{p.name} x {hose_name}[{i}]"
@@ -2288,7 +2490,7 @@ def check_guides(parts, failures, memo=None):
             d = _guard(failures, "CHECK10", label, memo_call, memo, (p.solid, tube), "dist", solid_distance, p.solid, tube)
             def probe_vol(w):
                 try:
-                    return memo_call(memo, (p.solid,), "mouth", lambda: inter_vol(p.solid, mouth_probe(pair, i, u_mid, side, w)),
+                    return memo_call(memo, (p.solid,), "mouth", lambda: inter_vol(p.solid, mouth_probe(pair, i, u_of[i], side, w)),
                                      extra=(pair, i, round(w, 4)))
                 except BooleanFailure as e:
                     failures.append(f"CHECK10 {label}: BOOLEAN FAILED: {e}")
@@ -2337,6 +2539,102 @@ def check_apertures(parts, failures, memo=None):
     return rows
 
 
+def probe_line(start, d, length):
+    return Hole("probe", tuple(start), _unit(d), 0.05, length, 0.0, False)
+
+
+def check_carrier(parts, hardware, failures):
+    """Check 20 (revision 14a). The module's box must sit in the carrier with the walls the carrier needs, measured on the carrier's undrilled solid: the end blocks at the module's own screws (along X, from the
+    carrier's outer face to its inside) at least CARRIER_END_MIN thick (the module's pilot and the carrier's own counterbore), the top plate above the module (along Z, in the middle of the module) at least
+    CARRIER_TOP_MIN thick. When the module grows past that the carrier is rebuilt with its inside bigger and its walls thinner; this is what stops it, short of the sill (the sill follows the carrier's outside,
+    which does not move). Also the module's rear against the sill's pocket (the room behind it). Returns dict(end=[left, right], top, rear, grow=dict(left, right, top, rear)): the walls and how far the module may
+    grow in each direction before this check, or the sill, has to change."""
+    byname = {p.name: p for p in parts}
+    car, io = byname.get("front_io_carrier"), hardware.get("front_io")
+    if car is None or io is None:
+        failures.append("CHECK20 the carrier or the module is missing")
+        return {}
+    b = bbox_of(io)                                 # the module's own box, as hardware (not the numbers the carrier was built from)
+    (pl, dl), (pr, dr) = hw.FRONT_IO_SCREWS
+    out = {"end": [], "top": None, "rear": None}
+    try:
+        for tag, (pt, d), x_out in (("left", (pl, dl), CARRIER_X[0]), ("right", (pr, dr), CARRIER_X[1])):
+            sgn = -1.0 if x_out < 0 else 1.0
+            spans = material_spans(car.blank, probe_line((x_out + sgn * 2.0, pt[1], pt[2]), (-sgn, 0.0, 0.0), 40.0))
+            wall = spans[0][1] - spans[0][0] + 2 * SPAN_MARGIN if spans else 0.0       # from the outer face (the probe starts 2 mm outside it) to the cavity
+            out["end"].append(wall)
+            if wall < CARRIER_END_MIN - 1e-6:
+                failures.append(f"CHECK20 the {tag} end block of front_io_carrier is {wall:.2f} mm thick at the module's screw, needs {CARRIER_END_MIN:g} (the module's box X {b[0]:g}..{b[1]:g} is too big for it)")
+        xm, ym = (b[0] + b[1]) / 2, pl[1]
+        spans = material_spans(car.blank, probe_line((xm, ym, CARRIER_Z[1] + 2.0), (0.0, 0.0, -1.0), 40.0))
+        top = spans[0][1] - spans[0][0] + 2 * SPAN_MARGIN if spans else 0.0
+        out["top"] = top
+        if top < CARRIER_TOP_MIN - 1e-6:
+            failures.append(f"CHECK20 the top plate of front_io_carrier is {top:.2f} mm thick over the module, needs {CARRIER_TOP_MIN:g} (the module's top Z {b[5]:g} is too high for it)")
+    except BooleanFailure as e:
+        failures.append(f"CHECK20 front_io_carrier: BOOLEAN FAILED: {e}")
+        return out
+    pocket_rear = CARRIER_Y1 + SILL_POCKET_PLAY
+    out["rear"] = pocket_rear - b[3]
+    if out["rear"] < -1e-6:
+        failures.append(f"CHECK20 the module's rear Y {b[3]:g} is behind the sill's pocket (Y {pocket_rear:g})")
+    out["grow"] = dict(left=out["end"][0] - CARRIER_END_MIN if out["end"] else None, right=out["end"][1] - CARRIER_END_MIN if len(out["end"]) > 1 else None,
+                       top=out["top"] - CARRIER_TOP_MIN, rear=out["rear"], front=b[2] - hw.ENVELOPE_Y0, bottom=b[4] - BEAM_FRONT_Z[1])
+    return out
+
+
+SHADOW_RES = 0.1                  # mm per pixel of the guide's shadow in the fan's circle (check 21)
+SHADOW_FAN = {"hose_guide_cpu": "fan_side_left"}      # the parts that may stand in a fan's open circle, but only so far (GUIDE_SHADOW_MAX), and their fan
+_SHADOW_TUBES: dict = {}
+
+
+def projection_mask(shape, window, res=SHADOW_RES):
+    """Boolean image (rows = n, columns = u) of the pixels of `window` = (u0, u1, n0, n1) that `shape`'s projection along X covers, in board space: the shape is tessellated and every
+    triangle filled. The boundary pixels count, so an area read from it is a little over the true one (by about half a pixel along the outline: under 0.1 % of the circle here)."""
+    from PIL import Image, ImageDraw
+    u0, u1, n0, n1 = window
+    w, h = int(math.ceil((u1 - u0) / res)), int(math.ceil((n1 - n0) / res))
+    img = Image.new("1", (w, h), 0)
+    draw = ImageDraw.Draw(img)
+    verts, tris = shape.tessellate(0.05, 0.2)
+    pts = [hw.bs_of(v.x, v.y, v.z)[1:] for v in verts]
+    for a, b, c in tris:
+        draw.polygon([((pts[k][0] - u0) / res, (pts[k][1] - n0) / res) for k in (a, b, c)], fill=1)
+    return np.array(img, dtype=bool)
+
+
+def guide_shadow(solid, fan, tubes):
+    """Area (mm2) that `solid`'s projection along X covers inside `fan`'s open circle (hw.FAN_APERTURE_D) outside the projection of `tubes` (the two hoses at their true radius): what the guide adds to
+    what the hoses cover of the fan's opening anyway (revision 14a, check 21)."""
+    cu, cn = hw.FAN_CENTRE_UN
+    r = hw.FAN_APERTURE_D / 2
+    window = (cu - r - 1.0, cu + r + 1.0, cn - r - 1.0, cn + r + 1.0)
+    key = (round(cu, 3), round(cn, 3))
+    if key not in _SHADOW_TUBES or _SHADOW_TUBES[key][0] is not tubes[0]:
+        _SHADOW_TUBES[key] = (tubes[0], np.logical_or.reduce([projection_mask(t, window) for t in tubes]))
+    hoses_mask = _SHADOW_TUBES[key][1]
+    mask = projection_mask(solid, window)
+    nn, uu = np.indices(mask.shape)
+    uc, nc = window[0] + (uu + 0.5) * SHADOW_RES, window[2] + (nn + 0.5) * SHADOW_RES
+    inside_circle = (uc - cu) ** 2 + (nc - cn) ** 2 <= r * r
+    return float((mask & inside_circle & ~hoses_mask).sum() * SHADOW_RES ** 2)
+
+
+def check_guide_shadow(parts, failures):
+    """Check 21. A hose guide on a side fan's corner may not cast more than GUIDE_SHADOW_MAX mm2 of shadow into the fan's open circle beyond the hoses' own (the hoses cross the circle there
+    whatever the guide does). Returns rows (part, mm2)."""
+    rows = []
+    tubes = true_tubes()["cpu_hoses"]
+    for p in parts:
+        if p.name not in SHADOW_FAN:
+            continue
+        a = guide_shadow(p.solid, SHADOW_FAN[p.name], tubes)
+        rows.append((p.name, a))
+        if a > GUIDE_SHADOW_MAX:
+            failures.append(f"CHECK21 {p.name} shades {a:.0f} mm2 of the open circle of {SHADOW_FAN[p.name]} outside the hoses, the limit is {GUIDE_SHADOW_MAX:g}")
+    return rows
+
+
 # ---------------------------------------------------------------------------
 # Checks 17 and 18 (revision 13): the side fan bracket and the card's post, hand calculations as functions of the model's own numbers (beam formulas, no mesh), so that a
 # section that is made thinner fails here. The material numbers are strength.py's (it reads them from here): printed ABS, 20 MPa across the layers, safety 3.
@@ -2347,6 +2645,7 @@ ABS_ALLOW = ABS_STRENGTH_LAYER / ABS_SAFETY          # 6.67 MPa
 ABS_E = 2000.0                   # MPa, printed ABS along the layers
 STRENGTH_MARGIN_MIN = 2.0        # revision 13: the bracket's and the post's worst section stays under ABS_ALLOW / this
 FAN_KG = 0.2                     # a 140 mm fan's mass (strength.py's KG["fan140"])
+CARD_KG = 1.6                    # the graphics card's mass (strength.py's KG["card"]; revision 14a: the number lives here, strength.py reads it)
 GRAVITY = 9.81                   # m/s^2
 KNOCK_N = 20.0                   # the plan's load on a side fan: 20 N along X at its far corner
 PULL_N = 20.0                    # the plan's load on the card's post: 20 N along -X (v) on a cable at the lintel
@@ -2493,10 +2792,52 @@ def post_strength(v_up=None, col_w=None):
     return dict(rows=rows, worst=float(worst), margin=float(ABS_ALLOW / worst), stiffness=float(PULL_N / d_one), deflection=(float(d_both), float(d_one)), lines=lines)
 
 
+def rest_strength(width=None, depth=None):
+    """Hand calculation of the card's rest, gpu_rest, under two loads (revision 14a, item 1). Returns dict(rows, worst, margin, tension, lines).
+    The finger is a cantilever standing on the diagonal's upper face (the seat, n REST_SEAT_N), `width` along u (REST_W) and `depth` along X (the rib's thickness).
+    1. The card's whole weight, CARD_KG x g, pressing on the contact face at the middle of its flat part (n from the seat to REST_N_AXIS[1]) along -u: bending about the X axis,
+       sigma = M 6 / (depth width^2) at the foot. The card's other end is held by the post, so the whole weight on the rest is the safe side.
+    2. A knock of KNOCK_N along X at the finger's tip (n REST_N_AXIS[1] + width / 2): bending about the u axis, sigma = M 6 / (width depth^2) at the foot.
+    The screws' tension, from the moment of each load about the foot's edge, which the foot turns about: the weight about the low-u edge (two screws at REST_SCREW_DU either side of
+    the finger's middle, tension in proportion to the distance from the edge), the knock about the X edge, the two screws on the middle line of X sharing it equally. Not a stress:
+    the insert's pull-out is not in the data."""
+    width = REST_W if width is None else width
+    depth = (REST_X[1] - REST_X[0]) if depth is None else depth
+    W = CARD_KG * GRAVITY
+    n_mid = (REST_SEAT_N + REST_N_AXIS[1]) / 2
+    arm_w = n_mid - REST_SEAT_N
+    m_w = W * arm_w
+    sig_w = m_w * 6 / (depth * width ** 2)
+    n_tip = REST_N_AXIS[1] + width / 2
+    arm_k = n_tip - REST_SEAT_N
+    m_k = KNOCK_N * arm_k
+    sig_k = m_k * 6 / (width * depth ** 2)
+    edge = hw.GPU_BS[2] - width
+    arms = [(hw.GPU_BS[2] - width / 2 + du) - edge for du in (-REST_SCREW_DU, REST_SCREW_DU)]
+    t_w = [m_w * a / sum(x * x for x in arms) for a in arms]
+    t_k = m_k / (depth / 2) / 2
+    tension = max(t_w) + t_k
+    rows = [("finger at the foot", "weight", sig_w,
+             f"the card's {CARD_KG:g} kg x {GRAVITY:g} = {W:.2f} N on the contact face at n {n_mid:g}, arm {arm_w:g} mm from the seat (n {REST_SEAT_N:g}), M = {m_w:.0f} N mm; section {width:g} (u) x {depth:g} (X), "
+             f"W = d w^2 / 6 = {depth * width ** 2 / 6:.0f} mm3"),
+            ("finger at the foot", "knock", sig_k,
+             f"{KNOCK_N:g} N along X at the tip (n {n_tip:g}), arm {arm_k:g} mm, M = {m_k:.0f} N mm; W = w d^2 / 6 = {width * depth ** 2 / 6:.0f} mm3")]
+    worst = max(r[2] for r in rows)
+    lines = [f"  Нагрузки (план, п. 1): весь вес карты {CARD_KG:g} кг = {W:.2f} Н на контактную грань посередине её плоской части (n {n_mid:g}); удар {KNOCK_N:g} Н вдоль X в кончик пальца (n {n_tip:g}). "
+             f"Допустимое {ABS_ALLOW:.2f} МПа, запас не меньше {STRENGTH_MARGIN_MIN:g}, то есть не выше {ABS_ALLOW / STRENGTH_MARGIN_MIN:.2f} МПа."]
+    for what, case_, sg, how in rows:
+        lines.append(f"    {what:20s} {case_:7s} {sg:5.2f} МПа (запас {ABS_ALLOW / sg:4.1f}): {how}")
+    lines.append(f"  Наихудшее сечение {worst:.2f} МПа, запас {ABS_ALLOW / worst:.2f}. Для сравнения, палец прежних 16 мм (ребро): удар {KNOCK_N * (REST_N_AXIS[1] + 8.0 - REST_SEAT_N) * 6 / (16.0 * depth ** 2):.2f} МПа "
+                 f"(запас {ABS_ALLOW / (KNOCK_N * (REST_N_AXIS[1] + 8.0 - REST_SEAT_N) * 6 / (16.0 * depth ** 2)):.2f}).")
+    lines.append(f"  Растяжение двух винтов M3: от веса {max(t_w):.0f} Н на дальний (поворот вокруг нижней по u кромки, плечи {arms[0]:g} и {arms[1]:g} мм), от удара {t_k:.0f} Н на каждый "
+                 f"(поворот вокруг кромки по X, плечо {depth / 2:g} мм); вместе до {tension:.0f} Н на винт. Прочность вставки на вырыв в данных проекта нет (docs/plans/fasteners-m3.md: около 1170 Н хорошая вставка в PETG, 380 Н плохая, для ABS не найдено).")
+    return dict(rows=rows, worst=float(worst), margin=float(ABS_ALLOW / worst), tension=float(tension), tension_weight=float(max(t_w)), tension_knock=float(t_k), lines=lines)
+
+
 def check_strength(failures):
-    """Checks 17 and 18: the margins of bracket_strength() and post_strength()."""
+    """Checks 17, 18 and 19: the margins of bracket_strength(), post_strength() and rest_strength()."""
     out = {}
-    for tag, fn, what in (("CHECK17", bracket_strength, "fan bracket"), ("CHECK18", post_strength, "card post")):
+    for tag, fn, what in (("CHECK17", bracket_strength, "fan bracket"), ("CHECK18", post_strength, "card post"), ("CHECK19", rest_strength, "gpu_rest")):
         r = fn()
         out[what] = r
         if r["margin"] < STRENGTH_MARGIN_MIN - 1e-9:
@@ -2870,7 +3211,7 @@ def check_drive_bays(parts, hardware, failures, contacts=(), pp_contact=()):
 # ---------------------------------------------------------------------------
 STACK_TOL = 0.1          # mm: the measured stack against the one the pilot was made for
 STACK_GAP = 0.5          # mm: a gap this small between two clamped parts does not break the stack
-CLAMPS_HARDWARE = {"board": ("board",), "side fan": hw.FAN_SIDE_NAMES}      # the screws that clamp a hardware solid, by their item: the board's, the side fans'
+CLAMPS_HARDWARE = {"board": ("board",), "side fan": hw.FAN_SIDE_NAMES, "hose_guide_cpu": (GUIDE_CPU_FAN,)}      # the screws that clamp a hardware solid, by their item: the board's, the side fans' and the CPU guide's, which goes through the left fan
 HARDWARE_PROBE_LEN = 40.0            # mm: how far behind a pilot's mouth the hardware is looked for
 WASHER_SEAT_DEPTH = 0.1              # mm: the washer's rim is probed this far inside the face it bears on
 WASHER_RIM_POINTS = 24
@@ -3177,7 +3518,7 @@ def run_checks(hardware, parts, memo=None):
     # 5. holders and fasteners, derived from the solids at the positions hardware.py lists
     res["mounts"] = derive_mounts(parts, contacts, failures, memo)
     names = {p.name for p in parts}
-    for need in ("gpu_post", "rib_A_right"):
+    for need in ("gpu_post", "gpu_rest", "rib_A_right", "front_io_carrier"):
         if need not in names:
             failures.append(f"CHECK5 missing part {need}")
 
@@ -3204,6 +3545,12 @@ def run_checks(hardware, parts, memo=None):
 
     # 11. the side fans' apertures stay open
     res["apertures"] = check_apertures(parts, failures)
+
+    # 21. the CPU hose guide, on the left fan's corner D, may shade only so much of the fan's circle beyond the hoses' own shadow
+    res["guide_shadow"] = check_guide_shadow(parts, failures)
+
+    # 20. the front I/O module sits in its carrier with the walls the carrier needs; the room behind it in the sill's pocket
+    res["carrier"] = check_carrier(parts, hardware, failures)
 
     # 14. the 420's bracket plates stay out of the fans' openings and keep the wall round every fan screw
     res["plates420"] = check_420_plates(parts, failures, memo)
@@ -3567,7 +3914,8 @@ def format_report(hardware, parts, res, memo=None):
             w(f"    {nm}: {len(rr)} зенковки Ø{CLEAR_KINDS['6-32cb'][0]:g} (головка 6-32 {hw.UNC6_HEAD_D:g} + {SLED_CB_PLAY:g}), под головкой {min(r[2] for r in rr):.2f} мм, штатный винт {rr[0][3]:g} мм входит {rr[0][4]:.1f} мм")
     w(f"    ПРЕДПОЛОЖЕНИЯ, не измерены: штатный винт БП {hw.PSU_SCREW_LEN:g} мм (\"около 6 мм\") и штатный винт радиатора 360 {hw.RAD360_SCREW_LEN:g} мм (владелец радиатор не измерял); головка 6-32 {hw.UNC6_HEAD_D:g} x {hw.UNC6_HEAD_H:g} мм (как в DRIVE_FORMS).")
     w("")
-    w(f"Подпорки GPU: gpu_post (левый торец, рамка с окном для видеовыходов, ревизия 13; M3 x {screw_fit(GPU_POST_STACK)[0]} через beam_mid) + gpu_rest (палец правого ребра A, плоскость u = {hw.GPU_BS[2]:.1f}).")
+    w(f"Подпорки GPU: gpu_post (левый торец, рамка с окном для видеовыходов, ревизия 13; M3 x {screw_fit(GPU_POST_STACK)[0]} через beam_mid) + gpu_rest (ревизия 14a: отдельная деталь на верхней грани диагонали правого ребра A, "
+      f"плоскость u = {hw.GPU_BS[2]:.1f}; 2 x M3 x {screw_fit(REST_STACK)[0]} вдоль n снизу, головки в зенковках Ø{REST_CB_D:g} глубиной {REST_CB_DEPTH:g} мм).")
     w("")
     w("Намеренные контакты с нулевым зазором, деталь x железо:")
     for a, b in sorted(res["contacts"]):
@@ -3576,7 +3924,7 @@ def format_report(hardware, parts, res, memo=None):
     w("")
     w("Контакты деталь x деталь (нулевой зазор, объём пересечения < 1 мм³):")
     for a, b in sorted(res["pp_contact"]):
-        w(f"  {a:16s} x {b}")
+        w(f"  {a:16s} x {b}" + ("   по плану" if (a, b) in INTENDED_CONTACTS or (b, a) in INTENDED_CONTACTS else ""))
     w("")
     w(f"Зазоры < {CLOSE_MM:.0f} мм, деталь x железо (минимум по паре):")
     for a, b, d in res["close"]:
@@ -3633,7 +3981,8 @@ def format_report(hardware, parts, res, memo=None):
     m = res["mounts"]
     w(f"  5. держатели и крепёж, считаются по телам (отверстие на оси в держателе): board {m['board']}, rad420 {m['rad420']}, "
       f"rad360 {m['rad360']}, psu {m['psu']}, side fans {m['fan_side_left']} (L) + {m['fan_side_right']} (R) of 4 corners, "
-      f"gpu post {m['gpu_post']} + rest {m['gpu_rest']}, front_io {m['front_io']} (PLACEHOLDER-винты модуля в front_sill), "
+      f"gpu post {m['gpu_post']} + rest (контакт {m['gpu_rest']}, винты {m['gpu_rest_screw']}, ревизия 14a), front_io {m['front_io']} (PLACEHOLDER-винты модуля в front_io_carrier), "
+      f"винты каретки front_io_carrier в вставки порога {m['front_io_carrier']}, направляющая CPU на углу D левого вентилятора {m['hose_guide_cpu']}, "
       f"органическая оболочка {m['organic']} пилотов M3 под площадки (hw.ORGANIC_PADS), кабельные точки {m['tie_pilot']} пилотов M3 в деталях + {m['tie_bridge']} отверстий в мостиках (TIE_POINTS)   "
       + ("PASS" if not any(f.startswith('CHECK5') for f in res['failures']) else "FAIL"))
     lz = min(z for _, z in res["low"])
@@ -3711,6 +4060,17 @@ def format_report(hardware, parts, res, memo=None):
     w(f"  18. (доп., ревизия 13) рамка стойки карты держит тягу кабеля {PULL_N:g} Н вдоль -X на перемычке: наихудшее сечение {st['card post']['worst']:.2f} МПа, запас {st['card post']['margin']:.2f} (нужно не меньше {STRENGTH_MARGIN_MIN:g}), "
       f"прогиб верха {st['card post']['deflection'][0]:.2f}..{st['card post']['deflection'][1]:.2f} мм   "
       + ("PASS" if not any(f.startswith('CHECK18') for f in res['failures']) else "FAIL"))
+    gs, cw = res["guide_shadow"], res["carrier"]
+    w(f"  19. (доп., ревизия 14a) упор карты gpu_rest держит весь вес карты {CARD_KG:g} кг на контактной грани и удар {KNOCK_N:g} Н вдоль X в кончик пальца: наихудшее сечение {st['gpu_rest']['worst']:.2f} МПа, запас {st['gpu_rest']['margin']:.2f} "
+      f"(нужно не меньше {STRENGTH_MARGIN_MIN:g}); растяжение винта до {st['gpu_rest']['tension']:.0f} Н   "
+      + ("PASS" if not any(f.startswith('CHECK19') for f in res['failures']) else "FAIL"))
+    w(f"  20. (доп., ревизия 14a) модуль front_io в каретке: торцевые блоки {cw['end'][0]:.2f} и {cw['end'][1]:.2f} мм (нужно не меньше {CARRIER_END_MIN:g}), верхняя плита {cw['top']:.2f} мм (нужно не меньше {CARRIER_TOP_MIN:g}), "
+      f"зазор за модулем до задней стенки кармана порога {cw['rear']:.2f} мм; модуль может вырасти до того, как придётся менять каретку или порог: влево {cw['grow']['left']:.2f}, вправо {cw['grow']['right']:.2f}, вверх {cw['grow']['top']:.2f}, "
+      f"назад {cw['grow']['rear']:.2f}, вперёд {cw['grow']['front']:.2f}, вниз {cw['grow']['bottom']:.2f} мм   "
+      + ("PASS" if not any(f.startswith('CHECK20') for f in res['failures']) else "FAIL"))
+    w(f"  21. (доп., ревизия 14a) направляющая CPU на левом вентиляторе затеняет в круге Ø{hw.FAN_APERTURE_D:g} за вычетом тени самих шлангов: "
+      + ", ".join(f"{a} {v:.0f} мм² (предел {GUIDE_SHADOW_MAX:g}, {100 * v / (math.pi * (hw.FAN_APERTURE_D / 2) ** 2):.1f} % круга)" for a, v in gs) + "   "
+      + ("PASS" if not any(f.startswith('CHECK21') for f in res['failures']) else "FAIL"))
     w("")
     w("Прочность кронштейна бокового вентилятора (ручной расчёт, ревизия 13, п. 5; расчёт - функция bracket_strength(), числа из модели)")
     for ln in st["fan bracket"]["lines"]:
@@ -3718,6 +4078,10 @@ def format_report(hardware, parts, res, memo=None):
     w("")
     w("Прочность рамки стойки карты (ручной расчёт, ревизия 13, п. 6; функция post_strength())")
     for ln in st["card post"]["lines"]:
+        w(ln)
+    w("")
+    w("Прочность упора карты gpu_rest (ручной расчёт, ревизия 14a, п. 1; функция rest_strength())")
+    for ln in st["gpu_rest"]["lines"]:
         w(ln)
     w("")
     w("Скругление (ревизии 8 и 8a)")
@@ -3774,8 +4138,10 @@ def format_report(hardware, parts, res, memo=None):
           f"задний гребень u = {g['u_top']:.1f}. Габарит X {b[0]:.0f}..{b[1]:.0f}, Y {b[2]:.1f}..{b[3]:.1f}, Z {b[4]:.1f}..{b[5]:.1f}: одна деталь "
           f"{b[1] - b[0]:.0f} мм <= {MAX_PART:.0f}, делить пополам не нужно.")
         io = hw.FRONT_IO_W
-        w(f"  Карман: бокс модуля front_io X {io[0]:g}..{io[1]:g}, Y {io[2]:g}..{io[3]:g}, Z {io[4]:g}..{io[5]:g} плюс {SILL_POCKET_PLAY:g} мм с боков, сзади и сверху; открыт спереди и снизу "
-          f"(модуль встаёт спереди и опирается на верх beam_front). Два винта {hw.FRONT_IO_SCREW_KIND} (PLACEHOLDER) вдоль X в торцевые стенки кармана. Отверстий под порты нет.")
+        w(f"  Карман (ревизия 14a): снаружи каретки front_io_carrier (X {CARRIER_X[0]:g}..{CARRIER_X[1]:g}, Y {hw.ENVELOPE_Y0:g}..{CARRIER_Y1:g}, Z {CARRIER_Z[0]:g}..{CARRIER_Z[1]:g}) плюс {SILL_POCKET_PLAY:g} мм с боков, сзади и сверху: "
+          f"X {g['cuts']['pocket'].BoundingBox().xmin:g}..{g['cuts']['pocket'].BoundingBox().xmax:g}, Y до {g['pocket_rear']:g}, потолок Z {g['roof']:g} (до канала светлой линии {solid_distance(g['cuts']['pocket'], g['cuts']['channel']):.2f} мм); открыт спереди и снизу. "
+          f"Бокс модуля front_io X {io[0]:g}..{io[1]:g}, Y {io[2]:g}..{io[3]:g}, Z {io[4]:g}..{io[5]:g} (PLACEHOLDER) лежит в каретке, не в пороге: зазор до него за модулем {g['pocket_rear'] - io[3]:.2f} мм, "
+          f"задняя стенка порога {SILL_REAR_WALL:.2f} мм (была 5; плоскость Y {g['y_rear']:g} не двигалась). Пилотов модуля в пороге больше нет; 4 пилота M3 под винты каретки в торцевых стенках кармана. Отверстий под порты нет.")
         ls = hw.LIGHT_STRIP_BS
         w(f"  Канал светлой линии: бокс light_strip (X {hw.LIGHT_STRIP_X[0]:g}..{hw.LIGHT_STRIP_X[1]:g}, {hw.LIGHT_STRIP_SECTION[0]:g} x {hw.LIGHT_STRIP_SECTION[1]:g} мм по u, n, "
           f"u {ls[2]:g}..{ls[3]:g}, n {ls[4]:.2f}..{ls[5]:.2f}) плюс {SILL_CHANNEL_PLAY:g} мм, насквозь через оба торца порога (дышит); щель {hw.LIGHT_LINE_W:g} мм от канала к лицу "
@@ -3788,8 +4154,37 @@ def format_report(hardware, parts, res, memo=None):
           f"Заданы смещениями от hw.FRONT_IO_W: правый конец модуля минус {SILL_WINDOW_INSET:g}, ширина {SILL_WINDOW_W:g}, низ на {SILL_WINDOW_Z_LOW:g} мм выше низа модуля, верх по верху модуля. Винты модуля и их стенки в окно не попадают. "
           f"Отдельного окна для кабеля светлой линии нет: канал открыт через оба торца порога.")
         w(f"  Крепления органической оболочки: {len(organic_pilots('front_sill'))} пилота M3 в торцевых гранях (X +-{SILL_HALF_X:g}), см. hw.ORGANIC_PADS.")
-        w(f"  Зазоры: до front_io {solid_distance(sl.solid, hardware['front_io']):.2f} мм, до light_strip {solid_distance(sl.solid, hardware['light_strip']):.2f} мм "
-          f"(это зазоры кармана и канала по плану, не контакты); beam_front x front_io 0.00 мм: низ модуля стоит на верхней грани балки (контакт по плану: Z 10 у обоих).")
+        w(f"  Зазоры: до front_io {solid_distance(sl.solid, hardware['front_io']):.2f} мм (за модулем; с боков и сверху между ними каретка), до front_io_carrier {solid_distance(sl.solid, next(q for q in parts if q.name == 'front_io_carrier').solid):.2f} мм, "
+          f"до light_strip {solid_distance(sl.solid, hardware['light_strip']):.2f} мм (зазоры кармана и канала по плану, не контакты); beam_front x front_io 0.00 мм: низ модуля стоит на верхней грани балки (контакт по плану: Z 10 у обоих).")
+        w("")
+    carr = next((q for q in parts if q.name == "front_io_carrier"), None)
+    if carr is not None:
+        cw = res["carrier"]
+        xin0, xin1, zin = carrier_inside()
+        w("Каретка front_io_carrier и упор gpu_rest (ревизия 14a)")
+        w(f"  Каретка (ABS): перевёрнутая П вокруг модуля, два торцевых блока и верхняя плита, задней стенки нет (кабели модуля выходят через окно порога), открыта спереди, сзади и снизу. "
+          f"Снаружи X {CARRIER_X[0]:g}..{CARRIER_X[1]:g}, Y {hw.ENVELOPE_Y0:g}..{CARRIER_Y1:g}, Z {CARRIER_Z[0]:g}..{CARRIER_Z[1]:g} (числа каретки, не модуля: порог следует им); внутри по модулю: X {xin0:g}..{xin1:g} (зазор {CARRIER_PLAY:g}), верх Z {zin:g} (зазор {CARRIER_TOP_PLAY:g}). "
+          f"Торцевые блоки {cw['end'][0]:.1f} и {cw['end'][1]:.1f} мм, верхняя плита {cw['top']:.2f} мм (план просил не меньше 3: потолок кармана упирается в канал светлой линии, выше Z {g['roof']:g} нельзя без зазора 2 мм до него). "
+          f"Масса: {mass_estimate(carr.solid, carr.material)[1]:.0f} г при 100 %, {mass_estimate(carr.solid, carr.material)[2]:.0f} г при 4 стенках/20 %; порог {mass_estimate(sl.solid, sl.material)[1]:.0f} / {mass_estimate(sl.solid, sl.material)[2]:.0f} г (до ревизии 482 / 205 г).")
+        w(f"  Крепления: 2 x {hw.FRONT_IO_SCREW_KIND} модуля (PLACEHOLDER) в торцевые блоки с внутренней грани; 4 x M3 x {screw_fit(CARRIER_STACK)[0]} каретки (по 2 на конец: Y {CARRIER_SCREWS_YZ[0][0]:g} и {CARRIER_SCREWS_YZ[1][0]:g}, Z {CARRIER_SCREWS_YZ[0][1]:g}) "
+          f"изнутри в вставки торцевых блоков порога: головка и шайба в зенковке Ø{CARRIER_CB_D:g}, под шайбой {CARRIER_SCREW_FLOOR:g} мм блока и {SILL_POCKET_PLAY:g} мм зазора кармана; отвёртка доходит вдоль X, когда модуля нет. "
+          f"Каретка не касается порога и балки (зазоры {SILL_POCKET_PLAY:g} мм) и висит на винтах.")
+        w(f"  Модуль может вырасти до того, как придётся менять каретку или порог (проверка 20): по X на {min(cw['grow']['left'], cw['grow']['right']):.2f} мм с каждого конца (торцевой блок не меньше {CARRIER_END_MIN:g}: пилот модуля {hw.M3_PILOT_DEPTH:g} + стенка {hw.M3_MIN_WALL:g}), "
+          f"вверх на {cw['grow']['top']:.2f} мм (плита не меньше {CARRIER_TOP_MIN:g}), назад на {cw['grow']['rear']:.2f} мм (до задней стенки кармана); вперёд и вниз на {max(cw['grow']['front'], cw['grow']['bottom']):.1f} мм: плоскость Y = {hw.ENVELOPE_Y0:g} и верх beam_front. "
+          f"За этими пределами каретка перестаёт держать стенки (проверка 20), а порог следует её наружному размеру; больше места слева и справа даёт порог (блоки {CARRIER_X[0] - SILL_POCKET_PLAY + SILL_HALF_X:.1f} и {SILL_HALF_X - CARRIER_X[1] - SILL_POCKET_PLAY:.1f} мм).")
+        rest = next(q for q in parts if q.name == "gpu_rest")
+        rb = bbox_of(rest.solid)
+        w(f"  Упор gpu_rest (ABS): капсула шириной {REST_W:g} мм (u {hw.GPU_BS[2] - REST_W:g}..{hw.GPU_BS[2]:g}), контактная грань u = {hw.GPU_BS[2]:g} на n {REST_SEAT_N:g}..{REST_N_AXIS[1]:g} (ось n {REST_N_AXIS[0]:g}..{REST_N_AXIS[1]:g} как у пальца), "
+          f"X {REST_X[0]:g}..{REST_X[1]:g} (толщина ребра), стоит на верхней грани диагонали (n {REST_SEAT_N:g}), габарит X {rb[0]:.0f}..{rb[1]:.0f}, Y {rb[2]:.1f}..{rb[3]:.1f}, Z {rb[4]:.1f}..{rb[5]:.1f}; масса {mass_estimate(rest.solid)[1]:.0f} / {mass_estimate(rest.solid)[2]:.0f} г. "
+          f"Два винта M3 x {screw_fit(REST_STACK)[0]} вдоль n снизу (u {REST_U - REST_SCREW_DU:g} и {REST_U + REST_SCREW_DU:g}, X {(X_IN + X_OUT) / 2:g}), проходные Ø{hw.M3_CLEAR_D:g} в ребре без прорезей, вставки в упоре, зенковки Ø{REST_CB_D:g} x {REST_CB_DEPTH:g} мм в низу диагонали.")
+        gd = next(q for q in parts if q.name == "hose_guide_cpu")
+        gg = guide_cpu_geometry()
+        gb = bbox_of(gd.solid)
+        tubes = true_tubes()["cpu_hoses"]
+        w(f"  Направляющая CPU (PA6) на левом вентиляторе: гребёнка на внутренней грани вентилятора у угла {GUIDE_CPU_CORNER} (u {hw.FAN_SIDE_HOLES_UN[GUIDE_CPU_CORNER][0]:g}, n {hw.FAN_SIDE_HOLES_UN[GUIDE_CPU_CORNER][1]:g}), один M3 x {screw_fit(FAN_STACK)[0]} с внешней грани через вентилятор. "
+          f"Каналы центрами в {gg['s'][1]:.1f} мм (шланг 1, u {gg['u'][1]:.1f}) и {gg['s'][0]:.1f} мм (шланг 0, u {gg['u'][0]:.1f}) от оси винта (предел {GUIDE_CPU_REACH:g}); стенка канала до шлангов "
+          + " и ".join(f"{solid_distance(gd.solid, t):.2f}" for t in tubes[::-1]) + f" мм; расстояние до вентилятора 0.00 (контакт по плану), габарит X {gb[0]:.1f}..{gb[1]:.1f}, Y {gb[2]:.1f}..{gb[3]:.1f}, Z {gb[4]:.1f}..{gb[5]:.1f}; масса {mass_estimate(gd.solid, 'PA6')[1]:.0f} г / {mass_estimate(gd.solid, 'PA6')[2]:.0f} г. "
+          f"Тень в круге вентилятора сверх шлангов {res['guide_shadow'][0][1]:.0f} мм² (предел {GUIDE_SHADOW_MAX:g}). Устья каналов смотрят к плате (+X), от вентилятора.")
         w("")
     if TIE_POINTS:
         w(f"Кабельные точки крепления (проход 2 скелета, docs/plans/cables-and-organic.md, «Cable fixing»): {len(TIE_POINTS)} штифтов M3: в нижних гранях beam_low, beam_mid, beam_top и правого рельса (rib_A_right), во внутренних гранях правых рёбер (средняя нога rib_A_right, пост rib_B_right) и в верхней грани skid_front, "
@@ -4238,6 +4633,27 @@ DEVIATIONS: list[str] = [
     "Ревизия 13, organic_frame.py: только запущен, слой не перерисован. shell_concepts.X_LIM = ENVELOPE_FAN_X + 20 (сетка до |X| 280, была 252); organic_frame.REAR_BEND_X = 176.5: изгиб заднего свипа был привязан к X вентилятора "
     "(центр - 16 = 176.5) и с вентиляторами на 247.5 уходил на 231.5, где кость пересекала путь отвёртки площадки rear_post_R; X оставлен прежним. Предел слоя |X| 229 (ENVELOPE_X) не менялся: кольца вокруг вентиляторов "
     "(центр X +-247.5) срезаны им целиком, поэтому слой идёт без колец; фланги перерисуют в следующей ревизии. Проверки слоя пройдены: одно тело 1641 см³, 12 площадок, ось винта на оси пилота.",
+    # ----- revision 14a -----
+    "Ревизия 14a, упор карты gpu_rest. Палец-капсула ушёл из контура rib_A_right (ребро теперь с тем же контуром, что левое; направляющая GPU, рельсовые пилоты и площадки оболочки остались) и стал деталью ABS: капсула шириной "
+    f"{REST_W:g} мм, контактная грань u = hw.GPU_BS[2] на n {REST_SEAT_N:g}..{REST_N_AXIS[1]:g}, стоит на верхней грани диагонали (n {REST_SEAT_N:g}), толщина X {X_IN:g}..{X_OUT:g}. Два винта M3 x {screw_fit(REST_STACK)[0]} вдоль n снизу. "
+    f"ОТКЛОНЕНИЯ ОТ ПЛАНА: (1) ширина {REST_W:g} вместо 16: удар {KNOCK_N:g} Н вдоль X в кончик изгибает палец 16 мм с запасом 1.93 (меньше 2), при {REST_W:g} мм запас {rest_strength()['margin']:.2f}; лишняя ширина ушла к меньшему u, контактная грань и расстояние до райзера USB-C не изменились; "
+    f"(2) головки в зенковках: через всю диагональ {DIAG_W:g} мм ни одна длина набора не подходит под пилот 6.7 мм (M3 x 35 вошёл бы на 6.5 мм при пределе 6.2, а рассверловка под вставкой, которой это требует screw_fit, не проходит проверку 7: стенка 0.29 мм), "
+    f"поэтому в низе диагонали зенковки Ø{REST_CB_D:g} x {REST_CB_DEPTH:g} мм, стек {REST_STACK:g} мм, M3 x {screw_fit(REST_STACK)[0]} входит на {screw_fit(REST_STACK)[1]:g} мм; головки заподлицо с низом ребра (там рельс с мостиками и кабели); "
+    "(3) растяжение винтов: 52 Н на дальний от веса карты и 150 Н от удара, вместе 202 Н на винт (расчёт в проверке 19); прочность вставки в ABS в данных нет. Проверка 5: gpu_rest считается по контакту с картой (1) и по двум винтам (оба тела: пилот в упоре и проходное в ребре); контакт rib_A_right x gpu заменён на gpu_rest x gpu и gpu_rest x rib_A_right.",
+    "Ревизия 14a, каретка front_io_carrier. Перевёрнутая П из ABS вокруг бокса модуля: два торцевых блока и верхняя плита, задней стенки нет (кабели выходят в окно порога, задняя стенка порога осталась бы при 2.1 мм), открыта спереди, сзади и снизу. Модуль держат его два винта "
+    f"{hw.FRONT_IO_SCREW_KIND} (PLACEHOLDER) в пилотах торцевых блоков; каретку держат 4 x M3 x {screw_fit(CARRIER_STACK)[0]} вдоль X (по 2 на конец) в вставках торцевых блоков порога, головки в зенковках с внутренней стороны. Порог: карман по наружному размеру каретки плюс {SILL_POCKET_PLAY:g} мм, "
+    f"2.5 мм зазора за модулем, задняя стенка {SILL_REAR_WALL:.1f} мм (плоскость Y {SILL_Y_REAR:g} не двигалась), пилотов модуля в нём больше нет. ОТКЛОНЕНИЯ ОТ ПЛАНА: (1) верхняя плита {CARRIER_Z[1] - carrier_inside()[2]:.1f} мм, а не 3: потолок кармана "
+    f"может подняться не выше Z {CARRIER_Z[1] + SILL_POCKET_PLAY:g} (до канала светлой линии не меньше 2 мм; план называл Z 51.2 до касания канала, зазор 2 мм оставляет 49.2), с зазором {SILL_POCKET_PLAY:g} мм до порога и {CARRIER_TOP_PLAY:g} мм до модуля остаётся 2.7 мм; "
+    f"(2) потолок кармана поднялся с Z 46.4 до {CARRIER_Z[1] + SILL_POCKET_PLAY:g}, а кожа лица порога {SILL_FACE_WALL:g} мм над передним верхним краем кармана осталась правилом порога: лицо ушло на {sill_geometry()['n_face'] - 59.04:.2f} мм по n вперёд (n {sill_geometry()['n_face']:.2f} вместо 59.04), "
+    "верх порога стал на 1.4 мм выше (Z 81.5 вместо 80.1); органический слой (organic_frame.py читает сечение порога) от этого не сломался, его проверки проходят; (3) каретка висит на винтах над beam_front на 0.3 мм: опирается на балку модуль, не она; "
+    f"(4) торцевые блоки порога стали {CARRIER_X[0] - SILL_POCKET_PLAY + SILL_HALF_X:.1f} и {SILL_HALF_X - CARRIER_X[1] - SILL_POCKET_PLAY:.1f} мм (были 69.6 и 44.6), стенки окна, канала, 4 винтов к beam_front и площадок оболочки не затронуты. "
+    "Проверка 20 (новая): торцевой блок не тоньше 8.3 мм (пилот модуля 6.7 + стенка 1.6), плита не тоньше 2.5 мм, модуль не глубже кармана: модуль, выросший за каретку, не проходит молча.",
+    "Ревизия 14a, направляющая hose_guide_cpu. Гребёнка из PA6 на внутренней грани левого бокового вентилятора у угла D (u 252.25, n 90.25): один M3 x 30 с внешней грани через вентилятор в вставку гребёнки, два канала Ø13 (шланг + 0.6) с устьями к плате (+X), от вентилятора. "
+    "С шеи neck_left снята вставка направляющей (шея теперь зеркало neck_right, кроме площадки оболочки neck_top_L, которая не двигалась). ОТКЛОНЕНИЯ ОТ ПЛАНА: (1) канал первого шланга поставлен на вершину его keep-out цепочки (u 235.4), а не в точку (u 239.3, n 75.0) по маршруту: "
+    "труба шланга (проверка 10) строится по цепочке из каждой третьей точки маршрута, и от u 240.2, где шланг начинает изгиб, хорда цепочки уходит от маршрута на 0.1 мм и больше, а канал даёт всего 0.3 мм; в точке 239.3 стенка до трубы была бы 0.06 мм (нужно 0.2..0.5). "
+    "Отсюда расстояния от оси винта до центров каналов 20.6 и 40.3 мм (в плане 20.0 и 38.8), оба не дальше 45; (2) ось гребёнки идёт через D и вершину цепочки, а не по перпендикуляру к шлангам: 3-4° от ряда D - шланг 1 - шланг 0, поэтому полка не квадратна к шлангу и канал выходит на грань эллипсом (калибр C3 режет полосу вокруг канала и читает радиус по цилиндрической грани); "
+    f"(3) тень в круге вентилятора сверх шлангов считает проверка 21 по проекции вдоль X (предел {GUIDE_SHADOW_MAX:g} мм²; число - в строке проверки 21); (4) guide входит в hw.FAN_SIDE_PARTS (|X| до 260), все остальные детали остаются в |X| <= 229; (5) GUIDE_SPEC стал функцией guide_spec() (u каналов считаются по геометрии), "
+    "build_neck_right потерял параметр guide_pilot. fit_gauges.py: калибр C3 режет полосу гребёнки вокруг канала шланга 1, проверка C3 читает радиус канала по цилиндрической грани (рёбра-окружности на эллиптических выходах нет); strength.py: каретка не входит в расчётное тело (висит с зазором, не нагружает каркас), масса карты берётся из frame_v0.CARD_KG.",
 ]
 OPEN_ITEMS: list[str] = [
     "Отсеки под диски: глубина штекера и изгиба кабеля за диском 25 мм (DRIVE_PLUG_ZONE) - ПРЕДПОЛОЖЕНИЕ, источника нет. Головки винтов, нижний предел входа 2.5 дюйма, резиновые втулки (нет размеров), кабели SATA (данные от платы, питание от БП), "
