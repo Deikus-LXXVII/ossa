@@ -36,6 +36,8 @@ Given by the owner on 15 Nov 2026. Facts about his equipment, not design decisio
 
 Mind when reading a PLA trial: ABS shrinks more than PLA as it cools, so a hole or a fit that is right in PLA comes out a little tighter in ABS. Fits that matter (insert pilots, screw clearances, the fit gauges) are confirmed on a small ABS piece, not on the PLA trial.
 
+**The insert ladder goes in PETG first (owner, 17 Nov 2026).** The owner has PETG to spare, and the ladder in ABS would take, by the main session's estimate, 20 to 30 g of the about 68 g left under the ABS limit (`cad_b6/budgets.json`). What the PETG ladder gives is a first figure for the pilot, not the last one. Both reasons are the main session's, from typical figures, not measured: ABS shrinks more than PETG, so the same hole comes out a little tighter in ABS (about 0.02 mm on a 4.4 mm hole, under the ladder's 0.1 mm step), and ABS softens at a higher temperature (glass transition about 105 °C against about 80 °C), so the insert goes in differently. The figure is confirmed on the first small ABS part that carries an insert, before any large part is printed. `C1_scale_l` printed in PETG beside the ladder gives PETG's shrinkage, which the organic layer needs anyway.
+
 ## What follows for printing
 - PA6 takes up water fast and prints badly when damp. At 65 % humidity the CFS is not a place to keep it: dry it before printing and feed it from a dry box.
 - ABS and PA6 need the chamber closed; the printer stands in a bedroom, so mind the fumes (see `HANDOFF.md`).

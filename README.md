@@ -119,9 +119,9 @@ A separate check keeps each contact face at 97 % of its area or more after round
 - The rear panel of the organic layer round the PSU.
 - The layer's lumpy surface.
 - The split of the layer into pieces that fit the 290 mm bed.
-- The print test of the layer in PETG against ABS: the trial piece exists (`cad_b6/organic_trial.py` writes `out/organic/trial_base_mid_R.stl`), it has not been printed.
+- The print test of the layer in PETG (ABS only if PETG prints badly): the trial piece exists (`cad_b6/organic_trial.py` writes `out/organic/trial_base_mid_R.stl`), it has not been printed.
 - The front I/O module's real dimensions.
-- The pilot's diameter of 4.4 mm is the maker's figure until the ladder C2 is tried with the owner's inserts.
+- The pilot's diameter of 4.4 mm is the maker's figure until the ladder C2 is tried with the owner's inserts. The ladder is printed in PETG first; its figure is confirmed on the first small ABS part.
 - The second pass of the fit gauges with the PC apart (G1, G2, G3, G4a, G4b) and the coupons C1 and C2.
 - The Blender pictures (stale since revision 13).
 - Cable routes are drawn and checked, and eleven tie points for hook-and-loop straps shape them. The graphics card's power cable stands 10.4 mm in front of the front plane, which the owner accepted, up to 11 mm.

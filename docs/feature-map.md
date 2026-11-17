@@ -45,10 +45,10 @@ Use it two ways: as the definition of done for a revision (no row may get worse)
 | Feature | Proved in the model | Proved on the hardware | Gap |
 |---|---|---|---|
 | Every skeleton part fits the bed (290 mm) | report's bounding boxes | none | no check fails on it; read by eye |
-| Every joint uses a screw and an insert the owner has | check 15, the bill of fasteners | none | the insert's size is the owner's measurement (4.0 mm long, 4.96 mm outside, 17 Nov 2026); the pilot's diameter is an assumption until `C2` is tried |
+| Every joint uses a screw and an insert the owner has | check 15, the bill of fasteners | none | the insert's size is the owner's measurement (4.0 mm long, 4.96 mm outside, 17 Nov 2026); the pilot's diameter is an assumption until `C2` is tried; `C2` is printed in PETG (owner, 17 Nov 2026), so its figure still has to be confirmed in ABS on the first small part |
 | A screwdriver reaches every screw | the organic pads only (`driver_blocked`) | none | no check for the skeleton's screws |
 | The parts can be put together in some order | none | none | no assembly order is written or checked |
-| Printed holes come out the size the model asks | none | coupons `C1` (not printed), `C2` (waits for inserts) | shrinkage of ABS and PETG not measured |
+| Printed holes come out the size the model asks | none | coupons `C1` (not printed), `C2` (waits for inserts; to be printed in PETG) | shrinkage of ABS and PETG not measured |
 | The organic layer prints | none | none | not split into pieces; the surface is lumpy; PETG settings are untested starting values |
 
 ## Budgets
