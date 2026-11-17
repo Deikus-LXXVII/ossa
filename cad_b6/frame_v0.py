@@ -282,7 +282,9 @@ def rounded_like(solid, axis, name, *, sides, own, rings=(), post_cuts=(), keep=
         return solid
     bb = bbox_of(solid)
     key = ("outline", name, tuple(round(float(a), 4) for a in axis), round(solid.Volume(), 2), tuple(round(x, 2) for x in bb), tuple(sides), convex, concave,
-           tuple(round(x, 2) for r in rings for x in bbox_of(r)), tuple(round(x, 2) for c in post_cuts for x in bbox_of(c)))
+           tuple(round(x, 2) for r in rings for x in bbox_of(r)), tuple(round(x, 2) for c in post_cuts for x in bbox_of(c)),
+           tuple(tuple(round(float(x), 2) for x in pt) for pt, _why in keep))      # the corners kept sharp are part of the result (found by the review of the 14a fixes: without them a later
+    # call with another `keep` got the first call's solid and log)
     return ROUND.remembered(key, lambda: _rounded_like(solid, axis, name, sides, own, rings, post_cuts, keep, extra, convex, concave))
 
 
