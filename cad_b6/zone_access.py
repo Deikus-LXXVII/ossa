@@ -59,7 +59,7 @@ BUNDLE_WIDE_D = 40.0                    # revision 14b: the bundle that has to g
 WIDEST_R_MAX = 60                       # the bisections of the bundle and of the hand stop at this radius, mm; a result at the limit is reported as "at least"
 HAND_D = 70.0                           # revision 14b: the plan's hand, reported against
 HAND_R_MIN = int(BALL_R)                         # the smallest hand tried, radius mm (a 20 mm ball, the bundle's size): if it cannot get in, the hand's result is 0
-HAND_BUDGET_D = 44                      # decision of 17 Nov 2026 (main session, for the owner to confirm): the layer costs the hand 6 mm (a 50 mm ball
+HAND_BUDGET_D = 44                      # decision of 17 Nov 2026 (main session; the owner confirmed it the same day: the rings stay closed): the layer costs the hand 6 mm (a 50 mm ball
                                         # reaches the plug face without the layer, behind the fan; 44 mm with it, under the fan). The rings stay closed and mirrored; with the layer the
                                         # hand may not be smaller than this. A budget, not a target: lower it only on purpose. Both the closed ring and the left rear sweep stand in the 50 mm route
                                         # (the sweep's surface contains it, the ring's is 8.6 mm from it); which of them sets the 6 mm has not been separated
@@ -335,8 +335,8 @@ def hand_check(parts, hardware, strands, field=None, extra_blocks=(), route=True
     lines = [f"  Рука (ревизия 14b, второй проход): шар снаружи левого фланга (целиком за наружной гранью левого вентилятора, X <= -{hw.ENVELOPE_FAN_X:g} - R) ставит центр перед гранью "
              f"штекеров {HAND_ZONE}: u {b[2]:g}..{b[3]:g}, n {b[4]:g}..{b[5]:g}, v от {b[0] - HAND_NEAR:g} до {b[0]:g} (X {hw.ORIGIN[0] + b[0] - HAND_NEAR:g}..{hw.ORIGIN[0] + b[0]:g}, "
              f"не дальше {HAND_NEAR:g} мм от грани); по пути центр не заходит за плоскость грани штекеров (v <= {b[0]:g}); препятствия: каркас, железо и запретные зоны кроме {HAND_ZONE}, кабели; сетка {grid.vox:g} мм, X от {grid.xs[0]:.0f}. "
-             f"План просил Ø{HAND_D:g}. Правило (решение 17 ноября 2026): со слоем рука не меньше бюджета Ø{HAND_BUDGET_D}; замкнутое кольцо левого вентилятора стоит руке разницу между «без слоя» и "
-             f"«со слоем», кольца оставлены замкнутыми и зеркальными."]
+             f"План просил Ø{HAND_D:g}. Правило (решение 17 ноября 2026): со слоем рука не меньше бюджета Ø{HAND_BUDGET_D}; слой стоит руке разницу между «без слоя» и "
+             f"«со слоем»: на пути шара без слоя стоят и замкнутое кольцо левого вентилятора, и левая задняя дуга, их вклад не разделён; кольца оставлены замкнутыми и зеркальными."]
     fails = []
     for with_layer, r in res.items():
         if r["goal_box"] == 0 or r["goal"] == 0:

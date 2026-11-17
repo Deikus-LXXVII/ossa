@@ -98,3 +98,23 @@ Asked because Revision 13 leaves two joints that load one insert each in tension
 - **Heat and time:** no figure for sustained tension or for 50 to 60 °C on an insert was found. Printed coupons keep about 78 % (ABS) and 70 % (PETG) of their tensile strength at 60 °C.
 
 **Reading (main session).** Against the PETG figure the two loads have margins of about 5 and 8; against the cheap straight-knurl insert only 1.7 and 2.5. The owner's inserts are not identified yet, so the margin is not known. What follows for the model: the pilot must not be oversize (the ladder `C2_insert_ladder` decides it), and the wall round an insert in tension should be solid (walls and infill in the slicer), not sparse. No geometry changes.
+
+## The owner's inserts, measured (17 Nov 2026), and Revision 15
+
+The owner measured the heat-set inserts he has: **4.0 mm long, 4.96 mm outer diameter**. Until now the model assumed a pilot of Ø4.0 x 6.7 mm, which is the hole of a 4.6 mm insert 5.7 mm long.
+
+**What follows.**
+- The pilot is too small by about 0.4 mm. For an M3 insert of 5.0 mm outer diameter and 4.0 mm length the maker's guideline (CNC Kitchen's dimension sheet, quoted by Grok's research above and not re-opened) is a hole of 4.4 mm and a wall of 1.6 mm. The ladder `C2_insert_ladder` decides the real figure on this printer.
+- The pilot's depth stays 6.7 mm. The insert sits in the top 4 mm; the rest is room for the screw's tip, which keeps the screw-length window (enters 3.5 mm at least, stops 0.5 mm off the bottom) as wide as it is. A shallower pilot would leave a window of 1 mm and many joints would have no screw in the owner's kit.
+- The thread a screw can use is now 4.0 mm at most, where the rule's minimum is 3.5 mm.
+- A shorter insert holds less. In the one test found that compares lengths (MJF PA12, not printed ABS) a 3.6 mm insert held 813 N and a 5.7 mm one 1258 N. The two joints that see about 225 N and 200 N in their worst case keep a margin of about 3.5 against that figure. Not proved for ABS.
+
+### Revision 15: spec for `cad-implementer`
+
+1. `cad_b6/hardware.py`: record the owner's measurement as named constants (insert length 4.0, outer diameter 4.96, with the date and "owner's measurement"); `M3_PILOT_D` becomes 4.4 with its source (maker's guideline for a 5.0 x 4.0 insert, to be confirmed by `C2`); `M3_PILOT_DEPTH` stays 6.7 and its comment says why (above). Remove the word ASSUMPTION from the insert's size where it stood; keep it on the pilot's diameter until `C2` is tried.
+2. Rebuild. Every pilot grows by 0.4 mm in diameter, so walls round pilots shrink by 0.2 mm. Where a check fails (the wall round a pilot, the spacing between holes, a pad of the organic layer, a tie bridge, a counterbore's wall), move the hole or thicken the part by the least amount, and list each such place with its numbers. Do not lower a wall rule.
+3. The rule that a screw enters the insert by at least 3.5 mm: add that the thread engaged is at most the insert's length, and report for each row of the bill of fasteners the engaged thread. If any joint would engage less than 3.5 mm, stop and report.
+4. `cad_b6/fit_gauges.py`: regenerate `C2_insert_ladder` round the new pilot: the pilot row from 4.1 to 4.9 in steps of 0.1 mm with 4.4 marked as the model's, the clearance row unchanged. The plate must be thick enough to take a 4 mm insert with a floor under it. Update `docs/fit-gauges-check-sheet.ru.md` (the C2 row: the new diameters, and that the insert is 4.0 x 4.96 mm).
+5. The organic layer's pads carry M3 pilots in the skeleton and a bore in the layer: rerun `organic_frame.py` and its checks; change nothing in the layer unless a pad check fails, and then report before changing.
+6. Verify in full (the verify skill): `frame_v0.py`, `test_properties.py`, `parts_manifest.py --expect` with the list of parts you expect to change (every part with a pilot; state the list and confirm nothing else changed), `cables.py`, `fit_gauges.py`, `zone_access.py`, `drive_access.py`, `organic_frame.py`, `test_organic.py`, `test_checks.py` (about 6 minutes now), `check_budgets.py`, `strength.py 7 2`. The skeleton's mass budget must still pass.
+7. Report: the list of places that had to move, every check or test that changed and why, the engaged thread per fastener row, the script results with counts. Do not commit.

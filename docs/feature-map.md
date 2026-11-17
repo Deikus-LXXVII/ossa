@@ -38,7 +38,7 @@ Use it two ways: as the definition of done for a revision (no row may get worse)
 | The skeleton carries every component with a safety of 3 across the layers | `strength.py`, "stiff" model, worst 2.85 MPa of 6.7 | none | ABS figures are typical values, not this spool's |
 | A knock on a fan, a pull on a cable, the card's weight | checks 17, 18, 19 (margins 2.56, 3.29, 2.37) | none | hand calculations, no mesh |
 | An insert holds its screw | none | coupon `C2` waits for the inserts | pull-out of the owner's inserts is unknown; two joints see about 225 N and 200 N in their worst case |
-| The organic layer survives a 30 N push anywhere | `organic_strength.py`: 0 of 320 pushes over 10 MPa, worst 6.5 MPa; largest movement 2.16 mm (limit 5 mm). The script exits with an error when a push is over the allowable stress or the layer moves more than 5 mm | none | none |
+| The organic layer survives a 30 N push anywhere | `organic_strength.py`: 0 of 320 pushes over 10 MPa, worst 6.5 MPa; largest movement 2.16 mm (limit 5 mm). The script exits with an error when a push is over the allowable stress or the layer moves more than 5 mm | none | the allowable is an ABS stand-in (20 MPa across the layers, safety 2, where the skeleton uses 3) on a layer that will be PETG; PETG's strength across the layers is not measured, so the pass is not proved for PETG |
 
 ## Making it
 

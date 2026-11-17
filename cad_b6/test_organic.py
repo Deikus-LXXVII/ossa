@@ -158,8 +158,10 @@ def zone_cases(f):
     check("the hand with the undamaged layer: start and goal non-empty, a ball gets in without the layer, and with the layer it is not under its budget",
           not h_fails and h0[False]["d"] > 0 and h0[True]["d"] >= za.HAND_BUDGET_D, "no failure",
           f"{h_fails or 'none'}; Ø{h0[False]['d']} without, Ø{h0[True]['d']} with, budget Ø{za.HAND_BUDGET_D}")
-    check("the hand's budget is what the layer gives today and not above what the skeleton alone allows (a budget moved by hand shows here)",
-          h0[True]["d"] == za.HAND_BUDGET_D <= h0[False]["d"], f"Ø{za.HAND_BUDGET_D}", f"Ø{h0[True]['d']} with the layer, Ø{h0[False]['d']} without")
+    # a budget is a floor: a layer that leaves the hand more room than the budget passes (the budget is then raised on purpose, in its own commit); a budget above what
+    # the skeleton alone allows could never be met and is a mistake
+    check("the hand's budget is not above what the layer gives today nor above what the skeleton alone allows",
+          za.HAND_BUDGET_D <= h0[True]["d"] <= h0[False]["d"], f"budget Ø{za.HAND_BUDGET_D} <= with the layer <= without", f"Ø{h0[True]['d']} with the layer, Ø{h0[False]['d']} without")
     # the whole left flank closed by a slab just inside the fans' plane, from the front plane to the rear of the skeleton and from the desk to its top: the hand must not get in
     # round it through the grid's own margin behind, in front of or above the case (it did before the re-check of the second pass: 44 mm by the rear margin)
     hg = za.hand_grid(parts)

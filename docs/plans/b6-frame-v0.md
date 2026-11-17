@@ -663,3 +663,21 @@ An outside review of revision 14a found four faults in `frame_v0.py` and `test_c
 **Checks and tests.** New: check 22, and the M3 counterbore half of check 16. Changed: check 20 also fails a module whose rear face does not cover the window. `test_checks.py` goes from 269 cases to 286. Three cases are replaced by stricter ones: the carrier-only allowance case and the pocket-box comparison become five whole-frame rebuilds, and "the window follows the module" becomes "the cables pass through the window". Twenty are new; none is dropped without a successor. The suite took 4253 s on this run; the time of the suite before this change was not measured on the same machine.
 
 **Found on the way (pre-existing, not fixed).** `bbox_of` uses `BoundingBox()`, which reads a face's triangulation when it has one and widens the box by its deflection. A part rebuilt after earlier code has tessellated the frame shares those faces and their meshes, so its box can come out larger. Measured: the sill's Y min goes from 0.00 to -0.029 after a 0.5 mm tessellation, and check 8 then fails it. The rebuild tests use an exact box (`BRepBndLib.AddOptimal` without triangulation) and clear the rebuilt parts' meshes. `frame_v0.py`'s own checks are safe today only because they cache each box before anything tessellates the part.
+
+## Design calls of 17 Nov 2026 that the owner has not confirmed
+
+Taken by the main session while the owner was away. Each is a separate part or a constant and can be reversed without redrawing the skeleton. The plans above record them as built; this list is where the owner says yes or no.
+
+| Call | Where | Why it was taken | To reverse |
+|---|---|---|---|
+| Fan brackets 28 mm thick, not 10 | `BRACKET_T`, revision 13 | a 20 N knock on the fan's far corner put about 20 MPa on the 10 mm spine (allowable 6.67) | another way to take the knock: a rib on a thinner plate, or accept a lower margin |
+| The CPU hose clip sits on the left fan's free corner hole | `hose_guide_cpu`, revision 14a | nothing of the skeleton stands where the hoses pass the fan | a foot on the skeleton and a longer arm |
+| The clip may shadow up to 400 mm² of the fan's open circle (112 mm² today) | check 21 | the hoses cross the circle there themselves; the number 400 is the main session's own | any other limit |
+| The front I/O carrier has no back wall and 2.5 mm of room behind the module | `front_io_carrier`, check 20 | the module's cables leave through its rear, and a back wall would leave the sill 2.1 mm | a back wall needs a deeper sill |
+| The sill's cable window and light channel no longer follow the module's numbers | `front_sill`, `hw.LIGHT_STRIP_N1` | so that a change of the module changes only the carrier | let them follow the module again |
+| The sill's rear bottom edge stays sharp | rounding log, check 22 | the 6 mm rounding cut through the 2.9 mm wall behind the pocket | a thicker rear wall, then the rounding |
+| No film of the organic layer under either fan | `organic_frame.py` | on the left the hand comes up there to the board's connectors; on the right the card's hoses pass | films there |
+| With the layer the hand may be a 44 mm ball (50 mm without it). **Confirmed by the owner on 17 Nov 2026: the rings stay.** | `HAND_BUDGET_D` | closed, mirrored rings; which member of the layer costs the 6 mm is not separated | find the member and move it, or open the rings |
+| No push of 30 N may move the layer more than 5 mm | `MOVE_MAX` | a ring corner moved 9.6 mm and felt wrong on paper; the number 5 is the main session's own | any other limit |
+| The layer is judged on an ABS allowable (20 MPa, safety 2) though it will be PETG | `organic_strength.py` | no figure for PETG across the layers | a measured PETG figure from the trial piece |
+
