@@ -536,15 +536,23 @@ def screw_fit(stack, washer=True):
     return L, entry, entry + hw.SCREW_BOTTOM_GAP - hw.M3_PILOT_DEPTH
 
 
+RELIEF_OVERLAP = 0.2     # a relief bore starts this far inside its pilot, which is wider (check 15 subtracts it; check 7's distances treat bores that meet within it as one hole)
+
+
 def joint_pilots(org, d, stack, item, washer=True):
     """The insert pilot of a screw that clamps `stack` mm, plus the relief bore under it when no length in the kit fits (screw_fit): a list of holes."""
     h = pilot(org, d, "M3", stack, washer, item)
     relief = screw_fit(stack, washer)[2]
     if relief <= FIT_EPS:
         return [h]
-    overlap = 0.2                                              # the relief starts this far inside the pilot, which is wider
-    start = tuple(c + (h.length - overlap) * k for c, k in zip(h.start, h.d))
-    return [h, Hole("M3r", start, h.d, hw.M3_CLEAR_D / 2, relief + overlap, hw.M3_MIN_WALL, False, item=item)]
+    start = tuple(c + (h.length - RELIEF_OVERLAP) * k for c, k in zip(h.start, h.d))
+    return [h, Hole("M3r", start, h.d, hw.M3_CLEAR_D / 2, relief + RELIEF_OVERLAP, hw.M3_MIN_WALL, False, item=item)]
+
+
+def engaged_thread(entry):
+    """Revision 15: the thread a screw can use is the insert's length at most; the tip beyond it stands in the empty bore under the insert, which is what the pilot's depth is for.
+    The insert must sit flush with the face: pushed to the bottom it would leave entry - 2.7 mm of thread."""
+    return min(entry, hw.M3_INSERT_LEN)
 
 
 # ---------------------------------------------------------------------------
@@ -680,7 +688,7 @@ GPU_POST_V = (-20.0, -5.5)              # the base's thickness along v: the beam
 GPU_POST_V_UP = (-30.0, GPU_POST_V[1])  # the part above n GPU_POST_N_STEP: 10 mm thicker towards the flank, over rib_A's top (n -6, 1 mm clear). The 20 N pull of the plan bends the columns about u
                                         # over a 95 mm arm; at 14.5 mm thick the low column carried 6.8 MPa, at 24.5 mm 1.6 (see the report, "card post strength")
 GPU_POST_N_STEP = -5.0                  # where the post gets thicker: 1 mm above the top of rib_A's diagonal (n -6)
-GPU_POST_BOLT_V = -10.5                 # the two bolts' v
+GPU_POST_BOLT_V = -10.0                 # the two bolts' v (revision 15a: -10.5 before, where the high bolt's clearance hole in beam_mid stood 1.28 mm from the end of the beam's end pilot; now 1.76, check 7's distances)
 GPU_POST_COL_W = 12.0                   # the low-u column's width in u (the high one is as wide as the bolts need)
 GPU_POST_U_WINDOW = (hw.GPU_BS[2] - GPU_POST_CLEAR, hw.GPU_BS[3] + GPU_POST_CLEAR)       # the opening: the card's whole thickness in u, and a little more
 GPU_POST_BOLT_WALL = 1.9                # wall between the first bolt's pilot and the window's edge (rule 1.6)
@@ -2259,6 +2267,129 @@ def check_holes(parts, failures, memo=None):
 
 
 # ---------------------------------------------------------------------------
+# Check 7, revision 15a: a pilot's walls as plain distances, in addition to the volume of the ring (which tolerates WALL_EPS and so misses a short pinch:
+# 1.28 mm between beam_mid's end pilot and gpu_post's clearance hole passed it with a lens of 0.25 mm3). docs/plans/fasteners-m3.md, revision 15a.
+# ---------------------------------------------------------------------------
+PILOT_AXIS_TOL = 0.05    # mm: a parallel bore whose axis lies this close to a pilot's may continue it (continues())
+PILOT_WALL_CAP = 4.0     # mm: a face or a hole whose box is further than this from a zone's box is not measured (above both rules, so nothing that could fail is skipped)
+PILOT_MOUTH_TOL = 1e-4   # mm: a face of the blank this close to the centre of a pilot's mouth is the mouth's face. Its own name: the hose guides' MOUTH_TOL (0.4 mm) is
+                         # defined further down and, with one name, was the value this test really used (found by the review of revision 15a)
+SQUARE_TOL = 1e-6        # the mouth's face is a plane with |normal . axis| >= 1 - this
+assert PILOT_WALL_CAP > max(hw.M3_MIN_WALL, hw.M3_TIP_WALL)
+
+
+def continues(h, g):
+    """True when bore g continues pilot h as one hole by design: g is not a pilot itself, it is parallel, its axis is within PILOT_AXIS_TOL of h's, and their intervals
+    along the axis overlap or touch (a relief bore starts RELIEF_OVERLAP before its pilot's end, so it overlaps). Two pilots on one axis are never one hole: at the
+    opposite ends of a part they are far apart, and facing each other with a thin floor between them they are exactly what this test is for (the review of revision
+    15a passed 0.2 mm of floor between two pilots through the old rule, which allowed a gap of RELIEF_OVERLAP and did not ask what g was)."""
+    if g.pilot:
+        return False
+    dot = sum(a * b for a, b in zip(h.d, g.d))
+    if abs(abs(dot) - 1.0) > 1e-9:
+        return False
+    v = [a - b for a, b in zip(g.start, h.start)]
+    t = sum(a * b for a, b in zip(v, h.d))
+    if math.sqrt(max(0.0, sum(c * c for c in v) - t * t)) > PILOT_AXIS_TOL:
+        return False
+    s0, s1 = sorted((t, t + math.copysign(g.length, dot)))
+    return max(s0 - h.length, -s1) <= 1e-6
+
+
+def pilot_zones(h):
+    """[(zone, the piece of h's cutter, its rule)]: "insert", from the mouth (OVERSHOOT along the cutter) over M3_INSERT_LEN + M3_INSERT_ZONE_ALLOW, at the hole's wall (1.6);
+    "tip", the rest of the bore and its floor, at M3_TIP_WALL. The OVERSHOOT of cutter in front of the mouth is not measured."""
+    zone = hw.M3_INSERT_LEN + hw.M3_INSERT_ZONE_ALLOW
+    depth = h.length - OVERSHOOT
+    out = [("insert", cyl(h.point(OVERSHOOT), h.d, 2 * h.r, min(zone, depth)), h.wall)]
+    if depth - zone > 0.01:
+        out.append(("tip", cyl(h.point(OVERSHOOT + zone), h.d, 2 * h.r, depth - zone), hw.M3_TIP_WALL))
+    return out
+
+
+def shape_distance(a, b):
+    """a.distance(b) without solid_distance's cache (the zones are made per call and must not be kept)."""
+    try:
+        return float(a.distance(b))
+    except Exception as e:      # noqa: BLE001 - re-raised as a check failure, not swallowed
+        raise BooleanFailure(f"distance() raised {type(e).__name__}: {e}") from e
+
+
+ZONE_WORDS = {"insert": "in the insert's zone (mouth to {z:g} mm)", "tip": "below the insert's zone (the bore past {z:g} mm and its floor)"}
+
+
+def pilot_walls(p):
+    """(rows, failures) of part p. For every pilot and each zone of it (pilot_zones), the plain distance from that piece of its cutter to every other hole's cutter in the part,
+    except a bore that continues it (continues()), and to the part's outside: the faces of the blank, the part before its holes are cut (every part's solid is its blank less its
+    recorded holes, drill()), without the mouth's face. That face is left out only when it is a plane square to the bore, where it cannot come closer than the mouth itself;
+    a mouth on no face or on any other face is a failure. rows: (part, pilot, zone, distance, against), one per zone for the outside and one per zone and hole within PILOT_WALL_CAP."""
+    rows, fails = [], []
+    faces = p.blank.Faces()
+    fboxes = [exact_box(fc) for fc in faces]
+    cutters = [(g, cyl(g.start, g.d, 2 * g.r, g.length)) for g in p.holes]      # each hole's cutter from its numbers, the ones the memo's key holds (hole_numbers), not from its stored solid
+    cutters = [(g, c, exact_box(c)) for g, c in cutters]
+    zone_len = hw.M3_INSERT_LEN + hw.M3_INSERT_ZONE_ALLOW
+    for h in p.holes:
+        if not h.pilot:
+            continue
+        label = f"{p.name}: {h.describe()}"
+        try:
+            mouth = h.point(OVERSHOOT)
+            mv = cq.Vertex.makeVertex(*mouth)
+            mbox = (mouth[0], mouth[0], mouth[1], mouth[1], mouth[2], mouth[2])
+            mouth_faces = [i for i, fc in enumerate(faces) if bbox_gap(fboxes[i], mbox) <= PILOT_MOUTH_TOL and shape_distance(fc, mv) <= PILOT_MOUTH_TOL]
+            if not mouth_faces:
+                fails.append(f"CHECK7 {label}: its mouth lies on no face of the part")
+                continue
+            square = True
+            for i in mouth_faces:
+                if faces[i].geomType() != "PLANE":
+                    square = False
+                else:
+                    n = faces[i].normalAt(Vector(*mouth))
+                    square &= abs(n.x * h.d[0] + n.y * h.d[1] + n.z * h.d[2]) >= 1.0 - SQUARE_TOL
+            if not square:
+                fails.append(f"CHECK7 {label}: its mouth's face is not a plane square to the bore, so the wall to it cannot be measured apart from the mouth")
+                continue
+            for zone, piece, rule in pilot_zones(h):
+                zb = exact_box(piece)
+                where = ZONE_WORDS[zone].format(z=zone_len)
+                near = [faces[i] for i in range(len(faces)) if i not in mouth_faces and bbox_gap(fboxes[i], zb) <= PILOT_WALL_CAP]
+                found = []
+                if near:
+                    found.append((shape_distance(piece, cq.Compound.makeCompound(near)), "the part's outside"))
+                for g, c, cb in cutters:
+                    if g is h or continues(h, g) or bbox_gap(cb, zb) > PILOT_WALL_CAP:
+                        continue
+                    found.append((shape_distance(piece, c), f"the {g.describe()}" + (f" ({g.item})" if g.item else "")))
+                for d, against in found:
+                    rows.append((p.name, h.describe() + (f" ({h.item})" if h.item else ""), zone, d, against))
+                    if d < rule - 1e-6:
+                        fails.append(f"CHECK7 {label} is {d:.2f} mm from {against} {where}, needs {rule:g}")
+        except BooleanFailure as e:
+            fails.append(f"CHECK7 {label}: wall distances: BOOLEAN FAILED: {e}")
+    return rows, fails
+
+
+def pilot_wall_numbers():
+    """The numbers pilot_walls reads besides the part's blank and its holes (hole_numbers of each)."""
+    return (OVERSHOOT, hw.M3_INSERT_LEN, hw.M3_INSERT_ZONE_ALLOW, hw.M3_TIP_WALL, RELIEF_OVERLAP, PILOT_AXIS_TOL, PILOT_WALL_CAP, PILOT_MOUTH_TOL, SQUARE_TOL)
+
+
+def check_pilot_walls(parts, failures, memo=None):
+    """Check 7, revision 15a: pilot_walls for every part that has a pilot. Returns the rows."""
+    rows = []
+    for p in parts:
+        if not any(h.pilot for h in p.holes):
+            continue
+        r, fl = memo_call(memo, (p.blank,) + tuple(p.holes), "pwall", pilot_walls, p,
+                          extra=(p.name, tuple(hole_numbers(h) for h in p.holes)) + pilot_wall_numbers())
+        rows += r
+        failures += fl
+    return rows
+
+
+# ---------------------------------------------------------------------------
 # Check 5: mounts derived from the solids
 # ---------------------------------------------------------------------------
 DRIVE_SCREWS = sum(len(fc["holes"]) for fc in hw.drive_layout()["faces"].values())          # per bay: 6 on the 3.5 inch drive + 4 on the 2.5 inch drive
@@ -2269,7 +2400,7 @@ ORGANIC_PROBE_DEPTH = 3.0      # check 5: the axis point of a pad's pilot lies t
 MIN_MOUNTS = {"fan_side_left": FAN_MIN_SCREWS, "fan_side_right": FAN_MIN_SCREWS}     # at least this many of the four corner holes
 FAN_HOLDER = {"fan_side_left": "fan_bracket_left", "fan_side_right": "fan_bracket_right"}
 DRIVE_PROBE_DEPTH = 1.5        # check 5: the axis point of a drive screw lies this far into the boss and plate from the drive's board (the boss is 1 mm high, the bore is empty to the head)
-FAN_PROBE_DEPTH = 1.5          # axis point inside the pilot, from the fan face: at 1.5 the bore wall (r 2.0) is the nearest material
+FAN_PROBE_DEPTH = 1.5          # axis point inside the pilot, from the fan face: at 1.5 the bore wall (r hw.M3_PILOT_D / 2) is the nearest material
 
 
 def mount_points():
@@ -3476,14 +3607,14 @@ def check_screws(parts, hardware, failures):
             except ValueError:
                 failures.append(f"CHECK15 {where}: no screw in the kit is long enough for {stack:.2f} mm")
                 continue
-            relief = sum(g.length - 0.2 for g in p.holes if g.kind == "M3r" and g.item == h.item and math.dist(g.start, h.start) < h.length + 1e-6
+            relief = sum(g.length - RELIEF_OVERLAP for g in p.holes if g.kind == "M3r" and g.item == h.item and math.dist(g.start, h.start) < h.length + 1e-6
                          and abs(abs(sum(a * b for a, b in zip(g.d, h.d))) - 1.0) < 1e-6)
             depth = hw.M3_PILOT_DEPTH + relief
             if entry < hw.SCREW_ENGAGE_MIN - FIT_EPS:
                 failures.append(f"CHECK15 {where}: M3 x {length} enters the insert {entry:.2f} mm, needs {hw.SCREW_ENGAGE_MIN:g}")
             if entry > depth - hw.SCREW_BOTTOM_GAP + FIT_EPS:
                 failures.append(f"CHECK15 {where}: M3 x {length} stops {depth - entry:.2f} mm from the bottom of the hole ({hw.M3_PILOT_DEPTH:g} deep, relief {relief:.1f}), needs {hw.SCREW_BOTTOM_GAP:g}")
-            engaged = min(entry, hw.M3_INSERT_LEN)          # revision 15: the thread a screw can use is the insert's length at most; the tip beyond it stands in the empty bore under the insert, which is what the pilot's depth is for. The insert must sit flush with the face: pushed to the bottom it would leave entry - 2.7 mm of thread
+            engaged = engaged_thread(entry)
             if engaged < hw.SCREW_ENGAGE_MIN - FIT_EPS:
                 failures.append(f"CHECK15 {where}: M3 x {length} engages {engaged:.2f} mm of thread (the insert is {hw.M3_INSERT_LEN:g} mm long), needs {hw.SCREW_ENGAGE_MIN:g}")
             washers += 1 if h.washer else 0
@@ -3803,6 +3934,7 @@ def run_checks(hardware, parts, memo=None):
         if not ok:
             failures.append(f"CHECK7 bolt outside outline: {label}")
     res["n_holes"] = check_holes(parts, failures, memo)
+    res["pilot_walls"] = check_pilot_walls(parts, failures, memo)
     res["failures"] = failures
     return res
 
@@ -4221,6 +4353,15 @@ def format_report(hardware, parts, res, memo=None):
     w(f"  7. (доп.) связность, болты внутри контуров, {res['n_holes']} отверстий: полость пуста и стенка до поверхности "
       f"и до соседних отверстий >= {hw.M3_MIN_WALL:g} мм (вставка M3, проходные M3 и 6-32, зенковки и рассверловки)   "
       + ("PASS" if not any(f.startswith('CHECK7') for f in res['failures']) else "FAIL"))
+    zl = hw.M3_INSERT_LEN + hw.M3_INSERT_ZONE_ALLOW
+    w(f"     стенки пилотов M3 как расстояния (ревизия 15a, вдобавок к объёму кольца): от каждого пилота до каждого другого отверстия детали и до её поверхности "
+      f"(кроме плоскости устья и соосного продолжения: рассверловка, зенковка); в зоне вставки (от устья {zl:g} мм) >= {hw.M3_MIN_WALL:g}, глубже и под дном >= {hw.M3_TIP_WALL:g}; "
+      f"измерено {len(res['pilot_walls'])} расстояний (дальше {PILOT_WALL_CAP:g} мм по габаритам не меряются)")
+    for zone, title in (("insert", f"зона вставки, правило {hw.M3_MIN_WALL:g}"), ("tip", f"глубже и дно, правило {hw.M3_TIP_WALL:g}")):
+        tight = sorted((r for r in res["pilot_walls"] if r[2] == zone), key=lambda r: r[3])[:5]
+        w(f"     ближайшие пять, {title}:")
+        for pn, hl, _, d, against in tight:
+            w(f"       {d:.3f} мм  {pn}: {hl}  -  {against}")
     ev = res["envelope"]
     w(f"  8. огибающая |X| <= {hw.ENVELOPE_X:g} (ревизия 13: кронштейны боковых вентиляторов до внешней грани вентилятора, |X| <= {hw.ENVELOPE_FAN_X:g}), Y >= {hw.ENVELOPE_Y0:g}: детали без кронштейнов вентиляторов max |X| {ev['parts_rest'][0]:.1f} ({ev['parts_rest'][1]}), "
       f"кронштейны вентиляторов max |X| {ev['parts_fan'][0]:.1f} ({ev['parts_fan'][1]}), "
@@ -4493,7 +4634,7 @@ DEVIATIONS: list[str] = [
     "psu_bulkhead: на концах бобышки X ±(122..142), Y 369..381 (пластина 6 мм не держит штифт); вставка M4 9.1 мм "
     "в бобышке 20 мм влезает, болты в хвостовую стойку на (Y 375, Z 5 и 80).",
     "beam_mid: вставки в торцах M4S (5.0 мм). Штифт M4 9.1 мм доходит до v = -10.9 и пересекается с проходным "
-    "отверстием болта gpu_post (v = -10.5, радиус 2.25). Болты gpu_post: v = -10.5, u = 131 и 139 (стенка 2.8 мм до края "
+    "отверстием болта gpu_post (тогда v = -10.5, радиус 2.25; с ревизии 15a v = -10.0). Болты gpu_post: v = -10.5, u = 131 и 139 (стенка 2.8 мм до края "
     "beam_mid u = 125.97 и 4.2 мм до края поста u = 146; два штифта на расстоянии 8 мм, стенка 2.4 мм).",
     "gpu_post: v -20..-5.5 вместо -20..-6: при v = -6 стенка штифта у края была бы 1.7 мм (< 2.1); теперь 2.2 мм.",
     "Ревизия 2: dimms по плану v 183..221, u 158..295 пересекается с eps (u 290..305) на 7600 мм³ (5 мм по u, проверка 1). "
@@ -4658,7 +4799,7 @@ DEVIATIONS: list[str] = [
     "Ограничение Guard для вогнутого осколка: он не пересекает соседей (объём < 0.01 мм³), не входит в стенку отверстия и не подходит к железу ближе, чем сама деталь уже к нему подходит (но не ближе 2 мм), "
     "к шлангам - не ближе 5 мм (проверка 9). Измерено на готовой модели: все 16 зазоров < 5 мм детали x железо те же, что до ревизии (до 0.001 мм), зазоры до шлангов те же.",
     "Ревизия 8, коробчатые детали: радиус 3 мм по длинным рёбрам вырезом клина, концы (4 мм) остаются острыми: торец детали упирается в ребро, площадь торца нельзя уменьшать (радиус 3 мм забирает 1.9 мм² с каждого угла торца, 7.7 мм² с торца). Поэтому у beam_front, beam_low, beam_mid, beam_top, skid_front, skid_rear, gpu_post (только нижний конец, верх свободен) "
-    "на концах остаётся ступенька-плечо 4 мм. beam_mid: два ребра со стороны малых u остались острыми - у них стенка до проходного отверстия болта gpu_post (v -10.5, u 131) была бы "
+    f"на концах остаётся ступенька-плечо 4 мм. beam_mid: два ребра со стороны малых u остались острыми - у них стенка до проходного отверстия болта gpu_post (v {GPU_POST_BOLT_V:g}, u 131; до ревизии 15a v -10.5) была бы "
     "ниже 2.1 мм при любом радиусе от 2 мм. beam_top: ребро у штифта скруглено 2.5 мм вместо 3 (стенка штифта). Верхние рёбра скидов (грань Z = 0 несёт БП) и нижние рёбра psu_bulkhead "
     "(грань на столе, контактная площадка) оставлены острыми. psu_bulkhead: пластина 6 мм, радиус 2.75 вместо 3 (при 3 на кромке не осталось бы плоского участка), "
     "скруглена только между концевыми бобышками (X ±122), бобышки остались острыми, как их торцы на хвостовой стойке.",

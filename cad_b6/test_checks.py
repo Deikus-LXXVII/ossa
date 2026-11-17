@@ -68,7 +68,7 @@ SECTIONS: list[tuple[str, object]] = []             # (title, function(hardware,
 # A run that records fewer fails (a section emptied, cut short or skipped would otherwise pass as "N/N cases as expected"), and
 # so does a section, or the prelude, that records none. A run that records more passes and says to raise this in the same commit.
 # Not in budgets.json: check_budgets.py --write rewrites that file from a run's record, and the pin must not follow a run down.
-EXPECTED_CASES = 302
+EXPECTED_CASES = 322
 
 # the expensive operations, counted per process: the budget of the time to verify gates on these (check_budgets.py)
 COUNTS: collections.Counter = collections.Counter()
@@ -707,6 +707,97 @@ def s_walls(hardware, parts, base):
     r = f.run_checks(hardware, damaged, MEMO)
     case("psu_bulkhead: M3 hole 1.2 mm from the plate end", "CHECK7 psu_bulkhead ... wall 1.2x mm < 1.6 mm",
          r["failures"], "CHECK7 psu_bulkhead", "wall 1.2", "< 1.6 mm")
+
+
+@section("7b. check 7's distances round the pilots (revision 15a)")
+def s_pilot_distances(hardware, parts, base):
+    # Revision 15a: the volume of the 1.6 mm ring tolerates WALL_EPS and misses a short pinch; check 7 also measures each pilot's plain distance to the other holes and the outside,
+    # 1.6 over the insert's zone (mouth to M3_INSERT_LEN + M3_INSERT_ZONE_ALLOW), M3_TIP_WALL (1.2) deeper and under the floor.
+    zone = hw.M3_INSERT_LEN + hw.M3_INSERT_ZONE_ALLOW
+
+    def unit_perp(d):
+        a = np.cross(d, (1.0, 0.0, 0.0) if abs(d[0]) < 0.9 else (0.0, 1.0, 0.0))
+        return a / np.linalg.norm(a)
+
+    # a short pinch: a 1 mm pin drilled in from outside that stops 1.3 mm from the bore, half way down the insert's zone
+    bl = part_named(parts, "beam_low")
+    hp = next(h_ for h_ in bl.holes if h_.pilot and h_.item == "board")
+    e = unit_perp(hp.d)
+    tip = np.array(hp.point(f.OVERSHOOT + zone / 2)) + (hp.r + 1.3) * e
+    pin = f.cyl(tuple(tip), tuple(e), 1.0, 30.0)
+    dam = dataclasses.replace(bl, solid=bl.solid.cut(pin), blank=bl.blank.cut(pin))
+    r = f.run_checks(hardware, with_part(parts, "beam_low", solid=dam.solid, blank=dam.blank), MEMO)
+    case("beam_low: a 1 mm pin from outside stops 1.3 mm from a board pilot, half way down the insert's zone", f"CHECK7 beam_low: {hp.describe()} is 1.30 mm from the part's outside in the insert's zone ..., needs 1.6",
+         r["failures"], f"CHECK7 beam_low: {hp.describe()} is 1.30 mm from the part's outside in the insert's zone", "needs 1.6")
+    deficit = f.wall_deficit(dam.solid, hp, f.material_spans(dam.blank, hp), hp.wall)
+    check("  same damage, the volume test alone passes it: the ring misses less than WALL_EPS",
+          deficit < f.WALL_EPS and first_match(r["failures"], f"CHECK7 beam_low: {hp.describe()} has wall") is None,
+          (f"missing < {f.WALL_EPS} mm3, no 'has wall' line for that pilot", f"missing {deficit:.3f} mm3, {first_match(r['failures'], f'CHECK7 beam_low: {hp.describe()} has wall')}"))
+
+    # a floor of 1.0 mm: a lap pilot of rib_A_left (floor 1.3 by design) drilled 0.3 mm deeper
+    ra = part_named(parts, "rib_A_left")
+    lap = next(h_ for h_ in ra.holes if h_.pilot and h_.item == "lap A<->B")
+    deep = f.Hole(lap.kind, lap.start, lap.d, lap.r, lap.length + 0.3, lap.wall, True, stack=lap.stack, washer=lap.washer, item=lap.item)
+    r = f.run_checks(hardware, with_part(parts, "rib_A_left", solid=ra.solid.cut(deep.solid), holes=[deep if h_ is lap else h_ for h_ in ra.holes]), MEMO)
+    case("rib_A_left: a lap pilot 0.3 mm deeper, 1.0 mm of floor left", f"CHECK7 rib_A_left: {deep.describe()} is 1.00 mm from the part's outside below the insert's zone ..., needs 1.2",
+         r["failures"], f"CHECK7 rib_A_left: {deep.describe()} is 1.00 mm from the part's outside below the insert's zone", f"needs {hw.M3_TIP_WALL:g}")
+    check("  same damage, the volume test alone passes it (the ring does not look under the floor)", first_match(r["failures"], f"CHECK7 rib_A_left: {deep.describe()} has wall") is None,
+          ("no 'has wall' line for that pilot", f"{first_match(r['failures'], f'CHECK7 rib_A_left: {deep.describe()} has wall')}"))
+
+    # the six lap floors of 1.3 mm pass
+    floors = [r_ for r_ in base["pilot_walls"] if "lap A<->B" in r_[1] and r_[2] == "tip" and r_[4] == "the part's outside"]
+    check("the six lap pilots of rib_A_left and rib_A_right: 1.3 mm of floor, measured below the insert's zone, no failure",
+          len(floors) == 6 and {r_[0] for r_ in floors} == {"rib_A_left", "rib_A_right"} and all(abs(r_[3] - 1.3) < 0.005 for r_ in floors)
+          and not [x for x in base["failures"] if x.startswith("CHECK7") and "lap A<->B" in x],
+          ("6 rows at 1.30 mm, in both ribs, no CHECK7", f"{len(floors)} rows: {sorted(round(r_[3], 3) for r_ in floors)} in {sorted({r_[0] for r_ in floors})}"))
+
+    # a relief bore on its pilot is one hole with it; a 6-32 counterbore and its own bore too
+    bm = part_named(parts, "beam_mid")
+    ends = sorted((h_ for h_ in bm.holes if h_.pilot and h_.item == "beam_mid end"), key=lambda h_: (round(h_.start[1], 3), round(h_.start[2], 3), h_.start[0]))
+    hr = next(h_ for h_ in ends if h_.d[0] < 0)          # a right end pilot, along -X: nothing of gpu_post near it
+    relief = f.Hole("M3r", hr.point(hr.length - f.RELIEF_OVERLAP), hr.d, hw.M3_CLEAR_D / 2, 1.0 + f.RELIEF_OVERLAP, hw.M3_MIN_WALL, False, item=hr.item)
+    rows_, fl_ = f.pilot_walls(dataclasses.replace(bm, solid=bm.solid.cut(relief.solid), holes=bm.holes + [relief]))
+    check("beam_mid: a relief bore 1 mm under a right end pilot is not reported against its pilot", f.continues(hr, relief) and not [x for x in rows_ if "M3r" in x[4]] and not fl_,
+          ("continues() true, no row against the M3r, no failure", f"continues {f.continues(hr, relief)}, rows against M3r {len([x for x in rows_ if 'M3r' in x[4]])}, failures {fl_[:2]}"))
+    cb, bore = f.stepped_bore((0.0, 0.0, 0.0), (0.0, 1.0, 0.0), 6.0)
+    check("  continues(): a 6-32 counterbore and its own bore under it are one hole", f.continues(cb, bore) and f.continues(bore, cb), ("true both ways", f"{f.continues(cb, bore)}, {f.continues(bore, cb)}"))
+
+    # the exemption is not too wide
+    hl = next(h_ for h_ in ends if h_.d[0] > 0 and math.dist(h_.start[1:], hr.start[1:]) < 1e-6)
+    far = hr.point(hr.length)[0] - hl.point(hl.length)[0]
+    with patched(f, "PILOT_WALL_CAP", 1000.0):
+        rows_, _ = f.pilot_walls(bm)
+    got = [x[3] for x in rows_ if x[1].startswith(hl.describe()) and x[2] == "tip" and x[4].startswith(f"the {hr.describe()}")]
+    check(f"beam_mid's two end pilots on one axis at the opposite ends ({far:.1f} mm apart) are not one hole: measured by their real distance",
+          not f.continues(hl, hr) and len(got) == 1 and abs(got[0] - far) < 0.01, (f"continues() false, one row at {far:.2f} mm", f"continues {f.continues(hl, hr)}, rows {[round(x, 3) for x in got]}"))
+    facing = f.Hole("M3", tuple(np.array(hr.point(hr.length)) + (1.0 + hr.length) * np.array(hr.d)), tuple(-c for c in hr.d), hr.r, hr.length, hr.wall, True, item="facing")
+    _, fl_ = f.pilot_walls(dataclasses.replace(bm, solid=bm.solid.cut(facing.solid), holes=bm.holes + [facing]))
+    case("beam_mid: a second pilot on the end pilot's axis, facing it, its bottom 1.0 mm past the end pilot's", f"CHECK7 beam_mid: {hr.describe()} is 1.00 mm from the {facing.describe()} below the insert's zone ..., needs 1.2",
+         fl_, f"CHECK7 beam_mid: {hr.describe()} is 1.00 mm from the {facing.describe()}", f"needs {hw.M3_TIP_WALL:g}")
+    off = relief.moved(*(0.1 * unit_perp(hr.d)))
+    _, fl_ = f.pilot_walls(dataclasses.replace(bm, solid=bm.solid.cut(off.solid), holes=bm.holes + [off]))
+    case("beam_mid: the relief bore 0.1 mm off the end pilot's axis (the tolerance is 0.05) is another hole, and cuts into the pilot", f"CHECK7 beam_mid: {hr.describe()} is 0.00 mm from the {off.describe()} ...",
+         fl_, f"CHECK7 beam_mid: {hr.describe()} is 0.00 mm from the {off.describe()}")
+    sunk = hr.moved(*(1.0 * np.array(hr.d)))
+    _, fl_ = f.pilot_walls(dataclasses.replace(bm, holes=[sunk if h_ is hr else h_ for h_ in bm.holes]))
+    case("beam_mid: an end pilot recorded 1 mm deeper than the face (its mouth on no face, so no face can be left out as the mouth's)", f"CHECK7 beam_mid: {sunk.describe()}: its mouth lies on no face of the part",
+         fl_, f"CHECK7 beam_mid: {sunk.describe()}: its mouth lies on no face")
+    # two findings of the outside review of revision 15a, each a wall the first version of this test let through
+    near = f.Hole("M3", tuple(np.array(hr.point(hr.length)) + (0.2 + hr.length) * np.array(hr.d)), tuple(-c for c in hr.d), hr.r, hr.length, hr.wall, True, item="facing")
+    _, fl_ = f.pilot_walls(dataclasses.replace(bm, solid=bm.solid.cut(near.solid), holes=bm.holes + [near]))
+    case("beam_mid: a second pilot facing the end pilot with 0.2 mm of floor between them is not its continuation (the exemption allowed a gap of 0.2 mm and did not ask what the other bore was)",
+         f"CHECK7 beam_mid: {hr.describe()} is 0.20 mm from the {near.describe()} ..., needs 1.2", fl_, f"CHECK7 beam_mid: {hr.describe()} is 0.20 mm from the {near.describe()}", f"needs {hw.M3_TIP_WALL:g}")
+    # a pocket behind a 0.3 mm skin at the mouth: its face is 0.3 mm from the mouth's centre. With the hose guides' 0.4 mm standing in for the mouth's tolerance that face was
+    # taken for the mouth's face and left out, and the insert's zone stood in the open pocket unmeasured
+    a, b = unit_perp(hr.d), np.cross(hr.d, unit_perp(hr.d))
+    mouth = np.array(hr.point(f.OVERSHOOT))
+    pocket = cq.Workplane(cq.Plane(origin=tuple(mouth + 0.3 * np.array(hr.d)), xDir=tuple(a), normal=tuple(hr.d))).rect(12.0, 12.0).extrude(14.0).val()
+    skin = dataclasses.replace(bm, blank=bm.blank.cut(pocket).clean(), solid=bm.solid.cut(pocket).clean())
+    _, fl_ = f.pilot_walls(skin)
+    check("the pilot's mouth tolerance is its own (not the hose guides' 0.4 mm)", f.PILOT_MOUTH_TOL <= 1e-3 and f.pilot_wall_numbers().count(f.MOUTH_TOL) == 0,
+          ("PILOT_MOUTH_TOL <= 0.001 and MOUTH_TOL not in the memo key", f"PILOT_MOUTH_TOL {f.PILOT_MOUTH_TOL:g}, MOUTH_TOL {f.MOUTH_TOL:g}"))
+    case("beam_mid: an end pilot through a 0.3 mm skin into a pocket (the pocket's face is not the mouth's face)", f"CHECK7 beam_mid: {hr.describe()} is 0.00 mm from the outside ..., needs 1.6",
+         fl_, f"CHECK7 beam_mid: {hr.describe()} is 0.00 mm from", f"needs {hr.wall:g}")
 
 
 @section("8. hardware literals in frame_v0.py")
@@ -1766,6 +1857,22 @@ def s_screws(hardware, parts, base):
         r = f.run_checks(hardware, parts, MEMO)
     case("the owner's inserts 3.0 mm long: no screw can engage 3.5 mm of thread", "CHECK15 beam_front: ... engages 3.00 mm of thread (the insert is 3 mm long), needs 3.5",
          r["failures"], "CHECK15 beam_front", "engages 3.00 mm of thread", "insert is 3 mm long")
+
+    def engaged_ok(rows):        # revision 15a: the engaged thread is min(entry, the insert's length), both sides of the min() present
+        short = [r_ for r_ in rows if r_["entry"] < hw.M3_INSERT_LEN - 1e-9]
+        long_ = [r_ for r_ in rows if r_["entry"] > hw.M3_INSERT_LEN + 1e-9]
+        m20 = [r_ for r_ in rows if r_["length"] == 20]
+        return (bool(short) and bool(long_) and bool(m20) and all(abs(r_["entry"] - 3.5) < 1e-9 and abs(r_["engaged"] - 3.5) < 1e-9 for r_ in m20)
+                and all(abs(r_["engaged"] - r_["entry"]) < 1e-9 for r_ in short) and all(abs(r_["engaged"] - hw.M3_INSERT_LEN) < 1e-9 for r_ in long_)), len(short), len(long_), len(m20)
+
+    ok_, ns_, nl_, n20_ = engaged_ok(base["screws"]["rows"])
+    check("the engaged thread is min(entry, insert): the M3 x 20 joints (entry 3.5) report 3.5, every joint entering past the insert reports its 4.0", ok_,
+          ("both kinds present, each reports its side of the min()", f"{ns_} joints under the insert's length ({n20_} of them M3 x 20), {nl_} over it"))
+    for what_, fn_ in (("engaged = entry, no min()", lambda e_: e_), ("engaged = the insert's length, no min()", lambda e_: hw.M3_INSERT_LEN)):
+        with patched(f, "engaged_thread", fn_):
+            mutant = f.check_screws(parts, hardware, [])
+        check(f"  a version of check 15 with {what_} fails that case", not engaged_ok(mutant["rows"])[0],
+              ("the case's test rejects the mutant's rows", f"rejected: {not engaged_ok(mutant['rows'])[0]}"))
     with patched(hw, "M3_SCREW_STOCK", {k_: v_ for k_, v_ in hw.M3_SCREW_STOCK.items() if k_ != 20}):
         r = f.run_checks(hardware, parts, MEMO)
         relief_set = f.joint_pilots((142.0, 10.0, 0.0), (-1, 0, 0), 16.0, "rib end")
@@ -1824,6 +1931,13 @@ def s_memo_keys(hardware, parts, base):
     holes7 = lambda fl, m: f.check_holes([post], fl, m)      # noqa: E731
     bites("check 7 from the memo: gpu_post's first hole 1 mm wider in place", "CHECK7", holes7, patched(post.holes[0], "r", post.holes[0].r + 1.0), "the hole's r + 1")
     bites("check 7 from the memo: BORE_SHRINK -1 (the bore's probe 1 mm wider than the bore)", "CHECK7", holes7, patched(f, "BORE_SHRINK", -1.0), "BORE_SHRINK -1")
+    rib = part_named(parts, "rib_A_left")
+    lap = next(h_ for h_ in rib.holes if h_.pilot and h_.item == "lap A<->B")
+    walls7 = lambda fl, m: f.check_pilot_walls([rib], fl, m)      # noqa: E731
+    bites("check 7's distances from the memo: M3_TIP_WALL 1.4 (the lap floors are 1.3)", "CHECK7", walls7, patched(hw, "M3_TIP_WALL", 1.4), "M3_TIP_WALL 1.4")
+    bites("check 7's distances from the memo: M3_INSERT_ZONE_ALLOW 3 (the insert's zone over the whole bore, the lap floors judged at 1.6)", "CHECK7", walls7,
+          patched(hw, "M3_INSERT_ZONE_ALLOW", 3.0), "M3_INSERT_ZONE_ALLOW 3")
+    bites("check 7's distances from the memo: a lap pilot's length 0.3 mm longer in place (floor 1.0)", "CHECK7", walls7, patched(lap, "length", lap.length + 0.3), "the pilot's length + 0.3")
     mounts = lambda fl, m: f.derive_mounts(parts, base["contacts"], fl, m)      # noqa: E731
     bites("check 5 from the memo: MOUNT_TOL -1 (no hole can match)", "CHECK5", mounts, patched(f, "MOUNT_TOL", -1.0), "MOUNT_TOL -1")
 

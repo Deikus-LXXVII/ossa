@@ -161,7 +161,7 @@ def count_limit(n, margin):
 def floors(budgets):
     """{budget line: (floor, why a figure under it fails)} for the lines that have a floor."""
     sk, org, su = budgets["skeleton_abs_g"], budgets["organic_cm3"], budgets["suite"]
-    mass = lambda fig, unit: (MASS_FLOOR * fig, f"more than {100 * (1 - MASS_FLOOR):g} % under its record (floor {MASS_FLOOR * fig:.1f} {unit}): "      # noqa: E731
+    mass = lambda fig, unit: (MASS_FLOOR * fig, f"more than {100 * (1 - MASS_FLOOR):g} % under its record (floor {MASS_FLOOR * fig:.3f} {unit}): "      # noqa: E731
                               "a wrong input (an empty field, a part left out) until a saving is recorded on purpose")
     out = {"skeleton ABS, ratchet": mass(sk["figure"], "g"), "organic layer, ratchet": mass(org["figure"], "cm3")}
     for key, n in su["counts"].items():
@@ -235,7 +235,7 @@ def write(fig, budgets, path=BUDGETS, abs_stock=None, petg_rho=None, accept_lowe
     low = lows(fig, budgets)
     if low and not accept_lower:
         raise SystemExit("--write refused: a figure is under its floor, it is not recorded: "
-                         + "; ".join(f"{name} {figure:g} under its floor {floor:g}: {why}" for name, figure, floor, why in low)
+                         + "; ".join(f"{name} {figure:.8g} under its floor {floor:.8g}: {why}" for name, figure, floor, why in low)
                          + ". If the saving is meant, rerun with --write --accept-lower and say why in the commit.")
     new = json.loads(json.dumps(budgets))
     new["skeleton_abs_g"]["figure"] = round(fig["skeleton_abs_g"], 1)
@@ -264,7 +264,7 @@ def main(argv=None, skeleton=skeleton_abs_g):
         budgets, low = write(fig, budgets, args.budgets, accept_lower=args.accept_lower)
         print(f"recorded the present figures in {os.path.relpath(args.budgets, ROOT)}")
         for name, figure, floor, _why in low:
-            print(f"accepted lower (--accept-lower): {name} {figure:g}, under its floor {floor:g}: the floor follows it down")
+            print(f"accepted lower (--accept-lower): {name} {figure:.8g}, under its floor {floor:.8g}: the floor follows it down")
     rows = judge(fig, budgets, abs_stock_g(), petg_density())
     for r in rows:
         print(fmt(r))

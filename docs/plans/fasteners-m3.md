@@ -181,3 +181,15 @@ Grok checked the spec above against the code and by a probe. The spec above is s
 4. **Stale text:** `docs/feature-map.md` where it still calls the insert's diameter and length assumptions and where it says nothing proves an insert holds; the comment at `FAN_PROBE_DEPTH` that says the bore's radius is 2.0.
 5. **Verify in full** (the verify skill; the suite takes about 6 minutes and its pinned count grows with your cases: raise `EXPECTED_CASES` in the same change and say the number), with `parts_manifest.py --expect gpu_post,beam_mid`. If the rounding moves any other part, say which and why before accepting it. Regenerate the reports, the STEP file and the previews. Do not commit, and do not run `parts_manifest.py --write` or `check_budgets.py --write`.
 6. **Report:** the tightest five distances in each zone before and after, what moved, every check or test added or changed, the script results with counts.
+
+### Revision 15a, result (17 Nov 2026)
+
+Built by an Opus child, rerun by the main session, reviewed by Grok, two findings of the review fixed by the main session.
+
+- **Check 7 measures walls as distances** as well as by volume: from each pilot's cutter to every other hole's cutter in the part and to the part's outside, 1.6 mm over the insert's zone (mouth to 4.3 mm), 1.2 mm over the rest of the bore and its floor. The report prints the tightest five of each zone.
+- **`gpu_post`'s bolts** stand at v -10.0 (were -10.5). The pinch in `beam_mid` is 1.757 mm (was 1.283 mm).
+- **Tightest now:** in the insert's zone 2.300 mm (the post's own pilots to its face), then 2.700 mm; below it the six lap floors at 1.300 mm, then 1.757 mm, then 1.907 mm (each visor arm's joint pilot against a 6-32 counterbore). Grok measured the same figures independently.
+- **Only `gpu_post` and `beam_mid` changed.**
+- **The review's two findings, both in the new test and neither hit by the built frame:** the pilot's mouth tolerance had the name of the hose guides' 0.4 mm tolerance, defined later in the module, so 0.4 mm was the value in use and a pocket behind a 0.3 mm skin went unmeasured; and the same-axis exemption let two facing pilots with 0.2 mm of floor between them through. The tolerance has its own name; only a bore that is not a pilot and runs into the pilot is its continuation; each has a test.
+- **The suite pins 322 cases.** The pinned count caught a broken test of the main session's own on its first run (a section cut short).
+- **Not built:** the stepped pilot. The insert's depth is set by hand; see `docs/printer-and-materials.md`, "Setting the heat-set inserts".

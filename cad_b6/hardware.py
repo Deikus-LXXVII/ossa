@@ -377,6 +377,12 @@ M3_INSERT_LEN, M3_INSERT_OD = 4.0, 4.96
 # Wall 1.6: a design rule (the same sheet's minimum wall), not a measurement.
 M3_PILOT_D, M3_PILOT_DEPTH, M3_MIN_WALL = 4.4, 6.7, 1.6
 INSERTS = {"M3": (M3_PILOT_D, M3_PILOT_DEPTH, M3_MIN_WALL)}
+# Revision 15a (docs/plans/fasteners-m3.md, "the rule, stated properly"): the wall M3_MIN_WALL is for the plastic that holds the insert, round the pilot from its mouth over
+# the insert's length plus this allowance (an insert pressed a little under flush, and the melt it pushes ahead of it). Check 7 measures it as a plain distance.
+M3_INSERT_ZONE_ALLOW = 0.3
+# Deeper than that zone the bore is only room for the screw's tip and for melt: the plastic round it and under it (the floor) must be at least this thick.
+# Three 0.4 mm perimeters (the nozzle is 0.4 mm, docs/printer-and-materials.md); the designed floors under the ribs' lap pilots are 1.3 mm. A design rule, not a measurement.
+M3_TIP_WALL = 1.2
 M3_CLEAR_D = 3.4                            # clearance hole of an M3 screw
 UNC6_CLEAR_D = 4.0                          # clearance hole of the 6-32 screws that come with the PSU, the radiators and a 3.5 inch drive
 FAN_SIDE_HOLE_D = 4.5                       # the side fans' own corner holes (the fit gauge G6 and the bracket's tab are drawn round them), not a screw's clearance

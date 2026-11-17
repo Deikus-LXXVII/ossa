@@ -37,7 +37,7 @@ Use it two ways: as the definition of done for a revision (no row may get worse)
 |---|---|---|---|
 | The skeleton carries every component with a safety of 3 across the layers | `strength.py`, "stiff" model, worst 2.85 MPa of 6.7 | none | ABS figures are typical values, not this spool's |
 | A knock on a fan, a pull on a cable, the card's weight | checks 17, 18, 19 (margins 2.56, 3.29, 2.37) | none | hand calculations, no mesh |
-| An insert holds its screw | none | coupon `C2` waits for the inserts | pull-out of the owner's inserts is unknown; two joints see about 225 N and 200 N in their worst case |
+| An insert holds its screw | check 15: every joint engages min(entry, the insert's 4.0 mm) of thread, at least 3.5; check 7: the plastic round each pilot is at least 1.6 mm over the insert's zone (its length + 0.3 from the mouth) and 1.2 mm deeper and under the floor, as plain distances and as the volume of the ring | coupon `C2` waits for the inserts | the pull-out of the owner's inserts in printed ABS is not measured; two joints see about 225 N and 200 N in their worst case; the pilot's 4.4 mm is the maker's figure until `C2` is tried; nothing in the model stops an insert pushed deeper than flush (the owner sets it flush, `docs/printer-and-materials.md`) |
 | The organic layer survives a 30 N push anywhere | `organic_strength.py`: 0 of 320 pushes over 10 MPa, worst 6.5 MPa; largest movement 2.16 mm (limit 5 mm). The script exits with an error when a push is over the allowable stress or the layer moves more than 5 mm | none | the allowable is an ABS stand-in (20 MPa across the layers, safety 2, where the skeleton uses 3) on a layer that will be PETG; PETG's strength across the layers is not measured, so the pass is not proved for PETG |
 
 ## Making it
@@ -45,7 +45,7 @@ Use it two ways: as the definition of done for a revision (no row may get worse)
 | Feature | Proved in the model | Proved on the hardware | Gap |
 |---|---|---|---|
 | Every skeleton part fits the bed (290 mm) | report's bounding boxes | none | no check fails on it; read by eye |
-| Every joint uses a screw and an insert the owner has | check 15, the bill of fasteners | none | the insert's diameter and length are assumptions |
+| Every joint uses a screw and an insert the owner has | check 15, the bill of fasteners | none | the insert's size is the owner's measurement (4.0 mm long, 4.96 mm outside, 17 Nov 2026); the pilot's diameter is an assumption until `C2` is tried |
 | A screwdriver reaches every screw | the organic pads only (`driver_blocked`) | none | no check for the skeleton's screws |
 | The parts can be put together in some order | none | none | no assembly order is written or checked |
 | Printed holes come out the size the model asks | none | coupons `C1` (not printed), `C2` (waits for inserts) | shrinkage of ABS and PETG not measured |
