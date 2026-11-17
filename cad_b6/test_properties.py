@@ -138,8 +138,7 @@ def _cyl(t):
 
 
 def _bb(s):
-    b = s.BoundingBox()
-    return (b.xmin, b.xmax, b.ymin, b.ymax, b.zmin, b.zmax)
+    return fr.exact_box(s)
 
 
 @prop(BOX, examples=300)

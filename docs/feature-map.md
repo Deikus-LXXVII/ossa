@@ -53,13 +53,13 @@ Use it two ways: as the definition of done for a revision (no row may get worse)
 
 ## Budgets
 
-What the owner pays for, recorded in `cad_b6/budgets.json` and held by `cad_b6/check_budgets.py` (exit 1 on a FAIL; `cad_b6/test_budgets.py` proves each budget fails when exceeded and when its input is missing). A figure may grow by its margin; a budget is lowered with `--write` in a commit of its own.
+What the owner pays for, recorded in `cad_b6/budgets.json` and held by `cad_b6/check_budgets.py` (exit 1 on a FAIL; `cad_b6/test_budgets.py` proves each budget fails when exceeded, when its input is missing, when a figure falls under half its record, and when the suite's record is stale, short or half written). A figure may grow by its margin; a budget is lowered with `--write` in a commit of its own, and `--write` refuses a figure past a hard limit.
 
 | Feature | Proved in the model | Proved on the hardware | Gap |
 |---|---|---|---|
 | The skeleton prints from the black ABS on hand | `check_budgets.py`: ABS at 4 walls / 20 % 1731.5 g, ratchet 1766.1 g (+ 2 %), hard limit 1800 g (90 % of the 2 kg in `hw.ABS_STOCK_G`) | none | 68 g (3.8 %) left under the hard limit; supports and rejects are not counted; the 4 walls / 20 % formula is an estimate, not a slicer's figure |
 | The organic layer prints from the PETG ordered | `check_budgets.py`: 1741.7 cm3 (2212 g solid), ratchet + 2 %, hard limit 3600 g solid (90 % of 4 kg) | none | solid volume, not the slicer's; supports not counted |
-| The checks run often enough to be used | `check_budgets.py`: the fast `test_checks.py` gated on its counts of frame builds, `run_checks` calls and cable routings (+ 10 %); its wall time (316 s recorded, 6 workers) warns at + 25 % | none | wall time depends on the machine's load; counts do not see a slower single operation |
+| The checks run often enough to be used | `check_budgets.py`: the fast `test_checks.py` gated on six counts, each + 10 % rounded down: frame builds 9 (limit 9), `run_checks` calls 122 (134), cable routings 12 (13), cable evaluations 6 (6), zone_access runs 8 (8), drive_access maps 2 (2); a count under half its record fails. Its wall time (316 s recorded, 6 workers) warns at + 25 % (394 s). The record must be of the working tree's code (its digest) and hold the 293 cases of `EXPECTED_CASES` | none | wall time depends on the machine's load; counts do not see a slower single operation; four of the six counts allow no growth at all |
 
 ## Not looked at
 

@@ -24,7 +24,7 @@ def load() -> dict:
 
 
 def aabb(s) -> str:
-    b = s.BoundingBox()
+    b = frame_v0.exact_bound_box(s)
     return (f"X {b.xmin:7.1f}..{b.xmax:7.1f}  Y {b.ymin:7.1f}..{b.ymax:7.1f}  "
             f"Z {b.zmin:7.1f}..{b.zmax:7.1f}")
 
