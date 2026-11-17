@@ -47,8 +47,8 @@ RHO = 1.04e-9                    # tonne / mm^3
 G = 9810.0                       # mm / s^2
 WALL = 1.6                       # mm, four 0.4 mm perimeters
 STRENGTH_IN_PLANE = 35.0         # MPa, typical tensile strength along the layers
-STRENGTH_LAYER = 20.0            # MPa, typical across the layers
-SAFETY = 3.0                     # on the weaker direction, for creep, heat and print defects
+STRENGTH_LAYER = frame_v0.ABS_STRENGTH_LAYER   # MPa, typical across the layers (revision 13: the numbers live in frame_v0.py, whose hand calculations of the fan bracket and the card's post use them)
+SAFETY = frame_v0.ABS_SAFETY     # on the weaker direction, for creep, heat and print defects
 ALLOW = STRENGTH_LAYER / SAFETY
 INFILLS = (0.20, 0.40, 0.80, 1.00)
 
@@ -67,7 +67,7 @@ REPORT_WHY = ("Допустимое напряжение пластин пров
               "чего настоящий радиатор не допускает. Это поправка модели нагрузки, не послабление допуска: допустимое то же.")
 
 # --- loads, kg (see docs/plans and the hardware reports; rounded up) ----------
-KG = dict(board=1.0, cpu_block=0.45, ram_ssd=0.2, card=1.6, rad360=1.3, rad420=1.9, psu=3.2, fan140=0.2)
+KG = dict(board=1.0, cpu_block=0.45, ram_ssd=0.2, card=1.6, rad360=1.3, rad420=1.9, psu=3.2, fan140=frame_v0.FAN_KG)
 U_DIR = np.array([0.0, math.sqrt(0.5), math.sqrt(0.5)])
 N_DIR = np.array([0.0, -math.sqrt(0.5), math.sqrt(0.5)])
 DOWN = np.array([0.0, 0.0, -1.0])
@@ -276,7 +276,7 @@ def wall_fraction(mesh):
                      for k in range(m + 1 - i - j)], dtype=float)
     bary = (bary + 0.25) / (m + 1.0)                        # pulled slightly inside
     pts = np.einsum("sb,ebc->esc", bary, P)
-    d, _ = tree.query(pts.reshape(-1, 3))
+    d, _ = tree.query(pts.reshape(-1, 3), workers=-1)
     return (d.reshape(len(P), -1) < WALL).mean(axis=1), float(area.sum())
 
 
@@ -373,13 +373,36 @@ def self_weight(v, w):
     return -w["rho"] * G * v.value[2]
 
 
+def accelerate_ldlt(A, b):
+    """Solve the condensed stiffness system with Accelerate's sparse LDLT (macldlt), from its upper triangle. The stiffness is positive definite: a negative or
+    zero pivot, or a residual far above a direct solve's, stops the run."""
+    import macldlt
+    import scipy.sparse as sp
+    upper = sp.triu(A, format="csc")
+    upper.sort_indices()
+    ldlt = macldlt.LDLTSolver(upper, triangle="upper")
+    neg, zero, _ = ldlt.inertia()
+    if neg or zero:
+        raise RuntimeError(f"stiffness not positive definite: {neg} negative and {zero} zero pivots")
+    x = ldlt.solve(b)
+    rel = np.linalg.norm(A @ x - b) / np.linalg.norm(b)
+    if not rel < 1e-6:
+        raise RuntimeError(f"Accelerate LDLT residual {rel:.1e}")
+    return x
+
+
 def pick_solver():
-    """MKL Pardiso on all cores where pypardiso is installed (x86), else scikit-fem's default (SuperLU, one core).
-    STRENGTH_SOLVER=scipy forces the default, to compare the two."""
+    """MKL Pardiso on all cores where pypardiso is installed (x86), else Accelerate's sparse LDLT on all cores where macldlt is installed (Apple
+    silicon), else scikit-fem's default (SuperLU, one core). STRENGTH_SOLVER=scipy forces the default, to compare."""
     if os.environ.get("STRENGTH_SOLVER") != "scipy":
         try:
             import pypardiso
             return (lambda A, b, **kw: pypardiso.spsolve(A.tocsr(), b)), "MKL Pardiso, все ядра"
+        except ImportError:
+            pass
+        try:
+            import macldlt  # noqa: F401
+            return (lambda A, b, **kw: accelerate_ldlt(A, b)), "Accelerate LDLT, все ядра"
         except ImportError:
             pass
     return None, "SuperLU, одно ядро"
@@ -442,18 +465,30 @@ def mesh_volumes(mesh):
     return np.abs(np.einsum("ij,ij->i", P[:, 1] - P[:, 0], np.cross(P[:, 2] - P[:, 0], P[:, 3] - P[:, 0]))) / 6.0
 
 
+_PREPARED = {}
+
+
+def prepare(parts, h_max, order, focus, stiff):
+    """Mesh, wall fraction, bases and unit element stiffness. The two stiff models share one mesh, so the second takes the first's instead of building it again."""
+    key = (stiff, h_max, order, tuple(focus))
+    if key not in _PREPARED:
+        _PREPARED.clear()
+        mesh, is_core = build_mesh(parts, h_max, 2.5, focus, stiff=stiff)
+        frac, _ = wall_fraction(mesh)
+        basis = Basis(mesh, ElementVector(ElementTetP2() if order == 2 else ElementTetP1()))
+        basis0 = basis.with_element(ElementTetP0())
+        _PREPARED[key] = (mesh, is_core, np.where(is_core, 0.0, frac), basis, basis0, unit_stiffness(mesh, basis, basis0))
+    return _PREPARED[key]
+
+
 def run_model(model, parts, h_max, order, focus):
     """One load model, every infill. Returns (lines for the report, summary) where the summary holds the plate's regional maxima, the 420's sag and the focus
     balls' maxima at 20 % infill."""
     stiff = model.startswith("stiff")
     t0 = time.time()
     out = [f"МОДЕЛЬ НАГРУЗКИ «{model}»: {MODEL_NAME[model]}"]
-    mesh, is_core = build_mesh(parts, h_max, 2.5, focus, stiff=stiff)
-    frac, area = wall_fraction(mesh)
-    frac = np.where(is_core, 0.0, frac)
+    mesh, is_core, frac, basis, basis0, unit = prepare(parts, h_max, order, focus, stiff)
     vol = mesh_volumes(mesh)
-    basis = Basis(mesh, ElementVector(ElementTetP2() if order == 2 else ElementTetP1()))
-    basis0 = basis.with_element(ElementTetP0())
     abs_el = ~is_core
     out.append(f"СЕТКА: {mesh.t.shape[1]} тетраэдров ({int(is_core.sum())} в теле радиатора), {basis.N // 3} узлов расчёта, элементы порядка {order}, шаг до {h_max:g} мм; "
                f"объём ABS {vol[abs_el].sum() / 1000:.0f} см³; доля стенки по объёму {float((frac * vol)[abs_el].sum() / vol[abs_el].sum()) * 100:.0f} %; решатель: {SOLVER_NAME}")
@@ -481,7 +516,6 @@ def run_model(model, parts, h_max, order, focus):
     p360 = near(mesh, hw.bp(hw.x_to_v(hw.RAD360_HOLES_X[-1]), hw.RAD360_HOLES_U[0], hw.RAD360_INNER_N - 6.0), 10.0)
     pcore = np.unique(mesh.t[:, is_core]) if stiff else None
     worst, peaks, spots, regions, sag = None, [], [], [], {}
-    unit = unit_stiffness(mesh, basis, basis0)
     cent = mesh.p.T[mesh.t.T].mean(axis=1)
     for infill in INFILLS:
         disp, vm_wall, vm_core, _ = solve_case(mesh, basis, basis0, frac, infill, f1, unit, is_core=is_core, k_tie=k_tie)

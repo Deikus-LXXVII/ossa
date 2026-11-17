@@ -38,6 +38,7 @@ N_POINTS = 160
 PAD_FIX_H = 2.0                             # nodes this far above a skeleton face, inside the pad, are held
 PAD_R = 8.0
 G = 9810.0                                  # mm/s2
+CHUNK = 32                                  # load cases solved together where memory is short (Accelerate, SuperLU)
 
 
 def cube_stiffness(h):
@@ -72,14 +73,43 @@ def cube_stiffness(h):
     return Ke, bmat(np.zeros(3)), D
 
 
+def factorize(Kff):
+    """Factor the stiffness once; returns (solve for a block of right-hand sides, solver name, load cases per block or None for all at once). MKL Pardiso where
+    pypardiso is installed (x86), else Accelerate's sparse LDLT where macldlt is installed (Apple silicon), else SuperLU."""
+    try:
+        import pypardiso
+        return (lambda B: pypardiso.spsolve(Kff, B, squeeze=False)), "MKL Pardiso", None    # one call, as before: each call hashes the 2 GB matrix
+    except ImportError:
+        pass
+    try:
+        import macldlt
+    except ImportError:
+        from scipy.sparse.linalg import splu
+        lu = splu(Kff.tocsc())
+        return lu.solve, "SuperLU", CHUNK
+    upper = sparse.triu(Kff, format="csc")
+    upper.sort_indices()
+    # nested dissection: at step 1 its factor is about 9 GB, the default ordering's does not fit in 18 GB
+    ldlt = macldlt.LDLTSolver(upper, triangle="upper", ordering="metis")
+    neg, zero, _ = ldlt.inertia()
+    if neg or zero:
+        raise RuntimeError(f"stiffness not positive definite: {neg} negative and {zero} zero pivots")
+    b = Kff @ np.ones(Kff.shape[0])                            # one probe solve; a residual on every block costs a minute of matrix products at step 1
+    rel = np.linalg.norm(Kff @ ldlt.solve(b) - b) / np.linalg.norm(b)
+    if not rel < 1e-6:
+        raise RuntimeError(f"Accelerate LDLT residual {rel:.1e}")
+    # macldlt 0.0.1 traps on a one-column block
+    return (lambda B: ldlt.solve(B[:, 0]).reshape(B.shape) if B.shape[1] == 1 else ldlt.solve(np.asfortranarray(B))), "Accelerate LDLT", CHUNK
+
+
 def von_mises(sig):
     s = sig
     return np.sqrt(0.5 * ((s[:, 0] - s[:, 1]) ** 2 + (s[:, 1] - s[:, 2]) ** 2 + (s[:, 2] - s[:, 0]) ** 2) + 3 * (s[:, 3] ** 2 + s[:, 4] ** 2 + s[:, 5] ** 2))
 
 
-def main():
-    step = int(sys.argv[1]) if len(sys.argv) > 1 else 1
-    t0 = time.time()
+def voxel_mesh(step):
+    """The voxels of the field inside the layer that are connected to a pad. Returns (h, pads, names, conn, X, held, dropped cm3); the full-grid arrays it
+    works on (several GB at step 1) are freed when it returns, before the factorisation needs the memory."""
     f = np.load(os.path.join(ROOT, "out", "organic", "field.npz"))
     d, xs, ys, zs = f["d"][::step, ::step, ::step], f["xs"][::step], f["ys"][::step], f["zs"][::step]
     pads, names = f["pads"], [str(n) for n in f["names"]]
@@ -117,9 +147,14 @@ def main():
     remap = np.zeros(len(P), dtype=np.int64) - 1
     remap[used] = np.arange(len(used))
     conn = remap[conn]
-    X = P[used]
-    held = held[used]
-    ne, nn = len(conn), len(used)
+    return h, pads, names, conn, P[used], held[used], dropped
+
+
+def main():
+    step = int(sys.argv[1]) if len(sys.argv) > 1 else 1
+    t0 = time.time()
+    h, pads, names, conn, X, held, dropped = voxel_mesh(step)
+    ne, nn = len(conn), len(X)
     out = [f"ПРОЧНОСТЬ ОРГАНИЧЕСКОГО СЛОЯ: воксели {h:g} мм, {ne} элементов, {nn} узлов; сплошной PETG (цифры ABS из strength.py), E {E:g} МПа",
            f"Объём в расчёте {ne * h ** 3 / 1000:.0f} см³ ({ne * h ** 3 * RHO * 1e6:.0f} г); не связано с креплениями и отброшено {dropped:.1f} см³",
            f"Закреплено у {len(pads)} площадок: {int((held >= 0).sum())} узлов"]
@@ -127,13 +162,19 @@ def main():
 
     Ke, B0, D = cube_stiffness(h)
     dofs = (3 * conn[:, :, None] + np.arange(3)[None, None, :]).reshape(ne, 24)
-    rows = np.repeat(dofs, 24, axis=1).ravel()
-    cols = np.tile(dofs, (1, 24)).ravel()
-    K = sparse.coo_matrix((np.tile(Ke.ravel(), ne), (rows, cols)), shape=(3 * nn, 3 * nn)).tocsr()
-    del rows, cols
+    K = None
+    for s in range(0, ne, 100_000):                            # in slices: all elements' triplets at once peak near 10 GB at step 1
+        d = dofs[s:s + 100_000].astype(np.int32)
+        part = sparse.coo_matrix((np.tile(Ke.ravel(), len(d)), (np.repeat(d, 24, axis=1).ravel(), np.tile(d, (1, 24)).ravel())), shape=(3 * nn, 3 * nn)).tocsr()
+        K = part if K is None else K + part
+    del part
     fixed = np.repeat(held >= 0, 3)
     free = np.where(~fixed)[0]
-    Kff = K[free][:, free].tocsr()
+    held_dofs = np.where(fixed)[0]
+    K_held = K[held_dofs]                                      # the rows the reactions need; the full K is not kept
+    pad_of = held[held >= 0]                                   # pad of each held node, in the order of K_held's rows
+    K_free = K[free][:, free].tocsr()
+    del K
 
     # surface points to push on: farthest-point sampling over surface nodes away from the pads
     count = np.bincount(conn.ravel(), minlength=nn)
@@ -150,10 +191,10 @@ def main():
         picks.append(int(surf[j]))
         dist = np.minimum(dist, np.linalg.norm(X[surf] - X[surf[j]], axis=1))
     # outward direction at a pick: away from the mass of nearby nodes
-    cases, meta = [], []
+    cases, meta = [], []                                       # each load case as a sparse column: 321 dense ones are 5 GB
     w = np.zeros(3 * nn)
     np.add.at(w, 3 * conn.ravel() + 2, -RHO * G * h ** 3 / 8.0)
-    cases.append(w)
+    cases.append(sparse.csc_matrix(w[:, None]))
     meta.append(("вес", None, None))
     for p in picks:
         near = tree.query_ball_point(X[p], 12.0)
@@ -161,45 +202,43 @@ def main():
         outward = outward / max(np.linalg.norm(outward), 1e-9)
         patch = [q for q in tree.query_ball_point(X[p], FINGER_R) if held[q] < 0]
         for label, direction in (("внутрь", -outward), ("вниз", np.array([0.0, 0.0, -1.0]))):
-            b = np.zeros(3 * nn)
-            for a in range(3):
-                b[3 * np.array(patch) + a] = PUSH_N * direction[a] / len(patch)
-            cases.append(b)
+            rows = (3 * np.array(patch)[:, None] + np.arange(3)).ravel()
+            vals = np.tile(PUSH_N * direction / len(patch), len(patch))
+            cases.append(sparse.csc_matrix((vals, (rows, np.zeros(len(rows), dtype=np.int64))), shape=(3 * nn, 1)))
             meta.append((label, p, direction))
-    Bm = np.array(cases).T
+    Bm = sparse.hstack(cases, format="csc")
+    Bf = Bm[free]
     out.append(f"Сборка {time.time() - t0:.0f} с; случаев нагрузки {Bm.shape[1]}: вес и {len(picks)} точек x 2 направления по {PUSH_N:g} Н на пятно радиусом {FINGER_R:g} мм")
     t1 = time.time()
-    try:
-        import pypardiso
-        U = pypardiso.spsolve(Kff, Bm[free])
-        solver = "MKL Pardiso"
-    except ImportError:
-        from scipy.sparse.linalg import splu
-        lu = splu(Kff.tocsc())
-        U = np.column_stack([lu.solve(Bm[free][:, j]) for j in range(Bm.shape[1])])
-        solver = "SuperLU"
-    if U.ndim == 1:
-        U = U[:, None]
-    out.append(f"Решение {time.time() - t1:.0f} с ({solver}), неизвестных {len(free)}")
+    solve, solver, block = factorize(K_free)
+    block = block or Bm.shape[1]
+    del K_free
+    t_solve = time.time() - t1
 
     DB = D @ B0
     res = []
     reactions = np.zeros((len(pads), Bm.shape[1]))
+    cen = X[conn].mean(axis=1)
+    clamped = (held[conn] >= 0).any(axis=1)
     for j in range(Bm.shape[1]):
+        if j % block == 0:                                     # a block of right-hand sides at a time, so the answers need not all sit in memory
+            t1 = time.time()
+            U = solve(Bf[:, j:j + block].toarray())
+            t_solve += time.time() - t1
         u = np.zeros(3 * nn)
-        u[free] = U[:, j]
+        u[free] = U[:, j % block]
         vm = von_mises((u[dofs] @ DB.T))
-        cen = X[conn].mean(axis=1)
         label, p, direction = meta[j]
         if p is not None:
             vm = np.where(np.linalg.norm(cen - X[p], axis=1) < FINGER_R + 2 * h, 0.0, vm)      # not the contact itself
-        vm = np.where((held[conn] >= 0).any(axis=1), 0.0, vm)                                  # nor the clamped nodes (a rigid clamp is harsher than a screw)
+        vm = np.where(clamped, 0.0, vm)                                                        # nor the clamped nodes (a rigid clamp is harsher than a screw)
         e = int(np.argmax(vm))
         mag = np.linalg.norm(u.reshape(-1, 3), axis=1)
-        r = (K @ u - Bm[:, j]).reshape(-1, 3)
+        r = (K_held @ u - Bm[held_dofs, j].toarray().ravel()).reshape(-1, 3)
         for a in range(len(pads)):
-            reactions[a, j] = np.linalg.norm(r[held == a].sum(axis=0))
+            reactions[a, j] = np.linalg.norm(r[pad_of == a].sum(axis=0))
         res.append((label, None if p is None else X[p], float(mag.max()), float(vm.max()), cen[e]))
+    out.append(f"Решение {t_solve:.0f} с ({solver}), неизвестных {len(free)}")
     out.append("")
     lab_, _, sag, s, where = res[0]
     out.append(f"Собственный вес: наибольшее смещение {sag:.3f} мм, напряжение {s:.2f} МПа у X {where[0]:.0f}, Y {where[1]:.0f}, Z {where[2]:.0f}")
