@@ -25,6 +25,17 @@ Expect `2.8.0` and a VTK version. If it fails, the venv is broken. Report that a
 
 About 20 s. It writes the report, STEP and legacy previews first, then asserts. Success ends with `Done, all asserts passed.` A failed assert prints the offending pairs and exits non-zero. The asserts are listed in `docs/plans/b6-frame-v0.md` under Checks.
 
+## Differential and property checks
+
+Run both after `frame_v0.py`. Neither needs a view, and they can run side by side.
+
+```bash
+.venv/bin/python cad_b6/test_properties.py      # ~20 s: property tests of the helper functions; ends PASS (a known failure is listed, not hidden)
+.venv/bin/python cad_b6/parts_manifest.py --expect <parts the revision's spec says it changes>      # ~20 s: exit 1 names any part or hardware solid that changed outside the list
+```
+
+`parts_manifest.py` compares the working tree with `cad_b6/parts_manifest.json` in the last commit. Take the list from the spec (`tie_bridge_*` and `hw:<name>` work). Quote its table in the report. Rewrite the manifest with `--write` only in the commit that carries the revision, after the table has been read. A property that fails is a finding: do not weaken it.
+
 ## Drive
 
 1. **Measure.** `cad_b6/measure.py` prints AABBs, minimum distance and overlap volume for named parts and hardware. Names come from running it with no arguments. Hardware names carry the `hw:` prefix.

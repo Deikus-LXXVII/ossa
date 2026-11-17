@@ -28,7 +28,8 @@ Tag each finding **Important** (wrong result possible), **Nit**, or **Pre-existi
 | 10 | A dimension marked PLACEHOLDER or ASSUMPTION is used | The report names it. Nothing claims a fit that rests on it. | The front I/O module, the insert's size, the screw lengths of the PSU and the 360. |
 | 11 | The load model of `strength.py` or `organic_strength.py` changed | The allowable is untouched. The old model is still reported beside the new one. | Revision 11. |
 | 12 | A solver, a mesh or a speed change in a strength script | The report is identical to the one before, apart from timing lines. A failure to converge or a bad residual stops the run. | 17 Nov 2026, the Accelerate solver. |
-| 13 | A part the revision says it did not touch | Its volume and bounding box are the same as before. | Revision 14a: the sill's face moved 2 mm as a side effect of a larger pocket. |
+| 13 | A part the revision says it did not touch | `cad_b6/parts_manifest.py --expect <the parts the spec names>` passes: no other part or hardware solid differs from the last commit. | Revision 14a: the sill's face moved 2 mm as a side effect of a larger pocket. |
+| 15 | A test probe, an expected string or a threshold moved in the same change as the geometry it tests | The move is not what makes the test pass. Put the probe back and see. | Revision 14a: the probe in the sill's rear wall was moved off the place where the wall had become open. |
 | 14 | A channel, a clip or a wall drawn round a hose or a cable route | The clearance does not hang on one sample of the route. Say what happens if the route moves by a millimetre. | Revision 14a: a hose channel with a 0.24 mm wall placed on one vertex of the route. |
 
 ## What a review does not have to redo
