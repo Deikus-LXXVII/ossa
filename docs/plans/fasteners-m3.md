@@ -85,3 +85,16 @@ Open until the owner gives the insert's outer diameter and length: the pilot's d
 **The organic layer's material, in the same pass.** `organic_frame.py`, `organic_strength.py`, `shell_concepts.py` and the frame report's material paragraph still say PLA. The layer is PETG with ABS as the fallback: density 1.27 g/cm3, and for strength the ABS figures `strength.py` uses (E 2000 MPa, 20 MPa across the layers), safety 2 as now, so the allowable is 10 MPa. Names that say PLA become names that say what the thing is (the gap to the card and the PSU, the layer's density). No member of the layer moves. `organic_strength.py` is not run here; the main session runs it on the gaming PC.
 
 **Done means:** `frame_v0.py`, `test_checks.py`, `cables.py -norender`, `organic_frame.py`, `drive_access.py`, `fit_gauges.py` pass; `strength.py 7 2` is rerun (smaller holes, new counterbores) and reported; `render_full.py` rerun. Nothing committed.
+
+## Pull-out strength of M3 heat-set inserts (Grok `web-research`, 17 Nov 2026; not re-opened by the main session)
+
+Asked because Revision 13 leaves two joints that load one insert each in tension in the worst case: about 225 N (a bolt of `gpu_post` under a 20 N pull on a cable) and about 150 N (a rib bolt of a fan bracket under a 20 N knock). Both are rare, short loads.
+
+- **PETG, M3 heat-set insert (Ruthex), axial pull-out:** 119 kg, about 1170 N, insert ripped out; 3 samples, 4 perimeters, 100 % infill (CNC Kitchen, hobbyist controlled test, 2020).
+- **PLA, M3:** 1400 to 1775 N for knurled inserts in a tight hole; a cheap insert with straight vertical knurls only 382 N (CNC Kitchen, 2019 and 2026).
+- **ABS:** no test of a short M3 heat-set insert in printed ABS was found.
+- **Length matters:** in MJF PA12 a long M3 insert (5.7 mm deep) held 1258 N, a short one (3.6 mm) 813 N (Sculpteo). Working load recommended there: ultimate divided by 3 to 5 for structural use.
+- **Hole matters:** strength falls steeply once the hole is above a true 4.0 to 4.1 mm; too few walls or too little infill round the hole makes the plastic fail first.
+- **Heat and time:** no figure for sustained tension or for 50 to 60 °C on an insert was found. Printed coupons keep about 78 % (ABS) and 70 % (PETG) of their tensile strength at 60 °C.
+
+**Reading (main session).** Against the PETG figure the two loads have margins of about 5 and 8; against the cheap straight-knurl insert only 1.7 and 2.5. The owner's inserts are not identified yet, so the margin is not known. What follows for the model: the pilot must not be oversize (the ladder `C2_insert_ladder` decides it), and the wall round an insert in tension should be solid (walls and infill in the slicer), not sparse. No geometry changes.

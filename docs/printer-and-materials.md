@@ -77,3 +77,20 @@ Looked for on amazon.de by Grok (`web-research`); the product pages were then op
 - **No bare strip up to 10 mm wide comes with the motherboard plug.** The ready-made PC strips with that plug are 16 to 20 mm wide bars and do not fit the 14 x 14 mm channel.
 - **Strip:** BTF-LIGHTING WS2812 ECO, 1 m, 60 LEDs per metre, black PCB, IP30, 10 mm wide, JST-SM 3-pin on both ends, ASIN B088BRY2SH, 9.49 EUR, in stock on the day. About 270 mm is used: 16 LEDs, at most 0.96 A at full white, so it is run dimmed in the closed channel. The same strip with 30 LEDs per metre is sold only as a 5 m roll (ASIN B088BB8WTZ, 17.99 EUR); its 33 mm pitch behind a 10 mm air gap would show as separate dots (main session's judgement, not tested).
 - **Lead from the board to the strip:** a "5 V 3-pin ARGB to SM 3-pin" cable, for example ASIN B0CQJLQ7ZC (four 30 cm cables, 5.99 EUR) or B0F8C4SB31 (a 30 cm splitter, 6.69 EUR). Not verified: whether the lead's SM end is the gender that mates with the strip's input end, and the wire order. The strip is one-directional (data in at one end). If the plug does not mate, three wires are soldered.
+
+## Printing SUNLU Rapid PETG on the K1 Max (Grok `web-research`, 17 Nov 2026; not re-opened by the main session)
+
+No test of this filament on a K1 or K1 Max was found, and SUNLU publishes no volumetric flow limit. Starting values, to be confirmed on the trial piece:
+
+| Setting | Start with | Where it comes from |
+|---|---|---|
+| Nozzle | 250 °C (SUNLU: 240 to 260 °C up to 400 mm/s) | SUNLU's parameter table for High Speed Matte PETG, which is the product behind the retail name; Creality's generic PETG preset for the K1 series |
+| Bed | 70 °C (SUNLU: 70 to 80 °C) | both |
+| Volumetric flow | 9 mm³/s, raise only after a flow test | Creality's generic PETG preset; SUNLU's "600 mm/s" is marketing |
+| Part fan / side fan | 80 % / 0 % | Creality's preset; the side fan hits one face of a thin member |
+| Retraction | 0.8 to 1.2 mm at 30 to 40 mm/s | SUNLU |
+| Bed surface | glue stick on the PEI plate as a release layer | Creality's page; owners report PETG tearing the PEI coating off |
+| Chamber | lid off or door open | K1 Max owners report heat-creep clogs with PETG in a closed chamber; curing it by editing the printer's configuration is not allowed here |
+| Drying | 60 to 65 °C; the time is not confirmed (6 to 8 h appears in search results only) | SUNLU |
+
+For the organic layer's thin members (6 to 12 mm, up to 290 mm): dry the spool first; a minimum layer time matters more than a higher flow cap, because the next layer must not land on plastic the fan has already chilled; an open chamber cools the part too, so do not also raise the fan.
