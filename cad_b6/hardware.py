@@ -367,9 +367,15 @@ PSU_HOLES = list(PSU_PATTERN)
 GPU_BRACKET_TAB_N = 108.0
 
 # Screws, washers and inserts (revision 12: every screw between printed parts is an M3 socket head cap screw into an M3 heat-set insert).
-# Pilot of an M3 insert: diameter, depth, minimum wall around it. ASSUMPTION until the owner gives the insert's outer diameter and length: ruthex's figures for its
-# M3 x 5.7 insert. This is the only place the pilot is written down.
-M3_PILOT_D, M3_PILOT_DEPTH, M3_MIN_WALL = 4.0, 6.7, 1.6
+# The owner's M3 heat-set inserts, owner's measurement (17 Nov 2026): 4.0 mm long, 4.96 mm outer diameter.
+M3_INSERT_LEN, M3_INSERT_OD = 4.0, 4.96
+# Pilot of an M3 insert: diameter, depth, minimum wall around it. This is the only place the pilot is written down (revision 15, docs/plans/fasteners-m3.md).
+# Diameter 4.4: ASSUMPTION until the ladder C2_insert_ladder is tried on this printer. It is the row for a 5.0 x 4.0 mm M3 insert in CNC Kitchen's dimension sheet
+#   (https://www.cnckitchen.com/s/CNCKitchen_Heat-Set-Insert-Dimensions-and-Design-Guidelines.pdf: hole 4.4, minimum wall 1.6), read by Grok, not re-opened by the main session.
+# Depth 6.7: a choice, not the insert's size. The insert sits in the top M3_INSERT_LEN; the rest is room for the screw's tip, which keeps the screw-length window
+#   (enter SCREW_ENGAGE_MIN at least, stop SCREW_BOTTOM_GAP short of the bottom) 2.7 mm wide. A pilot only as deep as the insert plus the gap would leave 0.5 mm.
+# Wall 1.6: a design rule (the same sheet's minimum wall), not a measurement.
+M3_PILOT_D, M3_PILOT_DEPTH, M3_MIN_WALL = 4.4, 6.7, 1.6
 INSERTS = {"M3": (M3_PILOT_D, M3_PILOT_DEPTH, M3_MIN_WALL)}
 M3_CLEAR_D = 3.4                            # clearance hole of an M3 screw
 UNC6_CLEAR_D = 4.0                          # clearance hole of the 6-32 screws that come with the PSU, the radiators and a 3.5 inch drive

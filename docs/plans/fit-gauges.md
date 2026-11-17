@@ -62,7 +62,7 @@ Write the owner's check sheet: for each gauge, what to print, how to hold it aga
 Differences from the list above:
 - **G4 is two plates**, `G4a` (u 0 to 147) and `G4b` (u 135 to 305). The ATX hole span does not fit one 290 mm plate. They share the middle hole row.
 - **G1 and G2** have a wider end strip (25.4 mm) so the tooth between the two collar slots is held.
-- **C2 is 10.4 mm thick**: the M4 pilot is 9.1 mm deep.
+- **C2 is 10.4 mm thick**: the M4 pilot is 9.1 mm deep. *Superseded:* since Revision 12 the model has M3 inserts only, and since Revision 15 (17 Nov 2026, the owner's inserts measured at 4.0 mm long and 4.96 mm across) C2 is one block 124 x 38 x 8 mm: a row of nine blind M3 pilots 4.1 to 4.9 mm in steps of 0.1, 6.7 mm deep with 1.3 mm of floor, the model's 4.4 marked with a triangle; a row of seven M3 clearance holes 3.2 to 3.8 mm, 3.4 marked; and a small block with the 4.4 pilot horizontal. The table above (five pilots per key, M4 and M5 rows) describes the first plan, not the part.
 - **G5 tests the block's body and lug only.** The collar slots fall inside the lug notch. Measure the collar spacing (model: 23.8 mm) with calipers on the hoses.
 - **G3's holes** were first built at M4 clearance by a mistake in this plan; they are 6-32 clearance now.
 

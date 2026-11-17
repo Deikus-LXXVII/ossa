@@ -63,7 +63,7 @@ All screws are M3 hex socket head cap screws. There are no M4 screws.
 | M3 x 40 | | 20 | | 20 |
 
 - **M3 nuts:** about 700 (180 + 220 + 300). **M3 flat washers:** 380 (80 + 300). **M3 lock washers:** 180.
-- **M3 heat-set inserts:** 20 at most on hand, 200 more ordered (owner's word, 16 Nov 2026). Outer diameter and length not stated yet; the pilot hole is sized to them.
+- **M3 heat-set inserts:** 20 at most on hand, 200 more ordered (owner's word, 16 Nov 2026). The owner measured them on 17 Nov 2026: 4.0 mm long, 4.96 mm outer diameter (`hw.M3_INSERT_LEN`, `hw.M3_INSERT_OD`). The pilot hole is 4.4 mm across (the maker's figure for a 5.0 x 4.0 mm insert, until the ladder `C2_insert_ladder` is tried) and 6.7 mm deep (Revision 15, `docs/plans/fasteners-m3.md`).
 - An M2 kit (M2 x 4 to M2 x 20 with nuts and washers). The case has no use for it so far.
 - The counts are the kits' labels, not a count of what is left in the boxes. The ordered kit's contents were read off its Amazon listing (the label in the product picture and the description agree).
 
@@ -94,3 +94,7 @@ No test of this filament on a K1 or K1 Max was found, and SUNLU publishes no vol
 | Drying | 60 to 65 °C; the time is not confirmed (6 to 8 h appears in search results only) | SUNLU |
 
 For the organic layer's thin members (6 to 12 mm, up to 290 mm): dry the spool first; a minimum layer time matters more than a higher flow cap, because the next layer must not land on plastic the fan has already chilled; an open chamber cools the part too, so do not also raise the fan.
+
+## Setting the heat-set inserts (17 Nov 2026)
+
+The owner's inserts are 4.0 mm long and 4.96 mm in outer diameter. The pilot is 6.7 mm deep on purpose: the insert sits in the top 4 mm and the 2.7 mm under it is room for the screw's tip. **Set every insert flush with the face and no deeper.** An insert pushed to the bottom of the hole leaves a screw 0.8 mm of thread in the thirty rib-end joints and under 3 mm everywhere else, and no check in the model sees that, because the model assumes the insert is at the top. Press the insert level with a flat piece of metal while the plastic is soft. A step in the hole that stops the insert at the right depth is planned (revision 15a).

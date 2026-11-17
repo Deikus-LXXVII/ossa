@@ -54,7 +54,7 @@ NOTCH_W, NOTCH_D = 4.0, 6.0  # G4's notch at the PCIe slot line
 C1_LEG, C1_HOLE_D, C1_PITCH = 200.0, 4.0, 50.0
 C2_BLOCK_T = 8.0             # the plan's block thickness; a pilot deeper than it makes the block thicker (see build_c2)
 C2_PITCH, C2_ROW, C2_LABEL_W, C2_HEAD = 10.0, 10.0, 34.0, 9.0
-C2_PILOT_STEPS = tuple(round(-0.2 + 0.1 * k, 1) for k in range(9))      # added to the M3 pilot's diameter: 3.8 to 4.6 mm while the pilot is 4.0
+C2_PILOT_STEPS = tuple(round(-0.3 + 0.1 * k, 1) for k in range(9))      # added to the M3 pilot's diameter: 4.1 to 4.9 mm while the pilot is 4.4 (revision 15)
 C2_CLEAR_STEPS = tuple(round(-0.2 + 0.1 * k, 1) for k in range(7))      # added to the M3 clearance diameter: 3.2 to 3.8 mm while it is 3.4
 C2_HORIZ_H, C2_HORIZ_LABEL = 10.0, 8.0
 C3_LEN = 20.0                # slice length along the hose
@@ -533,7 +533,7 @@ def build_c2():
     it.thick = thick
     pil = [dia + dd for dd in C2_PILOT_STEPS]
     clr = [hw.M3_CLEAR_D + dd for dd in C2_CLEAR_STEPS]
-    it.notes.append(f"main block {width:g} x {height:g} x {thick:g}: the plan's 8 mm block with the M3 pilot {depth:g} deep (hardware.M3_PILOT_DEPTH, an assumption until the owner gives the insert's length), {floor:g} mm of floor under it")
+    it.notes.append(f"main block {width:g} x {height:g} x {thick:g}: the plan's 8 mm block with the M3 pilot {depth:g} deep (hardware.M3_PILOT_DEPTH, a choice: the owner's {hw.M3_INSERT_LEN:g} x {hw.M3_INSERT_OD:g} mm insert sits in its top {hw.M3_INSERT_LEN:g} mm, the rest is room for the screw's tip), {floor:g} mm of floor under it")
     it.notes.append(f"rows top to bottom: M3 pilots {pil[0]:.1f} to {pil[-1]:.1f} mm in steps of 0.1 (blind, {depth:g} deep), then M3 clearance holes {clr[0]:.1f} to {clr[-1]:.1f} mm in steps of 0.1 (through); "
                     f"the diameter is engraved over each hole and a triangle marks the nominal one ({dia:g} and {hw.M3_CLEAR_D:g})")
     it.notes.append(f"small block {wx:g} x {ylen:g} x {C2_HORIZ_H:g} at x {width + 8:g}: the nominal pilot along +Y from its y = 0 face; print both blocks flat")

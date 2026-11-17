@@ -20,7 +20,7 @@ per route: every clearance under 10 mm, and every failed check
   EPS 1            hw:board (route without the plug's descent) 3.5; hw:dimms 4.0; hw:rad420 4.0; rib_A_right 4.5; rib_B_right 4.5; hw:atx24 7.1; hw:psu (route after its socket leg) 8.0
   EPS 2            hw:board (route without the plug's descent) 3.5; hw:dimms 3.5; hw:psu (route after its socket leg) 3.6; beam_top 3.9; hw:rad420 4.0; tie_bridge_skid_1 4.3; rib_A_right 4.5; rib_B_right 4.5; tie_bridge_top_2 7.4
   USB 3 front      beam_mid 3.5; tie_bridge_low_2 4.0; hw:board (route without the plug's descent) 5.5; tie_bridge_low_1 5.5; front_sill 6.4; rib_A_right 6.5; tie_bridge_mid_3 8.2; beam_low 8.5; tie_bridge_leg_2 8.7
-  USB-C front      hw:gpu (from n 11 up) 3.0; hw:board (route without the plug's descent) 3.4; gpu_rest 4.4; tie_bridge_low_2 4.5; rib_A_right 5.9; front_sill 6.4; fan_bracket_right 7.3; beam_low 9.3
+  USB-C front      hw:gpu (from n 11 up) 3.0; hw:board (route without the plug's descent) 3.4; gpu_rest 4.4; tie_bridge_low_2 4.5; rib_A_right 5.9; front_sill 6.4; fan_bracket_right 7.1; beam_low 9.3
   Power switch     front_sill 4.2; front_io_carrier 7.7
   Light line       front_sill 4.3; front_io_carrier 7.8; hw:front_io 9.7
   Audio            front_sill 3.8; front_io_carrier 8.0; hw:board (route without the plug's descent) 8.7

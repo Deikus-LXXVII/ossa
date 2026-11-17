@@ -685,7 +685,7 @@ GPU_POST_COL_W = 12.0                   # the low-u column's width in u (the hig
 GPU_POST_U_WINDOW = (hw.GPU_BS[2] - GPU_POST_CLEAR, hw.GPU_BS[3] + GPU_POST_CLEAR)       # the opening: the card's whole thickness in u, and a little more
 GPU_POST_BOLT_WALL = 1.9                # wall between the first bolt's pilot and the window's edge (rule 1.6)
 GPU_POST_U_BOLT0 = GPU_POST_U_WINDOW[1] + hw.M3_PILOT_D / 2 + GPU_POST_BOLT_WALL      # the first bolt: its pilot keeps that wall to the window's edge
-GPU_POST_U = (round(GPU_POST_U_BOLT0, 3), round(GPU_POST_U_BOLT0 + 8.0, 3))     # the two bolts into beam_mid (131 and 139 for the card as it is now)
+GPU_POST_U = (round(GPU_POST_U_BOLT0, 3), round(GPU_POST_U_BOLT0 + 8.0, 3))     # the two bolts into beam_mid (131.2 and 139.2 for the card and the pilot as they are now: they follow the pilot's radius)
 GPU_POST_U_RANGE = (GPU_POST_U_WINDOW[0] - GPU_POST_COL_W, round(GPU_POST_U[1] + 7.0, 3))     # the frame's outside, along u
 GPU_POST_N_WINDOW = (hw.GPU_OUT_N[0] - GPU_POST_CLEAR, hw.GPU_OUT_N[1] + GPU_POST_CLEAR)      # the opening, along n: the zone's n range, and a little more each end
 GPU_POST_N_RANGE = (hw.ATX_TRAY_N, hw.GPU_BRACKET_TAB_N)      # the base stands on beam_mid, the lintel's top is the seat of the card bracket's tab
@@ -3438,9 +3438,12 @@ def check_screws(parts, hardware, failures):
                 failures.append(f"CHECK15 {where}: M3 x {length} enters the insert {entry:.2f} mm, needs {hw.SCREW_ENGAGE_MIN:g}")
             if entry > depth - hw.SCREW_BOTTOM_GAP + FIT_EPS:
                 failures.append(f"CHECK15 {where}: M3 x {length} stops {depth - entry:.2f} mm from the bottom of the hole ({hw.M3_PILOT_DEPTH:g} deep, relief {relief:.1f}), needs {hw.SCREW_BOTTOM_GAP:g}")
+            engaged = min(entry, hw.M3_INSERT_LEN)          # revision 15: the thread a screw can use is the insert's length at most; the tip beyond it stands in the empty bore under the insert, which is what the pilot's depth is for. The insert must sit flush with the face: pushed to the bottom it would leave entry - 2.7 mm of thread
+            if engaged < hw.SCREW_ENGAGE_MIN - FIT_EPS:
+                failures.append(f"CHECK15 {where}: M3 x {length} engages {engaged:.2f} mm of thread (the insert is {hw.M3_INSERT_LEN:g} mm long), needs {hw.SCREW_ENGAGE_MIN:g}")
             washers += 1 if h.washer else 0
             margin = min(entry - hw.SCREW_ENGAGE_MIN, depth - hw.SCREW_BOTTOM_GAP - entry)
-            rows.append(dict(part=p.name, item=h.item, pos=h.point(OVERSHOOT), stack=stack, length=length, entry=entry, depth=depth, margin=margin, relief=relief, what=what, washer=h.washer))
+            rows.append(dict(part=p.name, item=h.item, pos=h.point(OVERSHOOT), stack=stack, length=length, entry=entry, engaged=engaged, depth=depth, margin=margin, relief=relief, what=what, washer=h.washer))
     bill = {}
     for r in rows:
         n, items = bill.get(r["length"], (0, {}))
@@ -4074,6 +4077,11 @@ def format_report(hardware, parts, res, memo=None):
     nscrew = sum(n for n, _ in sc["bill"].values())
     w(f"  Всего {nscrew} винтов M3, {sc['washers']} шайб M3 (у владельца {hw.M3_WASHER_STOCK}, допустимо {hw.STOCK_SHARE * hw.M3_WASHER_STOCK:.0f}), "
       f"{sc['inserts']} вставок M3 (у владельца {hw.M3_INSERT_STOCK}, допустимо {hw.STOCK_SHARE * hw.M3_INSERT_STOCK:.0f}): {nscrew} под винты с известной длиной и {sc['inserts'] - nscrew} под винты модуля front_io (PLACEHOLDER, свои).")
+    w(f"  Резьба в зацеплении (ревизия 15: вставка владельца {hw.M3_INSERT_LEN:g} x {hw.M3_INSERT_OD:g} мм, замер 17.11.2026) = min(вход, {hw.M3_INSERT_LEN:g}); проверка 15 требует не меньше {hw.SCREW_ENGAGE_MIN:g}:")
+    for length in sorted(sc["bill"]):
+        eng = [r["engaged"] for r in sc["rows"] if r["length"] == length]
+        w(f"    M3 x {length:<3d} {len(eng):3d} стыков: {min(eng):.2f}..{max(eng):.2f} мм" + (f", ровно {hw.SCREW_ENGAGE_MIN:g} мм: {sum(1 for e in eng if abs(e - hw.SCREW_ENGAGE_MIN) < 1e-6)}" if any(abs(e - hw.SCREW_ENGAGE_MIN) < 1e-6 for e in eng) else ""))
+    w(f"    винты модуля front_io ({sc['inserts'] - nscrew} вставок): своих винтов модуля, длина и стык не известны (PLACEHOLDER), резьба в зацеплении не посчитана.")
     reliefs = [r for r in sc["rows"] if r["relief"] > 0]
     w(f"  Рассверловки под вставкой (диаметр проходного, вставка открыта снизу): {len(reliefs)}" + (": " + ", ".join(f"{r['part']} {r['relief']:.1f} мм" for r in reliefs) if reliefs else " (ни одна длина набора не потребовала)")
       + "; утопленные головки в стыках скелета: 0 (ни один стык не потребовал).")
@@ -4865,7 +4873,7 @@ OPEN_ITEMS: list[str] = [
     "Опрокидывающая нагрузка: вес 420 разлагается на 0.71 вдоль n (прижим к кредлу) и 0.71 вдоль уклона (в сторону -u, вниз к плате); вдоль уклона и момент (центр масс n = 54, плоскость кредла n = -18, плечо 72 мм) держат только антлеры: 6 винтов 6-32 в пластине 3 мм между сердцевиной и вентиляторами, концевое ребро и язычок на двух болтах M4 каждый. strength.py 7 2, радиатор как жёсткое тело, 20 %: язык 2.05, хорда 2.31, корень пластины над хордой 2.21, перемычка между вентиляторами 0.16 МПа при допустимых 6.7; прогиб 420 2.4 мм у верхнего внешнего винта (случай точечных нагрузок: 42 МПа, 90 мм, он не судится). Не считалось: ползучесть пластины 3 мм под постоянной нагрузкой у тёплого радиатора, проскальзывание зажима плиты (трение зажатой между сердцевиной и рамкой), пятно Ø9.5 мм взято допущением.",
     "Длинные винты через вентиляторы (ревизия 11): винты идут с внешней грани через вентилятор 27 мм и пластину 3 мм в резьбу сердцевины, то есть на 3 мм длиннее штатных (6-32 x 34.9 мм, если штатные 32). Длину штатных винтов, резьбу (по отзывам 6-32 UNC) и полезную глубину резьбы в радиаторе ARCTIC не указывает: это замеры владельца. Вентиляторы нужно перенести на ту грань, где у радиатора воронки портов (чертёж ARCTIC), владелец подтвердил, что радиатор нарезан с обеих сторон.",
     "GPU_BRACKET_TAB_N = 108 остаётся PLACEHOLDER, верх gpu_post (n = 108) не подтверждён. Положение ATX-отверстий подтверждено по скану "
-    "платы; схема БП и вставки взяты из исследования (ATX12V v2.0, ruthex RX), на деталях владельца не измерены. БП: вентилятор вверх, "
+    "платы; схема БП взята из исследования (ATX12V v2.0) и на детали владельца не измерена; вставки M3 владелец измерил 17.11.2026: 4.0 x 4.96 мм (ревизия 15; до неё стоял размер ruthex RX из исследования). БП: вентилятор вверх, "
     "сетевой разъём у -X, одна схема из четырёх отверстий; на самом БП не проверено.",
     "Слот PCI_E1 = слот 6 ATX (u = 124.08) и центр сокета (134, 217) сняты со скана с точностью около 3 мм. dimms, atx24, eps сняты со "
     "скана с точностью около 5 мм. io_zone: 50 мм под штекеры и изгиб кабеля - оценка. Все эти боксы и keep-out'ы - только в проверках 1-2.",
@@ -4890,8 +4898,10 @@ OPEN_ITEMS: list[str] = [
     "Винты порога к beam_front ставятся снизу, зазор до стола 5 мм (собирать до постановки на стол). Порог выступает на 7.4 мм за заднюю грань beam_front (Y 40 -> 47.4), до платы 12.6 мм. "
     "Порог не входит в проверку 12.",
     "PA6 (только две направляющие шлангов; мостики кабелей с 16.11.2026 из ABS, оболочка крепится винтами M3): сушить и печатать из сухой коробки, CFS при 65 % влажности для нейлона не годится; плотность 1.14 г/см³ принята по справочному значению, не по катушке. "
-    "Ревизия 12, открыто: (1) вставка M3: наружный диаметр и длина вставок владельца (20 штук и 200 заказанных) не известны, пилот 4.0 x 6.7 со стенкой 1.6 - ПРЕДПОЛОЖЕНИЕ (hardware.M3_PILOT_D, M3_PILOT_DEPTH, M3_MIN_WALL), одно место; "
-    "длины винтов выбраны под глубину 6.7, при другой вставке их надо пересчитать (screw_fit), 30 стыков через ребро 16 мм сидят ровно на нижнем пределе входа 3.5 мм (M3 x 20 - единственная длина набора, которая подходит). "
+    "Ревизия 12, открыто: (1) вставка M3: владелец измерил свои вставки 17.11.2026 (ревизия 15): длина 4.0, наружный диаметр 4.96 мм (hardware.M3_INSERT_LEN, M3_INSERT_OD). Пилот Ø4.4 - "
+    "ПРЕДПОЛОЖЕНИЕ до пробы лесенки C2 (hardware.M3_PILOT_D: строка вставки 5.0 x 4.0 в таблице CNC Kitchen, отверстие 4.4, стенка 1.6). Глубина 6.7 (M3_PILOT_DEPTH) - выбор, не размер вставки: "
+    "вставка сидит в верхних 4.0 мм, остальное место для кончика винта, окно длины винта 3.5..6.2 мм; пилот глубиной 4.5 оставил бы окно 0.5 мм. Стенка 1.6 (M3_MIN_WALL) - правило. "
+    "Длины винтов выбраны под глубину 6.7 (screw_fit), в зацеплении резьбы min(вход, 4.0); 30 стыков через ребро 16 мм сидят ровно на нижнем пределе входа 3.5 мм (M3 x 20 - единственная длина набора, которая подходит). "
     "(2) Штатные винты 6-32 БП (6.0 мм) и радиатора 360 (6.0 мм) - ПРЕДПОЛОЖЕНИЯ (hardware.PSU_SCREW_LEN, RAD360_SCREW_LEN): владелец винт БП назвал как около 6 мм, винт 360 не измерял; от них зависит только глубина зенковок (под головкой 2.0 мм), "
     "при другой длине зенковку надо пересчитать (HW_SCREW_FLOOR, ARM_T, BULK_T). Головка 6-32 6.7 x 2.5 - тоже предположение (как у винта диска 3.5 дюйма). "
     "(3) Угол D правого бокового вентилятора: винт идёт с внешней грани через лапку (2.5 мм) и вентилятор (25 мм) и заканчивается в воздухе: во вставку ему некуда, внутри кронштейна в этом углу нет (шланги GPU в 4.10 мм). Это было так и с M4; "

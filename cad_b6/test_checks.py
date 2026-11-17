@@ -1750,6 +1750,10 @@ def s_screws(hardware, parts, base):
     with patched(hw, "M3_WASHER_STOCK", 100):
         r = f.run_checks(hardware, parts, MEMO)
     case("the owner has 100 washers (the model needs 93)", "CHECK15 93 M3 washers needed, the owner has 100", r["failures"], "CHECK15 93 M3 washers needed")
+    with patched(hw, "M3_INSERT_LEN", 3.0):          # revision 15: the thread engaged is min(entry, the insert's length); an insert shorter than SCREW_ENGAGE_MIN fails every joint
+        r = f.run_checks(hardware, parts, MEMO)
+    case("the owner's inserts 3.0 mm long: no screw can engage 3.5 mm of thread", "CHECK15 beam_front: ... engages 3.00 mm of thread (the insert is 3 mm long), needs 3.5",
+         r["failures"], "CHECK15 beam_front", "engages 3.00 mm of thread", "insert is 3 mm long")
     with patched(hw, "M3_SCREW_STOCK", {k_: v_ for k_, v_ in hw.M3_SCREW_STOCK.items() if k_ != 20}):
         r = f.run_checks(hardware, parts, MEMO)
         relief_set = f.joint_pilots((142.0, 10.0, 0.0), (-1, 0, 0), 16.0, "rib end")
