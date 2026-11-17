@@ -503,3 +503,35 @@ The owner asked about PETG and ordered 4 kg of black SUNLU Rapid PETG. Main sess
 ### Next
 
 Drive sleds and the rear panel, once the research is back: spec, then `cad-implementer`. Split the organic layer into printable pieces (the rear panel is one of them). Rerun `strength.py` with the bridges. Rerun the organic strength check when the gaming PC is back in Linux.
+
+## Revision 14b — the organic layer's flanks redrawn for the moved fans (17 Nov 2026)
+
+**Why.** Revision 13 moved the side fans out to |X| 235..260 and added two plug zones on the left (`io_zone`, `gpu_out_zone`). The layer was drawn for the old fans and is cut at |X| 229, so both fan rings are gone from the solid, twelve of 320 pushes are over the allowable where the flank films now end in the air, and 2.7 cm³ of the layer stand in `gpu_out_zone`. The owner's aim on the left flank: plugs go into the board's rear connectors and the card's outputs, and their cables leave to the rear behind the left fan.
+
+**Map of the present code** (Grok `code-analysis`, 17 Nov 2026, numbers not re-measured by the main session): `build` in `organic_frame.py:517` is the whole shape; the |X| clip is at `organic_frame.py:550`; `io_zone` is in the carve list at `:537` and `gpu_out_zone` is not; rings follow `hw.FAN_SIDE_X` already (X 250 and -247.5); `REAR_BEND_X`, the `rear_sweep` literals 204, 202, 196, and `side_bone`'s |X| 190..209 are still the old fan band; `RING_TOP` 18 on the right refers to a bracket rail that no longer exists; `RING_L_GAP` (26, 94) and `rear_L`'s start at n 24 were drawn round the CPU hose guide on the left neck, which Revision 14a moves to the fan's corner D.
+
+### Revision 14b: spec for `cad-implementer`
+
+Work only in `cad_b6/organic_frame.py`, `cad_b6/organic_strength.py` (constants only), `cad_b6/zone_access.py`, `cad_b6/test_checks.py` (new cases only) and the layer's reports and previews. Do not change `hardware.py` or `frame_v0.py`: Revision 14a is editing them at the same time in another checkout. The twelve pads stay where they are.
+
+**1. Let the flanks reach the fans.** The |X| clip becomes `hw.ENVELOPE_FAN_X` (260). Nothing of the layer may pass it.
+
+**2. The rings.** Both rings are closed loops round their fan and mirror each other: same offset, same top, no gap on the left, no arch on the right (the reasons for both are gone: the bracket rail, the hose guide on the neck, the card's hoses next to the old right fan). The ring's surface keeps `GAP_HW` from the fan box without being notched by the carve, so the offset grows from 10 to at least `BONE_R` + `GAP_HW` + 0.5. A ring that the carves bite (`bitten`) is a failure of the script from now on, for the rings only.
+
+**3. The bones that still stand in the old fan band** (`side_bone`, `rear_sweep` with `REAR_BEND_X`, the ring ties, the films `flank_near`, `under_fan`, `top`, `rear_window`) are redrawn so that every one of them ends on a bone at both ends and none ends at a clip. Where a number was an old fan coordinate, derive it from `hw.FAN_SIDE_X` or name it as the layer's own. Left and right are mirror images except where a rule below needs a difference on the left; say in the report where they differ.
+
+**4. The left flank stays open for plugs and cables.**
+- `gpu_out_zone` joins the carve list with the same gap as `io_zone`. The layer's volume inside each of the two zones is 0.
+- With the layer counted as an obstacle, a bundle 40 mm across leaves each zone to the rear plane inside the hull (`zone_access.py`; today it tests 20 mm). Report the widest that gets out.
+- A hand reaches the board's connectors: with the layer, the skeleton, the hardware and the cables as obstacles, a ball 70 mm across gets from outside the left flank (beyond the fan's outer face) to within 50 mm of `io_zone`. Add this to `zone_access.py` as its own function and report the widest ball. If 70 mm cannot be met without removing the left ring or a pad, stop at the largest ball that can and report what is in the way.
+- No member may run in front of the card's outputs: nothing of the layer within the prism that continues `gpu_out_zone` outwards to the fan's outer face (v from -138 to -82, the zone's u and n).
+
+**5. Strength.** `organic_strength.py` at step 2 while you iterate (a few seconds), step 1 once at the end if the machine has the memory free (it needs about 15 GB; another agent is running checks; if it cannot run, say so and the main session runs it after the merge). Target: no push over the allowable. If some remain, list them with the member each belongs to.
+
+**6. Checks and tests.** `organic_frame.py`'s own checks gain: nothing beyond |X| 260, both rings whole, zero volume in the two zones and in the prism of item 4. `test_checks.py` gains cases that damage each of those and expect the failure. `zone_access.py`'s existing checks and cases keep passing.
+
+**7. Previews and reports.** Regenerate the layer's previews, `render_full.py`'s sheets, `report_organic.txt`, `report_organic_strength.txt` and `report_zone_access.txt`.
+
+**Not in this revision:** the rear panel round the PSU, the smoothing of the surface, the split into printable pieces.
+
+**Report back:** the numbers asked for above, the layer's volume and mass before and after, where left and right differ, every place the spec was wrong and what you did instead, anything left failing. Commit to your own branch in your checkout when the layer's checks pass; do not push.
