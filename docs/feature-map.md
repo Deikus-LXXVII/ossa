@@ -44,7 +44,7 @@ Use it two ways: as the definition of done for a revision (no row may get worse)
 
 | Feature | Proved in the model | Proved on the hardware | Gap |
 |---|---|---|---|
-| Every skeleton part fits the bed (290 mm) | report's bounding boxes | none | no check fails on it; read by eye |
+| Every skeleton part fits the bed (290 mm) | check 4: every part's box along the world axes is at most 290 mm on each side (`MAX_PART`); `test_checks.py`: a sill grown to 300 mm fails | none | the box is taken along the world axes, so a part that lies at 45° is judged larger than it is (the safe side); no print orientation is recorded, and supports are not looked at |
 | Every joint uses a screw and an insert the owner has | check 15, the bill of fasteners | none | the insert's size is the owner's measurement (4.0 mm long, 4.96 mm outside, 17 Nov 2026); the pilot's diameter is an assumption until `C2` is tried; `C2` is printed in PETG (owner, 17 Nov 2026), so its figure still has to be confirmed in ABS on the first small part |
 | A screwdriver reaches every screw | the organic pads only (`driver_blocked`) | none | no check for the skeleton's screws |
 | The parts can be put together in some order | none | none | no assembly order is written or checked |
