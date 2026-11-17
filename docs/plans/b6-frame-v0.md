@@ -596,3 +596,29 @@ Built on Revision 13. The radiators, the fans, both pairs of hoses, `hose_guide_
 - `organic_frame.py`: only make it run; the layer is redrawn in Revision 14b.
 
 **Report back:** the numbers asked for above, every place where this spec was wrong and what you did instead, every check or test that changed and why, anything left failing. Do not commit.
+
+### Revision 14a: corrections after Grok's check of the spec against the code (17 Nov 2026)
+
+Grok (`code-analysis`) checked the spec above and measured the hose positions. Where this list and the spec above disagree, this list holds.
+
+**`gpu_rest`**
+1. Remove only the finger from `rib_A_right`. Do not make the rib a mirror of `rib_A_left`: the right rib also carries the `hose_guide_gpu` pilot, the tie-bridge pilots and its own organic pads, and they stay.
+2. The contact face stays where it is: u = `hw.GPU_BS[2]`, and along n the finger's present extent (axis n -10..104, written as literals today; keep them, do not derive n from the card).
+3. Nearby, to keep clear of: the USB-C riser (surface about 4.4 mm from the finger today), the tie bridge `rail_2` (its arch ends near u 80.5 on the rib's underside n -34), the fan bracket's leg (from u 116). An insert pilot is 6.7 mm deep, so the foot is at least that thick plus a floor.
+4. Bookkeeping: the two new screws get their own row in the bill of fasteners (not the `gpu` row, which is `gpu_post`'s); check 5's `gpu_rest` count then comes from the screws as well as from the contact; `INTENDED_CONTACTS` gets `gpu_rest` x `gpu` and `gpu_rest` x `rib_A_right` in place of `rib_A_right` x `gpu`; the rest's contact face on the card is not rounded.
+
+**Front I/O carrier**
+5. No back wall. The module's cables leave its rear through the sill's window, and the sill's rear wall would be left with 2.1 mm. The carrier wraps the two ends and the top. The sill's pocket keeps its rear wall where it is and gets 2.5 mm of play behind the module instead of 0.4 mm, so that the module may be up to 2.5 mm deeper than the placeholder before the sill has to change; if that leaves a wall under 2 mm anywhere, report it and use the largest play that keeps 2 mm.
+6. The module's two screws need bosses: an insert pilot is 6.7 mm deep and a 3 mm skin cannot hold it. The carrier's ends are blocks at the screws. The carrier's own screws into the sill go into the sill's end blocks (69.6 mm and 44.6 mm of material today), not into the rear wall.
+7. The top: the pocket's roof may rise to Z 51.2 before it meets the light channel; keep at least 2 mm between the pocket and the channel.
+8. Follow in the code: check 5's holder for `front_io` becomes the carrier; the assertion that the sill is `SILL_POCKET_PLAY` from the module and `check_bolts`' use of that play follow the new pocket; the test that fills the sill's window and expects both USB cables to hit the sill stays valid; `cables.py` keeps 3 mm from every printed part, the carrier included.
+
+**`hose_guide_cpu` on the left fan's corner D**
+9. Measured: corner D is at (u 252.25, n 90.25) on the fan's inner face X -235. Where the hoses pass the fan both centre lines are at X -220.6; the nearer hose is 20.0 mm from D's axis at (u 239.3, n 75.0), the farther one 38.8 mm at (u 227.8, n 60.2). D and the two hoses lie almost on one line, so one straight comb from D holds both.
+10. The guide stands at |X| up to 235 and beyond 229: add it to the parts that may reach the fans' limit (`hw.FAN_SIDE_PARTS`), and keep the test that every other part stays inside 229.
+11. The hoses themselves cross the fan's open circle there (the farther hose's point is inside it), so the guide cannot stay out of the circle. Do not extend check 11's zero rule to the guide. Instead measure what the guide adds: the area of the guide's projection along X that lies inside the circle and outside the two hoses' own projection (hose radius). Limit 400 mm² (3 % of the circle); report the number. A test must fail a guide that shadows more.
+12. The channels' mouths open towards +X (towards the board), away from the fan; today's guide opens towards -X.
+13. Follow in the code: `GUIDE_SPEC`; `build_neck_right(guide_pilot=True)` on the left; the gauge `C3_hose_clip` in `fit_gauges.py` slices the guide at its present place and must slice the new one; the guide's screw becomes M3 x 30 through the fan's 25 mm (one M3 x 16 leaves the bill); the guide x `fan_side_left` contact is intended and listed; the organic pad `neck_top_L` stays where it is (the layer is redrawn in Revision 14b).
+
+**General**
+14. Checks 17 and 18 exist (the fan bracket and the card's post); the rest's strength function is a third of the same kind. Since the review of Revision 13, check 18 counts torsion in the low column and `zone_access.py` keeps a bundle inside the hull (between the fans' inner faces, below the skeleton's top).
