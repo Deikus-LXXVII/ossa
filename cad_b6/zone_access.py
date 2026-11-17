@@ -16,12 +16,13 @@ docs/plans/b6-frame-v0.md, "Revision 13", item 10. The grid method of cad_b6/dri
              within the zone's u and n ranges, outside its outer face (v at or below the zone's low v) and no further than HAND_NEAR from that face (plug_face_goal). On its way the
              ball's centre stays on the hand's side of the plug face (v at or below it, hand_corridor): without that the widest ball of the bare skeleton got in over the top and
              crossed the case to X +78 and back, 960 mm, which no hand does. Obstacles:
-             the skeleton, every hardware solid and keep-out but io_zone itself, the cables, and once without and once with the layer (hand_check). The layer must not make the
-             widest ball smaller than the skeleton, the hardware and the cables alone allow. An empty start or an empty goal fails, and so does a hand that cannot get in at all
+             the skeleton, every hardware solid and keep-out but io_zone itself, the cables, and once without and once with the layer (hand_check). With the layer the widest
+             ball may not be smaller than HAND_BUDGET_D (a recorded decision: the layer costs the hand the difference to the ball without it, which the report prints).
+             An empty start or an empty goal fails, and so does a hand that cannot get in at all
              without the layer (the comparison would then hold between two zeros). The plan's first reading (anywhere within 50 mm of the zone, with a 60 mm floor) was removed in
              the second pass of revision 14b: its widest ball ran under the board and ended below the zone, a route no hand that holds a plug can use
-             (docs/plans/cables-and-organic.md, "Revision 14b, result and second pass"). The hand starts outside the hull, so it has its own grid with room beyond the fan
-             and no hull limit.
+             (docs/plans/cables-and-organic.md, "Revision 14b, result and second pass"). The hand starts outside the hull, so it has its own grid with room beyond the fan;
+             that grid's front, rear and top margins are closed and only the left one is open.
   Layers     every layer of the grid (skeleton, hardware, cables, the organic layer) must be non-empty, as must the seeds, the target and the reached set: an empty one means the
              check looked at nothing.
 
@@ -57,14 +58,15 @@ PAD_XY = 30.0                           # grid margin beyond the model, mm
 BUNDLE_WIDE_D = 40.0                    # revision 14b: the bundle that has to get out with the organic layer as an obstacle too
 WIDEST_R_MAX = 60                       # the bisections of the bundle and of the hand stop at this radius, mm; a result at the limit is reported as "at least"
 HAND_D = 70.0                           # revision 14b: the plan's hand, reported against
-HAND_R_MIN = 10                         # the smallest hand tried, radius mm (a 20 mm ball, the bundle's size): if it cannot get in, the hand's result is 0
-HAND_BUDGET_D = 44                      # decision of 17 Nov 2026 (main session, for the owner to confirm): the closed ring round the left fan costs the hand 6 mm (a 50 mm ball
+HAND_R_MIN = int(BALL_R)                         # the smallest hand tried, radius mm (a 20 mm ball, the bundle's size): if it cannot get in, the hand's result is 0
+HAND_BUDGET_D = 44                      # decision of 17 Nov 2026 (main session, for the owner to confirm): the layer costs the hand 6 mm (a 50 mm ball
                                         # reaches the plug face without the layer, behind the fan; 44 mm with it, under the fan). The rings stay closed and mirrored; with the layer the
-                                        # hand may not be smaller than this. A budget, not a target: lower it only on purpose
+                                        # hand may not be smaller than this. A budget, not a target: lower it only on purpose. Both the closed ring and the left rear sweep stand in the 50 mm route
+                                        # (the sweep's surface contains it, the ring's is 8.6 mm from it); which of them sets the 6 mm has not been separated
 HAND_NEAR = 50.0                        # the goal: the hand's centre in front of io_zone's plug face, at most this far out from it, mm
 HAND_ROOM = 100.0                       # the hand's grid reaches this far beyond the left fan's outer face, mm
 HAND_ZONE = "io_zone"                   # the zone the hand goes to; the hand may stand in it (the plugs it holds go there), the other keep-outs are obstacles
-SLOT_BS = (hw.x_to_v(hw.FAN_SIDE_INNER_X["fan_side_left"]), 0.0, hw.FAN_SIDE_U[0], hw.FAN_SIDE_U[1], hw.FAN_SIDE_N[0], hw.FAN_SIDE_N[1])      # the slot between the left fan's inner face and the board's edge, over the fan's footprint in (u, n)
+SLOT_BS = (hw.x_to_v(hw.FAN_SIDE_INNER_X["fan_side_left"]), float(hw.BOARD_BS[0]), hw.FAN_SIDE_U[0], hw.FAN_SIDE_U[1], hw.FAN_SIDE_N[0], hw.FAN_SIDE_N[1])      # the slot between the left fan's inner face and the board's edge, over the fan's footprint in (u, n)
 
 
 class Grid:
@@ -236,10 +238,15 @@ def hand_start(grid, radius):
 
 def hand_widest(grid, occupied, extra_blocks=()):
     """The widest ball that gets from wholly beyond the left fan's outer face to the plug-face goal (plug_face_goal) through the free air of `occupied`, its centre inside
-    hand_corridor. The desk is a floor; there is no hull. Returns dict(d: diameter mm, even, 0 if a ball of HAND_R_MIN cannot; start, goal: free ball centres in the start and in the goal for a ball of HAND_R_MIN; goal_box: grid
+    hand_corridor. The desk is a floor; the grid's front, rear and top margins are closed, the left one is where the hand starts. Returns dict(d: diameter mm, even, 0 if a ball of HAND_R_MIN cannot; start, goal: free ball centres in the start and in the goal for a ball of HAND_R_MIN; goal_box: grid
     points of the goal before any obstacle; dist: the clearance field)."""
     occ = occupied.copy()
     occ[:, :, grid.zs < hw.DESK_Z] = True
+    # the hand comes in through the left flank: the grid's margin in front of the case, behind it and above it is not a way round (the re-check of revision 14b's second pass
+    # closed the whole flank with a slab and the ball still got in by the rear margin). Only the left margin, where the hand starts, stays open
+    occ[:, grid.ys < hw.ENVELOPE_Y0, :] = True
+    occ[:, grid.ys > grid.y_rear, :] = True
+    occ[:, :, grid.zs > grid.z_hull] = True
     for (x0, x1, y0, y1, z0, z1) in extra_blocks:
         occ[np.ix_((grid.xs >= x0) & (grid.xs <= x1), (grid.ys >= y0) & (grid.ys <= y1), (grid.zs >= z0) & (grid.zs <= z1))] = True
     dist = ndimage.distance_transform_edt(~occ, sampling=grid.vox)

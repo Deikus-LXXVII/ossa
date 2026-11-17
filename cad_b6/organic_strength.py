@@ -108,6 +108,21 @@ def von_mises(sig):
     return np.sqrt(0.5 * ((s[:, 0] - s[:, 1]) ** 2 + (s[:, 1] - s[:, 2]) ** 2 + (s[:, 2] - s[:, 0]) ** 2) + 3 * (s[:, 3] ** 2 + s[:, 4] ** 2 + s[:, 5] ** 2))
 
 
+def push_failures(pushes):
+    """Failures of the pushes (label, point, movement mm, stress MPa, where): a stress above ALLOW or a movement above MOVE_MAX. The script exits 1 on any (it only reported
+    them until the re-check of revision 14b's second pass)."""
+    out = []
+    over = [r_ for r_ in pushes if r_[3] > ALLOW]
+    if over:
+        w = max(over, key=lambda r_: r_[3])
+        out.append(f"ORGANIC_STRENGTH {len(over)} of {len(pushes)} pushes are over the allowable {ALLOW:g} MPa (worst {w[3]:.1f} MPa, push at X {w[1][0]:.0f}, Y {w[1][1]:.0f}, Z {w[1][2]:.0f})")
+    far = [r_ for r_ in pushes if r_[2] > MOVE_MAX]
+    if far:
+        w = max(far, key=lambda r_: r_[2])
+        out.append(f"ORGANIC_STRENGTH {len(far)} of {len(pushes)} pushes move the layer more than {MOVE_MAX:g} mm (worst {w[2]:.2f} mm, push at X {w[1][0]:.0f}, Y {w[1][1]:.0f}, Z {w[1][2]:.0f})")
+    return out
+
+
 def voxel_mesh(step):
     """The voxels of the field inside the layer that are connected to a pad. Returns (h, pads, names, conn, X, held, dropped cm3); the full-grid arrays it
     works on (several GB at step 1) are freed when it returns, before the factorisation needs the memory."""
@@ -263,6 +278,9 @@ def main():
     for a, name in enumerate(names):
         out.append(f"  {name:14} {reactions[a, 1:].max():6.1f}   ({reactions[a, 0]:.2f})")
     out.append("")
+    fails = push_failures(pushes)
+    out.append("ПРОВЕРКИ НЕ ПРОЙДЕНЫ:" if fails else "Проверки пройдены: ни один толчок не выше допустимого напряжения и предела смещения.")
+    out += ["  - " + f for f in fails]
     out.append(f"Время {time.time() - t0:.0f} с.")
     text = "\n".join(out)
     with open(os.path.join(HERE, "report_organic_strength.txt"), "w", encoding="utf-8") as fh:
@@ -272,6 +290,8 @@ def main():
                         points=np.array([r_[1] for r_ in pushes]), labels=np.array([r_[0] for r_ in pushes]),
                         move=np.array([r_[2] for r_ in pushes]), stress=np.array([r_[3] for r_ in pushes]), where=np.array([r_[4] for r_ in pushes]),
                         reactions=reactions)
+    if fails:
+        sys.exit(1)
 
 
 if __name__ == "__main__":

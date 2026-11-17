@@ -160,6 +160,21 @@ def zone_cases(f):
           f"{h_fails or 'none'}; Ø{h0[False]['d']} without, Ø{h0[True]['d']} with, budget Ø{za.HAND_BUDGET_D}")
     check("the hand's budget is what the layer gives today and not above what the skeleton alone allows (a budget moved by hand shows here)",
           h0[True]["d"] == za.HAND_BUDGET_D <= h0[False]["d"], f"Ø{za.HAND_BUDGET_D}", f"Ø{h0[True]['d']} with the layer, Ø{h0[False]['d']} without")
+    # the whole left flank closed by a slab just inside the fans' plane, from the front plane to the rear of the skeleton and from the desk to its top: the hand must not get in
+    # round it through the grid's own margin behind, in front of or above the case (it did before the re-check of the second pass: 44 mm by the rear margin)
+    hg = za.hand_grid(parts)
+    flank_slab = (-(hw.ENVELOPE_FAN_X - 20.0), -(hw.ENVELOPE_FAN_X - 30.0), hw.ENVELOPE_Y0, hg.y_rear, hw.DESK_Z, hg.z_hull)
+    _l, fz, hs = za.hand_check(parts, hardware, strands, f, extra_blocks=[flank_slab], route=False)
+    case("a slab that closes the whole left flank stops the hand (no way round through the grid's margin)",
+         "ZONE_ACCESS hand: without the organic layer no ball", fz, "ZONE_ACCESS hand: without the organic layer no ball")
+    check("... and the hand is 0 with the layer and without it", hs[True]["d"] == 0 and hs[False]["d"] == 0, "Ø0 and Ø0", f"Ø{hs[True]['d']} with, Ø{hs[False]['d']} without")
+    import organic_strength as ost
+    ok_push = ("внутрь", (0.0, 0.0, 0.0), ost.MOVE_MAX - 0.1, ost.ALLOW - 0.1, (0.0, 0.0, 0.0))
+    check("organic_strength: pushes inside both limits give no failure", not ost.push_failures([ok_push]), "no failure", ost.push_failures([ok_push]) or "none")
+    case("organic_strength: a push that moves the layer too far fails the script", "ORGANIC_STRENGTH 1 of 2 pushes move the layer more than 5 mm",
+         ost.push_failures([ok_push, ("внутрь", (1.0, 2.0, 3.0), ost.MOVE_MAX + 4.6, 1.0, (0.0, 0.0, 0.0))]), "ORGANIC_STRENGTH 1 of 2 pushes move the layer more than")
+    case("organic_strength: a push over the allowable stress fails the script", "ORGANIC_STRENGTH 1 of 2 pushes are over the allowable",
+         ost.push_failures([ok_push, ("вниз", (1.0, 2.0, 3.0), 0.1, ost.ALLOW + 1.0, (0.0, 0.0, 0.0))]), "ORGANIC_STRENGTH 1 of 2 pushes are over the allowable")
     b = za.ZONE_BS[za.HAND_ZONE]
     (u0, u1), n0 = hw.FAN_SIDE_U, hw.FAN_SIDE_N[0]
     plate = (hw.x_to_v(hw.FAN_SIDE_INNER_X["fan_side_left"]), b[0], u0, u1, n0, n0 + 6.0)
