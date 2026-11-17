@@ -16,7 +16,10 @@ Everything is one signed-distance field on one grid, so the layer is one solid:
   ABS part. Where they are is hardware.ORGANIC_PADS; frame_v0.py cuts the insert pilot there.
 Checks at the end: every pad sits on its part's face on an M3 pilot of that part, with room for the insert
 and away from the part's other holes; pads clear the hardware and the hoses; the layer is one connected
-piece that contains every pad.
+piece that contains every pad. Revision 14b (flanks redrawn for the side fans at |X| 235..260): nothing beyond
+|X| 260; both rings whole (closed, not cut or notched by a carve); no material in io_zone, gpu_out_zone or the
+prism that continues gpu_out_zone out to the fan's outer face. Those three read the field only (field_checks),
+so cad_b6/test_organic.py can damage a saved field and expect them to fail.
 Not done here: the split into printable pieces, and the strength run (organic_strength.py).
 """
 from __future__ import annotations
@@ -47,7 +50,7 @@ STRAND_SLENDER = 36.0                      # a strand's mid radius is at least i
 
 # Bone radii: (at one joint, mid-span, at the other joint), or one number for a constant radius
 BONE_R = {"lip": (7, 5.5, 7), "card": (6.5, 5, 6.5), "brow": (7, 5, 7), "ring": 6.5, "front": (10, 6, 8), "rear": (7, 5.5, 10),
-          "side": (7, 5, 7), "base": 6.5}
+          "side": (7, 5, 7), "base": (6.5, 5.0, 6.5)}     # revision 14b: the base tapers to 5 mid-span, where the hand's way under the board passes over it
 CRUMB_CM3 = 6.0                            # loose pieces smaller than this (one strand cut at both ends is about 4) are carving crumbs and are dropped
 MIN_THICK = 4.5                            # carving leaves slivers; whatever is thinner than this is removed
 
@@ -79,6 +82,9 @@ CARD_N = hw.GPU_BS[5]                      # the card's outer edge
 HOT_GAP = 10.0                             # the layer keeps this far from the graphics card and the PSU, which run hot
 CARD_BONE_U, CARD_BONE_N = 118.0, CARD_N + HOT_GAP + 8.0   # a bone over the card's top edge, clear of it
 SWEEP_X = 170.0                            # the flank sweeps pass this far out, clear of the card's ends
+NEAR_FILM_N0 = 50.0                        # right fan: the film from the ring's near side to the front sweep starts at this n, above the card's hoses
+UNDER_FILM = {-1: False, 1: False}         # revision 14b: no film from a ring's bottom to the base. Left: the hand's way in to the board's connectors passes under the fan (zone_access.py);
+                                           # right: the card's hoses run under the fan
 TOP_FILM_L_U0 = 186.0                      # left fan, film from the ring's top to the side bone: first thread past the CPU hoses (hose b at u 170 + 6.2 + GAP_HW + a thread's radius)
 SILL = frame_v0.sill_geometry()            # the skeleton's front sill: section (Y, Z), the light slit's cutter
 SILL_RIDGE = SILL["pts"][2]                # (Y, Z) of its upper edge, above the light line
@@ -88,11 +94,18 @@ LIP_BONE = [bp(LIP_U, FACE_N, -190), bp(LIP_U - 1, FACE_N + 1, -60), bp(LIP_U - 
             bp(LIP_U, FACE_N, 190)]
 CARD_BONE = [bp(CARD_BONE_U, CARD_BONE_N, -SWEEP_X), bp(CARD_BONE_U + 1, CARD_BONE_N + 1, 0),
              bp(CARD_BONE_U, CARD_BONE_N, SWEEP_X)]
-RING_X = {1: sum(hw.FAN_SIDE_X["fan_side_right"]) / 2 + 2.5, -1: sum(hw.FAN_SIDE_X["fan_side_left"]) / 2}
-REAR_BEND_X = 176.5                        # revision 13: the rear sweep's bend above the rear post, X. It was the fan's mid-plane less 16 (the fans stood at 192.5); the fans moved out to 247.5, and a bend
-                                           # at 231.5 would cross the rear post's driver path, so it keeps its old X and the sweep reaches the ring over a longer stretch
-BASE = {s: [(160 * s, 40, -4), (163 * s, 110, -5), (161 * s, 196, -4), (166 * s, 290, -5), (166 * s, 356, -4)]
-        for s in (1, -1)}
+RING_X = {1: sum(hw.FAN_SIDE_X["fan_side_right"]) / 2, -1: sum(hw.FAN_SIDE_X["fan_side_left"]) / 2}    # both rings in their fan's mid-plane
+REAR_BEND_X = 176.5                        # the layer's own: the rear sweep's bend above the rear post, X, clear of the post's driver path (|X| 174..203 round Y 374, Z 50)
+REAR_FROM_N = -20.0                        # revision 14b: the rear sweep leaves the ring's far side here, below the CPU hoses' run to the 420's ports (n 42 and up on the left)
+REAR_MID = (296.0, -36.0, 222.0)           # the layer's own (u, n, |X|): between the ring and the 420's lower edge (n -16), inside the 420's end
+REAR_UNDER = (332.0, -38.0, 196.0)         # the layer's own (u, n, |X|): under the 420's core, before the sweep turns down the back
+BASE = {s: [(160 * s, 40, -4), (163 * s, 110, -7), (161 * s, 196, -6.5), (166 * s, 290, -5), (166 * s, 356, -4)]      # revision 14b: 2 to 2.5 mm lower at Y 110..196, where
+        for s in (1, -1)}                                                                                       # the hand's way under the board passes over it (zone_access.py)
+BASE_GAP_L = (80.0, 230.0)                 # revision 14b: the left base bone is open between these Y (its ends' surfaces), over the bottom of rib A's opening, where the hand's way
+                                           # in under the board passes at the desk (zone_access.py: with the bone there the widest hand was 62 mm, 64 without the layer; open over
+                                           # Y 100..210 is enough). Each piece ends in the knot of its pad (front_foot at Y 60, base_mid at Y 250), so neither end hangs free
+REAR_WINDOW_Y0 = 260.0                     # revision 14b: the rear window starts on the base this far back, and on the rear sweep under the 420: in front of that the hand's way to
+                                           # the board's connectors comes up under the left fan (zone_access.py)
 
 
 def sill_sdf(G):
@@ -106,25 +119,40 @@ def sill_sdf(G):
     return d
 
 
-RING_OFF = 10.0                            # the ring's centre line stands this far outside the fan's frame: its radius plus the hardware gap
-RING_TOP = {1: 18.0, -1: RING_OFF}         # above the fan: on the right the fan bracket's rail lies 6 mm above the fan, so the ring passes over it
-RING_R_FEET = (70.0, -30.0)                # right side: n where the arch ends on its near side and on its far side
-RING_L_GAP = (26.0, 94.0)                  # left side: the stretch of the far side (n) left open for the CPU hose guide
+RING_R = BONE_R["ring"]
+RING_OFF = RING_R + GAP_HW + VOX           # 12: the ring's centre line stands this far from the fan's box, so its surface keeps GAP_HW and one voxel more (the carve does not notch it)
+RING_STEP = 5.0                            # control points along the ring, mm
+RING_CHECK_STEP = 1.0                      # the ring checks read the field this often along the centre line, mm
+RING_MIN_DEPTH = RING_R - VOX              # a whole ring: every point of its centre line lies this deep inside the layer (a notch deeper than one voxel fails)
+OUT_PRISM_U1 = 100.0                       # revision 14b: nothing of the layer in front of the card's outputs up to this u (the ring's near side passes above it, its surface at u 101.5)
+OUT_PRISM_BS = (hw.x_to_v(-hw.ENVELOPE_FAN_X), hw.GPU_OUT_ZONE_BS[0], hw.GPU_OUT_ZONE_BS[2], OUT_PRISM_U1, *hw.GPU_OUT_ZONE_BS[4:])    # gpu_out_zone continued out to the fan's outer face
+OUT_PRISM_GAP = 1.0                        # the carve keeps this far from the prism
+EMPTY_BOXES = {"io_zone": hw.IO_ZONE_BS, "gpu_out_zone": hw.GPU_OUT_ZONE_BS, "out_prism": OUT_PRISM_BS}     # board-space boxes the layer has no voxel in
+
+
+def ring_un():
+    """(u, n) of a ring's centre line: the fan's frame offset by RING_OFF, straight sides and quarter circles round the corners, closed (it ends past its start)."""
+    (u0, u1), (n0, n1) = hw.FAN_SIDE_U, hw.FAN_SIDE_N
+    corners = ((u1, n1, 0.0), (u0, n1, 90.0), (u0, n0, 180.0), (u1, n0, 270.0))       # D, C, A, B, anticlockwise in (u, n)
+    pts = []
+    for cu, cn, a0 in corners:
+        k = max(int(math.ceil(RING_OFF * math.pi / 2 / RING_STEP)), 2)
+        arc = [(cu + RING_OFF * math.cos(math.radians(a0 + 90.0 * i / k)), cn + RING_OFF * math.sin(math.radians(a0 + 90.0 * i / k))) for i in range(k + 1)]
+        if pts:
+            p, q = np.array(pts[-1]), np.array(arc[0])
+            m = max(int(math.ceil(np.linalg.norm(q - p) / RING_STEP)), 1)
+            pts += [tuple(p + (q - p) * j / m) for j in range(1, m)]
+        pts += arc
+    p, q = np.array(pts[-1]), np.array(pts[0])
+    m = max(int(math.ceil(np.linalg.norm(q - p) / RING_STEP)), 1)
+    pts += [tuple(p + (q - p) * j / m) for j in range(1, m)]
+    return pts + pts[:3]
 
 
 def ring(s):
-    """Bone round a side fan, in the fan's own thickness.
-    Left: a ring open on its far side, where the CPU hose guide and the hoses sit. Right: the graphics card's hoses run along the fan's near side and under it, so the ring is an arch
-    over the fan from the near side to the far side; the hoses close the frame."""
-    (u0, u1), (n0, n1) = hw.FAN_SIDE_U, hw.FAN_SIDE_N
-    a, b, c, e = u0 - RING_OFF, u1 + RING_OFF, n0 - RING_OFF, n1 + RING_TOP[s]
-    um, nm = (a + b) / 2, (c + e) / 2
-    if s > 0:
-        pts = [(a, RING_R_FEET[0]), (a, e - 14), (a + 14, e), (um, e + 1), (b - 14, e), (b, e - 14), (b, nm), (b, RING_R_FEET[1])]
-    else:
-        pts = [(b, RING_L_GAP[0]), (b, c + 14), (b - 14, c), (um, c - 1), (a + 14, c), (a, c + 14), (a, nm), (a, e - 14), (a + 14, e),
-               (um, e + 1), (b - 14, e), (b, RING_L_GAP[1])]
-    return [bp(u, n, RING_X[s]) for u, n in pts]
+    """Bone round a side fan, in the fan's mid-plane: a closed loop RING_OFF outside the fan's box, the same on both sides (revision 14b). The reasons for the old arch on the
+    right (the bracket's rail, the card's hoses beside the old fan) and the gap on the left (the CPU hose guide on the neck) are gone since revisions 13 and 14a."""
+    return [bp(u, n, RING_X[s]) for u, n in ring_un()]
 
 
 def front_sweep(s):
@@ -135,11 +163,8 @@ def front_sweep(s):
 
 
 def rear_sweep(s):
-    """From the fan ring's far side, outside the neck, under the 420 and down the back to the rear foot."""
-    x = RING_X[s]
-    top = [bp(hw.FAN_SIDE_U[1] + RING_OFF, 84, x), bp(292, 20, 204 * s)] if s > 0 else \
-        [bp(hw.FAN_SIDE_U[1] + RING_OFF, RING_L_GAP[0] - 2, x), bp(294, -6, 204 * s)]        # left: from the ring's lower end, under the hose guide
-    return top + [bp(298 if s > 0 else 300, -28 if s > 0 else -30, 202 * s), bp(332, -38, 196 * s),
+    """From the fan ring's far side, below the CPU hoses' run to the 420's ports, under the 420 and down the back to the rear foot. The same on both sides."""
+    return [bp(hw.FAN_SIDE_U[1] + RING_OFF, REAR_FROM_N, RING_X[s]), bp(*REAR_MID[:2], REAR_MID[2] * s), bp(*REAR_UNDER[:2], REAR_UNDER[2] * s),
             (REAR_BEND_X * s, 362, 150), (169 * s, 372, 44), (166 * s, 368, -6)]      # down the rear post close enough to lie on its pad
 
 
@@ -177,13 +202,15 @@ def bone_members():
         add("front_" + tag, front_sweep(s), bone(*BONE_R["front"]))
         add("rear_" + tag, rear_sweep(s), bone(*BONE_R["rear"]))
         add("side_" + tag, side_bone(s), bone(*BONE_R["side"]))
-        add("base_" + tag, BASE[s], BONE_R["base"])
+        for i, piece in enumerate(base_pieces(s)):
+            add(("base_" if i == 0 else "basefront_") + tag, piece, bone(*BONE_R["base"]))
         for p, r in ((front_sweep(s)[0], 13), (rear_sweep(s)[-1], 13), (bp(LIP_U, FACE_N, 190 * s), 10)):
             out.append(("ball", p, r, K))
     # Left ring: its upper front corner hangs from the end of the front sweep. The CPU hoses cross between the ring's top and the
-    # side bone at u 141 to 170, so no film thread can hold the ring there; this tie passes in front of them, at u 114 to 118.
+    # side bone at u 141 to 170, so no film thread can hold the ring there; this tie passes in front of them, at u 112 to 118. It also stands in for the film from the
+    # ring's near side to the front sweep, which on the left would hang in front of the card's outputs (revision 14b): it stays above n 100.
     (u0, _u1), (_n0, n1) = hw.FAN_SIDE_U, hw.FAN_SIDE_N
-    corner = bp(u0 - RING_OFF + 4, n1 + RING_OFF - 5, RING_X[-1])
+    corner = bp(u0 - RING_OFF * math.sqrt(0.5), n1 + RING_OFF * math.sqrt(0.5), RING_X[-1])      # on the ring's arc round the fan's corner C
     end = np.array(front_sweep(-1)[-1], dtype=float)
     mid = (np.array(corner, dtype=float) + end) / 2
     add("ring_tie_L", [corner, tuple(mid), tuple(end)], bone(*RING_TIE))
@@ -223,6 +250,30 @@ def film_members(a_ctrl, b_ctrl, n, seed, r_a=8.0, r_b=8.0, sag=(0.0, 0.0, -1.0)
     return out
 
 
+def base_pieces(s):
+    """The base bone's control polylines, rear piece first: on the right the whole bone; on the left two pieces, open over BASE_GAP_L. The front piece ends past the
+    front foot's pad, the rear piece starts in front of the base pad."""
+    if s > 0:
+        return [BASE[s]]
+    line = sc.spline(BASE[s], step=2.0)
+    r_end = BONE_R["base"][0]
+    out = []
+    for keep in (line[:, 1] >= BASE_GAP_L[1] + r_end, line[:, 1] <= BASE_GAP_L[0] - r_end):
+        pts = line[keep]
+        ctrl = list(pts[::8])
+        if len(pts) and not np.allclose(ctrl[-1], pts[-1]):
+            ctrl.append(pts[-1])
+        out.append([tuple(map(float, p)) for p in ctrl])
+    return out
+
+
+def rear_window_base(s):
+    """Control points of the base bone from REAR_WINDOW_Y0 to its rear end: the rear window's lower edge."""
+    line = sc.spline(BASE[s], step=2.0)
+    i = int(np.argmin(np.abs(line[:, 1] - REAR_WINDOW_Y0)))
+    return [tuple(line[i])] + [p for p in BASE[s] if p[1] > line[i][1] + 10.0]
+
+
 def film_list():
     out = []
     lip_l = [bp(LIP_U, FACE_N, -190), bp(LIP_U - 1, FACE_N + 1, -60), bp(LIP_U - 1, FACE_N + 1, 28)]
@@ -239,26 +290,27 @@ def film_list():
     ry, rz = SILL_RIDGE
     out.append(film_members([(-135, ry + 1, rz + 5), (0, ry + 1, rz + 6), (135, ry + 1, rz + 5)], BROW, 7, seed=41,
                             r_a=5.0, r_b=6.0, sag=(0.0, 1.0, 0.0), sag_mm=5, links=2))
-    for s, dense in ((-1, True), (1, True)):             # the right side was sparser in the first sketch; its fan ring then hung on too few strands
+    for s in (-1, 1):
         (u0, u1), (n0, n1) = hw.FAN_SIDE_U, hw.FAN_SIDE_N
         x = RING_X[s]
         # round each side fan the threads run out to the bones that surround it
-        a, b, c = u0 - RING_OFF, u1 + RING_OFF, n0 - RING_OFF
-        top = n1 + RING_TOP[s]
-        near = [bp(a, RING_R_FEET[0] + 2, x), bp(a, (RING_R_FEET[0] + n1) / 2, x), bp(a, n1 - 4, x)] if s > 0 else \
-            [bp(a, n0 + 10, x), bp(a, 28, x), bp(a, n1 - 10, x)]
-        out.append(film_members(near, front_sweep(s)[1:4], 6 if dense else 4, seed=50 + s,
-                                r_a=5.0, r_b=7.0, sag=(0.4 * s, 0.0, 0.0), sag_mm=8, links=2))
-        if s < 0:                                           # under the right fan the hoses run where this film would hang
+        a, top = u0 - RING_OFF, n1 + RING_OFF
+        if s > 0:
+            # from the ring's near side to the front sweep, above the card's hoses (they run along the fan's near side at n 25 and below). Not on the left: there the
+            # card's outputs face this side and the film would hang in front of them; ring_tie_L holds that corner instead.
+            near = [bp(a, NEAR_FILM_N0, x), bp(a, (NEAR_FILM_N0 + n1) / 2, x), bp(a, n1 - 4, x)]
+            out.append(film_members(near, front_sweep(s)[1:4], 6, seed=50 + s, r_a=5.0, r_b=7.0, sag=(0.4 * s, 0.0, 0.0), sag_mm=8, links=2))
+        if UNDER_FILM[s]:
+            c = n0 - RING_OFF
             out.append(film_members([bp(u0 + 12, c, x), bp(190, c - 1, x), bp(u1 - 12, c, x)], BASE[s][:4],
-                                    8 if dense else 5, seed=60 + s, r_a=5.0, r_b=6.5, sag=(0.4 * s, 0.0, 0.0), sag_mm=10))
+                                    8, seed=60 + s, r_a=5.0, r_b=6.5, sag=(0.4 * s, 0.0, 0.0), sag_mm=10))
         # Left: the CPU hoses cross between the ring's top and the side bone at u 141 to 170, so the threads start beyond them.
         ua = u0 + 12 if s > 0 else TOP_FILM_L_U0
         out.append(film_members([bp(ua, top, x), bp((ua + u1 - 12) / 2, top + 1, x), bp(u1 - 12, top, x)],
-                                side_bone(s)[:3], 6 if dense else 4, seed=70 + s, r_a=5.0, r_b=5.5,
+                                side_bone(s)[:3], 6, seed=70 + s, r_a=5.0, r_b=5.5,
                                 sag=(0.5 * s, 0.0, 0.0), sag_mm=6, links=2))
         # the rear window over the PSU's side
-        out.append(film_members(BASE[s][2:], rear_sweep(s)[2:6], 9 if dense else 5, seed=80 + s, r_a=6.5, r_b=6.5,
+        out.append(film_members(rear_window_base(s), rear_sweep(s)[2:5], 9, seed=80 + s, r_a=6.5, r_b=6.5,
                                 sag=(0.4 * s, 0.0, 0.0), sag_mm=9))
     return out
 
@@ -534,8 +586,9 @@ def build(parts, hware, vox=VOX):
     F.carve_world_box(hw.PSU_W, HOT_GAP)
     for name in hw.FAN_SIDE_NAMES:
         F.carve_bs_box(hw.fan_side_bs(name), GAP_HW)
-    for b in (hw.DIMMS_BS, hw.IO_ZONE_BS, hw.ATX24_BS, hw.EPS_BS):
+    for b in (hw.DIMMS_BS, hw.IO_ZONE_BS, hw.GPU_OUT_ZONE_BS, hw.ATX24_BS, hw.EPS_BS):
         F.carve_bs_box(b, GAP_KEEP)
+    F.carve_bs_box(OUT_PRISM_BS, OUT_PRISM_GAP)                                   # nothing in front of the card's outputs out to the fan's outer face
     for name, (pair, spec) in hoses.routes().items():
         for h in pair:
             F.carve_polyline(h["pts"][::4], spec["r"] + GAP_HW + 1.0)
@@ -547,7 +600,7 @@ def build(parts, hware, vox=VOX):
     np.maximum(F.d, GAP_SKEL - skel, out=F.d)
     np.maximum(F.d, -(F.zs + 15.0)[None, None, :], out=F.d)                  # desk
     np.maximum(F.d, -F.ys[None, :, None], out=F.d)                           # front plane
-    np.maximum(F.d, (np.abs(F.xs) - hw.ENVELOPE_X)[:, None, None], out=F.d)  # the radiators' span
+    np.maximum(F.d, (np.abs(F.xs) - hw.ENVELOPE_FAN_X)[:, None, None], out=F.d)  # revision 14b: the fans' outer faces (it was the radiators' span, which cut the rings off)
     # carving leaves thin slivers where a strand grazes a keep-out: remove what is thinner than MIN_THICK (a morphological opening)
     solid = F.d < 0
     core = ndimage.distance_transform_edt(solid, sampling=F.vox) > MIN_THICK / 2
@@ -596,6 +649,58 @@ def bitten(F, lines, parts, hware):
             out.append((name, length, mid, who, dist))
             k = j + 1
     return out
+
+
+# ---------------------------------------------------------------------------
+# Checks that read only the field (revision 14b), so that test_organic.py can damage a copy of a saved field and expect them to fail
+# ---------------------------------------------------------------------------
+def sample_field(d, xs, ys, zs, pts):
+    """The field at world points, trilinear between grid points; outside the grid it is empty (positive)."""
+    pts = np.asarray(pts, dtype=float)
+    idx = [(pts[:, k] - float(g[0])) / float(g[1] - g[0]) for k, g in enumerate((xs, ys, zs))]
+    return ndimage.map_coordinates(d, idx, order=1, mode="constant", cval=1e9)
+
+
+def ring_lines():
+    """{name: centre line} of the two rings, sampled every RING_CHECK_STEP mm."""
+    return {"ring_" + tag: sc.spline(ring(s), step=RING_CHECK_STEP) for s, tag in ((1, "R"), (-1, "L"))}
+
+
+def bs_box_mask(xs, ys, zs, b):
+    """Grid points inside a board-space box (v0, v1, u0, u1, n0, n1)."""
+    v = (np.asarray(xs, dtype=float) - hw.ORIGIN[0])[:, None, None]
+    y, z = (np.asarray(ys, dtype=float) - hw.ORIGIN[1])[None, :, None], (np.asarray(zs, dtype=float) - hw.ORIGIN[2])[None, None, :]
+    u, n = (y + z) * hw.C, (z - y) * hw.C
+    return (v >= b[0]) & (v <= b[1]) & (u >= b[2]) & (u <= b[3]) & (n >= b[4]) & (n <= b[5])
+
+
+def field_checks(d, xs, ys, zs):
+    """Checks of the layer that read its field only: nothing beyond the fans' outer faces (|X| ENVELOPE_FAN_X), both rings whole (every point of the centre line at
+    least RING_MIN_DEPTH inside the layer, so a ring cut or notched by a carve fails), no voxel of the layer in io_zone, gpu_out_zone or the prism in front of the card's
+    outputs. Returns (lines for the report, failures)."""
+    out, fails = [], []
+    solid = d < 0
+    vol = float(xs[1] - xs[0]) ** 3 / 1000.0
+    cols = np.any(solid, axis=(1, 2))
+    xmax = float(np.abs(np.asarray(xs)[cols]).max()) if cols.any() else 0.0
+    beyond = int(solid[np.abs(np.asarray(xs)) > hw.ENVELOPE_FAN_X].sum())
+    out.append(f"Наибольший |X| слоя {xmax:.1f} мм (предел {hw.ENVELOPE_FAN_X:g}, наружные грани боковых вентиляторов); вокселей за пределом {beyond}")
+    if beyond:
+        fails.append(f"слой выходит за |X| {hw.ENVELOPE_FAN_X:g}: {beyond} вокселей, {beyond * vol:.1f} см³, наибольший |X| {xmax:.1f}")
+    for name, line in ring_lines().items():
+        val = sample_field(d, xs, ys, zs, line)
+        i = int(np.argmax(val))
+        depth = -float(val[i])
+        out.append(f"Кольцо {name}: ось внутри слоя на всей длине ({len(line)} точек через {RING_CHECK_STEP:g} мм), наименьшая глубина оси {depth:.2f} мм (нужно {RING_MIN_DEPTH:g}: радиус "
+                   f"{RING_R:g} минус воксель) у X {line[i][0]:.0f}, Y {line[i][1]:.0f}, Z {line[i][2]:.0f}")
+        if depth < RING_MIN_DEPTH:
+            fails.append(f"кольцо {name} не цело: ось лишь на {depth:.2f} мм внутри слоя (нужно {RING_MIN_DEPTH:g}) у X {line[i][0]:.0f}, Y {line[i][1]:.0f}, Z {line[i][2]:.0f}")
+    for name, b in EMPTY_BOXES.items():
+        n = int((solid & bs_box_mask(xs, ys, zs, b)).sum())
+        out.append(f"Слой в {name} (v {b[0]:g}..{b[1]:g}, u {b[2]:g}..{b[3]:g}, n {b[4]:g}..{b[5]:g}): {n} вокселей, {n * vol:.1f} см³")
+        if n:
+            fails.append(f"слой стоит в {name}: {n} вокселей, {n * vol:.1f} см³")
+    return out, fails
 
 
 def check(F, anchors, parts, hware, lines):
@@ -649,7 +754,53 @@ def check(F, anchors, parts, hware, lines):
             out.append(f"  {name:9} {length:5.0f} мм у X {mid[0]:5.0f}, Y {mid[1]:4.0f}, Z {mid[2]:4.0f}: {who} в {dist:.1f} мм")
     else:
         out.append("Ни одна кость не перерезана зазорами.")
-    return out, fails
+    for name, length, mid, who, dist in cuts:
+        if name in ("ring_L", "ring_R"):                    # revision 14b: a ring is never cut; other bones may end in a part, and are reported above
+            fails.append(f"кольцо {name} перерезано зазором на {length:.0f} мм у X {mid[0]:.0f}, Y {mid[1]:.0f}, Z {mid[2]:.0f} ({who} в {dist:.1f} мм)")
+    out.append("")
+    f_lines, f_fails = field_checks(F.d, F.xs, F.ys, F.zs)
+    return out + f_lines, fails + f_fails
+
+
+SIDE_DIFFERENCES = (
+    "Левый и правый фланги зеркальны, кроме мест, где этого требуют шланги или видеовыходы карты:",
+    "  - передний изгиб (front_*): слева кончается у края карты (между ним и углом губы вниз по флангу идут шланги CPU), справа доходит до угла губы;",
+    "  - плёнка от верха кольца к боковой кости: справа от u 132, слева от u 186 (шланги CPU пересекают этот промежуток на u 141..170);",
+    "  - плёнка от ближней стороны кольца к переднему изгибу только справа; слева она висела бы перед видеовыходами карты, вместо неё ring_tie_L (выше n 100);",
+    "  - ring_tie_L2 (верхний дальний угол левого кольца к нижнему концу боковой кости) только слева: держит верх кольца там, где нет плёнки;",
+    "  - плёнки под вентилятором нет ни с одной стороны: слева под вентилятором проходит рука к разъёмам платы (zone_access.py), справа шланги карты.",
+    f"  - нижняя кость (base_*) слева разомкнута между Y {BASE_GAP_L[0]:g} и {BASE_GAP_L[1]:g} (концы в узлах площадок front_foot_L и base_mid_L), над низом проёма ребра A: там у стола проходит рука под платой (zone_access.py); справа кость целая;",
+    "  - низ кости base и задняя плёнка (с Y 260) изменены одинаково с обеих сторон, чтобы фланги оставались зеркальными.",
+)
+
+
+def flank_report(F, parts, hware):
+    """Report lines of revision 14b: the rings' offset and their nearest neighbours, the layer's least distance to the side fans' leads."""
+    import cadquery as cq
+    from scipy.spatial import cKDTree
+    import drive_access
+    out = [f"Кольца вокруг боковых вентиляторов: замкнутые, ось в {RING_OFF:g} мм от коробки вентилятора (радиус {RING_R:g} + зазор {GAP_HW:g} + воксель {VOX:g}), "
+           f"в средней плоскости вентилятора, X {RING_X[1]:g} и {RING_X[-1]:g}"]
+    for s, tag in ((1, "R"), (-1, "L")):
+        pts = sc.spline(ring(s), step=3.0)
+        wire = cq.Wire.makePolygon([cq.Vector(*map(float, p)) for p in pts])
+        rows = sorted([(p.solid.distance(wire), p.name) for p in parts] + [(sol.distance(wire), "hw:" + k) for k, sol in hware.items()])
+        out.append(f"  ring_{tag}, от оси до ближайших (мм): " + ", ".join(f"{n} {d:.1f}" for d, n in rows[:7])
+                   + f"; до стола {pts[:, 2].min() - hw.DESK_Z:.0f}, до передней плоскости {pts[:, 1].min() - hw.ENVELOPE_Y0:.0f}")
+    idx = np.argwhere(F.d < 0)
+    tree = cKDTree(np.stack([F.xs[idx[:, 0]], F.ys[idx[:, 1]], F.zs[idx[:, 2]]], axis=1))
+    strands, _ = drive_access.cable_strands()
+    for cname in hw.FAN_SIDE_CABLES:
+        best = float("inf")
+        for p, r in strands.get(cname, ()):
+            p = np.asarray(p, dtype=float)
+            seg = np.linalg.norm(np.diff(p, axis=0), axis=1)
+            sc_ = np.concatenate([[0.0], np.cumsum(seg)])
+            t = np.arange(0.0, sc_[-1] + 0.5, 0.5)
+            q = np.stack([np.interp(t, sc_, p[:, k]) for k in range(3)], axis=1)
+            best = min(best, float((tree.query(q)[0] - r).min()) - F.vox / 2)
+        out.append(f"  провод вентилятора {cname}: до слоя {best:.1f} мм (от поверхности провода до ближайшего вокселя слоя минус полвокселя)")
+    return out
 
 
 def main():
@@ -659,6 +810,7 @@ def main():
     hware = hw.build_hardware()
     F, anchors, info = build(parts, hware)
     lines, fails = check(F, anchors, parts, hware, info['lines'])
+    lines += [""] + flank_report(F, parts, hware) + [""] + list(SIDE_DIFFERENCES)
     b = np.argwhere(F.d < 0)
     lo, hi = b.min(axis=0), b.max(axis=0)
     head = [f"ОРГАНИЧЕСКИЙ СЛОЙ (PETG, запасной вариант ABS), одно поле с шагом {F.vox:g} мм, элементов {info['members']}, время {time.time() - t0:.0f} с",
