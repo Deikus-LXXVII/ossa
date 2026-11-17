@@ -15,8 +15,10 @@ output is printed in the sections' order whatever order they finished in. Neithe
 a case.
 
 One line per case: PASS/FAIL, name, the failure that was expected, what was reported.
-Exit status 1 if any case fails. The run's case list, its time and the counts of the expensive operations go
-to out/test_checks/<fast|serial>.json (check_budgets.py reads the fast one).
+Exit status 1 if any case fails, a section raises, a section records no case, or the run records fewer than
+EXPECTED_CASES cases. The run's case list, its time and the counts of the expensive operations go
+to out/test_checks/<fast|serial>.json, written atomically, with the SHA-256 of every file that decided the result
+(check_budgets.py reads the fast one and refuses it once one of those files has changed).
 """
 from __future__ import annotations
 
@@ -49,6 +51,7 @@ import cables  # noqa: E402
 import drive_access  # noqa: E402
 import zone_access  # noqa: E402
 import organic_frame as of  # noqa: E402
+import suite_record as sr  # noqa: E402
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.dirname(HERE)
@@ -56,6 +59,12 @@ OUT_DIR = os.path.join(ROOT, "out", "test_checks")
 RESULTS: list[tuple[bool, str, str, str]] = []      # (passed, name, expected, reported), in the order printed
 MEMO: dict = {}      # solid-identity memo for run_checks: a damaged copy recomputes only what touches the damage
 SECTIONS: list[tuple[str, object]] = []             # (title, function(hardware, parts, base)), in the order printed
+
+# The number of cases the suite records, pinned here so that a reviewer sees it change in the diff that adds or removes cases.
+# A run that records fewer fails (a section emptied, cut short or skipped would otherwise pass as "N/N cases as expected"), and
+# so does a section, or the prelude, that records none. A run that records more passes and says to raise this in the same commit.
+# Not in budgets.json: check_budgets.py --write rewrites that file from a run's record, and the pin must not follow a run down.
+EXPECTED_CASES = 293
 
 # the expensive operations, counted per process: the budget of the time to verify gates on these (check_budgets.py)
 COUNTS: collections.Counter = collections.Counter()
@@ -1645,7 +1654,6 @@ def s_rad420(hardware, parts, base):
           and abs(sum(hw.RAD420_HOLES_N) / 2 - hw.RAD420_MID_N) < 1e-9 and pitch == 125.0,
           ("columns -202.5 -77.5 -62.5 62.5 77.5 202.5, rows -8.5 and 116.5", f"{list(hw.RAD420_HOLES_X)}, {list(hw.RAD420_HOLES_N)}"))
     op = hw.rad420_fan_opening(1, *hw.RAD420_PLATE_U)
-    ob = op.BoundingBox()
     bb_op = board_box(op)
     check("hardware: a fan opening is a circle of 140 cut to 136 across the flats on both axes, about the fan's centre",
           abs((bb_op.xmax - bb_op.xmin) - 136.0) < 1e-6 and abs((bb_op.zmax - bb_op.zmin) - 136.0) < 1e-6 and abs(op.Volume() / (hw.RAD420_PLATE_U[1] - hw.RAD420_PLATE_U[0]) - 15216.0) < 1.0,
@@ -1780,6 +1788,38 @@ def s_screws(hardware, parts, base):
           ("only M3 kinds", f"{sorted({h_.kind for p_ in parts for h_ in p_.holes})}, inserts {sorted(hw.INSERTS)}"))
 
 
+@section("18. the memo's keys: a number a measurement reads, changed after the memo holds the answer")
+def s_memo_keys(hardware, parts, base):
+    # The memo is keyed on the solids' identity and the numbers in `extra`. A number the measurement reads that is not in the key
+    # lets a changed measurement return the stored answer (the review of the fast suite: a hole's r set to 20, or SPAN_MARGIN set to 5,
+    # still passed check 16 from the memo while a call without a memo failed). Each case: the check passes warm (from the memo the
+    # prelude filled), then with one number changed the call with the memo must report exactly what a call without a memo reports, a failure.
+    def bites(name, tag, run, change, what):
+        warm, remembered, fresh = [], [], []
+        run(warm, MEMO)
+        with change:
+            run(remembered, MEMO)
+            run(fresh, None)
+        own = [x for x in fresh if x.startswith(tag)]
+        check(name, not [x for x in warm if x.startswith(tag)] and own and remembered == fresh,
+              (f"{tag} passes warm; with {what} the memo's answer equals a fresh call's, which fails",
+               f"warm {len(warm)} failures; fresh {len(fresh)} ({'; '.join(own[:1])}); the memo's {'the same' if remembered == fresh else 'DIFFERENT: ' + '; '.join(remembered[:2])}"))
+
+    cb_part, cb_hole = next((p_, h_) for p_ in parts for h_ in p_.holes if h_.kind == "M3cb")
+    m3cb = lambda fl, m: f.check_m3_counterbores(parts, fl, m)      # noqa: E731
+    bites(f"check 16 from the memo: {cb_part.name}'s counterbore with its r set to 20 in place", "CHECK16", m3cb, patched(cb_hole, "r", 20.0), "the hole's r 20")
+    bites("check 16 from the memo: SPAN_MARGIN 5", "CHECK16", m3cb, patched(f, "SPAN_MARGIN", 5.0), "SPAN_MARGIN 5")
+    sill_wall = lambda fl, m: f.check_sill_rear_wall(parts, fl, m)      # noqa: E731
+    bites("check 22 from the memo: SPAN_MARGIN 5", "CHECK22", sill_wall, patched(f, "SPAN_MARGIN", 5.0), "SPAN_MARGIN 5")
+    bites("check 22 from the memo: SPAN_STEP 100 (one sample at each end of the probe)", "CHECK22", sill_wall, patched(f, "SPAN_STEP", 100.0), "SPAN_STEP 100")
+    post = part_named(parts, "gpu_post")
+    holes7 = lambda fl, m: f.check_holes([post], fl, m)      # noqa: E731
+    bites("check 7 from the memo: gpu_post's first hole 1 mm wider in place", "CHECK7", holes7, patched(post.holes[0], "r", post.holes[0].r + 1.0), "the hole's r + 1")
+    bites("check 7 from the memo: BORE_SHRINK -1 (the bore's probe 1 mm wider than the bore)", "CHECK7", holes7, patched(f, "BORE_SHRINK", -1.0), "BORE_SHRINK -1")
+    mounts = lambda fl, m: f.derive_mounts(parts, base["contacts"], fl, m)      # noqa: E731
+    bites("check 5 from the memo: MOUNT_TOL -1 (no hole can match)", "CHECK5", mounts, patched(f, "MOUNT_TOL", -1.0), "MOUNT_TOL -1")
+
+
 @section("last: the undamaged model with nothing remembered")
 def s_final(hardware, parts, base):
     # last: the undamaged model, once more with nothing remembered
@@ -1831,7 +1871,8 @@ def _worker_task(i):
         _, rec = _captured(SECTIONS[i][1], *_WORKER["ctx"])
         for k in [k for k in MEMO if k not in _WORKER["memo_keys"]]:       # what the section's damaged copies left: no other section has those objects, so it only holds memory
             del MEMO[k]
-    rec.update(i=i, pid=os.getpid(), rss_mb=_rss_mb(), prelude_here=dict(seconds=pre["seconds"], counts=pre["counts"]) if first else None)
+    rec.update(i=i, pid=os.getpid(), rss_mb=_rss_mb(), prelude_here=dict(seconds=pre["seconds"], counts=pre["counts"]) if first else None,
+               sources=sorted(sr.loaded_sources()))
     return rec
 
 
@@ -1851,7 +1892,7 @@ def run_serial():
         n0, c0, t0 = len(RESULTS), COUNTS.copy(), time.time()
         fn(*ctx)
         records.append(dict(title=title, seconds=time.time() - t0, counts=dict(COUNTS - c0), n_cases=len(RESULTS) - n0))
-    return records, dict(rss_mb_per_worker={str(os.getpid()): _rss_mb()}, counts_all_processes=dict(COUNTS)), []
+    return records, dict(rss_mb_per_worker={str(os.getpid()): _rss_mb()}, counts_all_processes=dict(COUNTS)), [], sr.loaded_sources()
 
 
 def run_fast(workers, previous):
@@ -1861,7 +1902,7 @@ def run_fast(workers, previous):
 
     cost = {s["title"]: s["seconds"] for s in (previous or {}).get("sections", [])}
     order = [-1] + sorted(range(len(SECTIONS)), key=lambda i: -cost.get(SECTIONS[i][0], 0.0))
-    records, errors, rss, all_counts = [], [], {}, collections.Counter()
+    records, errors, rss, all_counts, sources = [], [], {}, collections.Counter(), sr.loaded_sources()
     with cf.ProcessPoolExecutor(workers, mp_context=multiprocessing.get_context("spawn")) as ex:
         futs = {i: ex.submit(_worker_task, i) for i in order}
         for i in [-1] + list(range(len(SECTIONS))):
@@ -1869,7 +1910,7 @@ def run_fast(workers, previous):
             try:
                 rec = futs[i].result()
             except Exception:                       # a worker died (BrokenProcessPool): every section it held is lost, and the run fails
-                rec = dict(text="", results=[], seconds=0.0, counts={}, error=traceback.format_exc(), pid=None, rss_mb=0.0, prelude_here=None)
+                rec = dict(text="", results=[], seconds=0.0, counts={}, error=traceback.format_exc(), pid=None, rss_mb=0.0, prelude_here=None, sources=[])
             sys.stdout.write(rec["text"])
             if rec["error"]:
                 errors.append(f"{title}: {rec['error'].strip().splitlines()[-1]}")
@@ -1879,10 +1920,11 @@ def run_fast(workers, previous):
             records.append(dict(title=title, seconds=rec["seconds"], counts=rec["counts"], n_cases=len(rec["results"]), pid=rec["pid"]))
             if rec["pid"] is not None:
                 rss[str(rec["pid"])] = max(rss.get(str(rec["pid"]), 0.0), rec["rss_mb"])
+            sources.update(rec["sources"])
             all_counts.update(rec["counts"] if i >= 0 else {})
             if rec["prelude_here"]:
                 all_counts.update(rec["prelude_here"]["counts"])
-    return records, dict(rss_mb_per_worker=rss, counts_all_processes=dict(all_counts)), errors
+    return records, dict(rss_mb_per_worker=rss, counts_all_processes=dict(all_counts)), errors, sources
 
 
 def suite_counts(records):
@@ -1898,16 +1940,27 @@ def load_record(path):
         return json.load(fh)
 
 
+def run_shortfall(rec):
+    """Why a run's record is not the whole suite (sr.short_of_pin against EXPECTED_CASES as it is now): [] when whole."""
+    return sr.short_of_pin(len(rec.get("cases", [])), [(s["title"], s["n_cases"]) for s in rec.get("sections", [])], EXPECTED_CASES)
+
+
 def diff(path_a, path_b):
-    """The two runs' case lists must be identical: same count, same order, each case's name, verdict, expected and reported text."""
-    a, b = load_record(path_a)["cases"], load_record(path_b)["cases"]
+    """The two runs' case lists must be identical: same count, same order, each case's name, verdict, expected and reported text.
+    Each must also be the whole suite: two runs that lost the same section are identical and still wrong."""
+    ra, rb = load_record(path_a), load_record(path_b)
+    a, b = ra["cases"], rb["cases"]
     keys = ("name", "ok", "expected", "reported")
     rows = [(k, x, y) for k, (x, y) in enumerate(zip(a, b)) if tuple(x[q] for q in keys) != tuple(y[q] for q in keys)]
     for k, x, y in rows[:10]:
         print(f"case {k + 1} differs:\n  {path_a}: {[x[q] for q in keys]}\n  {path_b}: {[y[q] for q in keys]}")
+    short = [f"{path}: {why}" for path, rec in ((path_a, ra), (path_b, rb)) for why in run_shortfall(rec)]
+    for line in short:
+        print("SHORT  " + line)
     same = not rows and len(a) == len(b)
-    print(f"{'IDENTICAL' if same else 'DIFFERENT'}: {len(a)} and {len(b)} cases, {len(rows)} differ in name, verdict, expected or reported text")
-    return 0 if same else 1
+    print(f"{'IDENTICAL' if same else 'DIFFERENT'}: {len(a)} and {len(b)} cases, {len(rows)} differ in name, verdict, expected or reported text"
+          + (f"; {len(short)} shortfall(s) against EXPECTED_CASES {EXPECTED_CASES}: FAILED" if short else ""))
+    return 0 if same and not short else 1
 
 
 def main(argv=None):
@@ -1926,26 +1979,31 @@ def main(argv=None):
     workers = 1 if args.serial else (args.workers or default_workers(len(SECTIONS)))
     load_before = os.getloadavg()
     t_start = time.time()
+    hashes = sr.tree_hashes()           # the files as they were when the run started: the record names the code it ran
     if args.serial:
-        records, mem, errors = run_serial()
+        records, mem, errors, loaded = run_serial()
     else:
         print(f"{len(SECTIONS)} sections in {workers} worker processes (each runs the prelude once); the output follows the sections' order\n")
-        records, mem, errors = run_fast(workers, previous)
+        records, mem, errors, loaded = run_fast(workers, previous)
     wall = time.time() - t_start
     bad = [n for ok, n, _e, _r in RESULTS if not ok]
-    print(f"\n{len(RESULTS) - len(bad)}/{len(RESULTS)} cases as expected   ({wall:.0f} s)")
+    short = sr.short_of_pin(len(RESULTS), [(r["title"], r["n_cases"]) for r in records], EXPECTED_CASES)
+    print(f"\n{len(RESULTS) - len(bad)}/{len(RESULTS)} cases as expected   ({wall:.0f} s)"
+          + (f"; EXPECTED_CASES is {EXPECTED_CASES}" if len(RESULTS) != EXPECTED_CASES else ""))
+    if len(RESULTS) > EXPECTED_CASES and not short:
+        print(f"{len(RESULTS) - EXPECTED_CASES} case(s) more than EXPECTED_CASES: raise it to {len(RESULTS)} in test_checks.py in the commit that adds them")
     rss = mem["rss_mb_per_worker"]
     print(f"{mode}: {workers} process(es), peak memory per process {max(rss.values()):.0f} MB, {sum(rss.values()):.0f} MB together; "
           f"expensive operations {suite_counts(records)}")
-    os.makedirs(os.path.dirname(os.path.abspath(out)), exist_ok=True)
-    with open(out, "w", encoding="utf-8") as fh:
-        json.dump(dict(mode=mode, workers=workers, wall_s=round(wall, 1), finished=time.strftime("%Y-%m-%d %H:%M:%S"), load_before=load_before, load_after=os.getloadavg(),
-                       total=len(RESULTS), passed=len(RESULTS) - len(bad), errors=errors, counts=suite_counts(records), **mem,
-                       sections=[dict(r, seconds=round(r["seconds"], 1)) for r in records],
-                       cases=[dict(name=n, ok=ok, expected=e, reported=r) for ok, n, e, r in RESULTS]), fh, indent=1, ensure_ascii=False)
-    print(f"record: {os.path.relpath(out, ROOT)}")
-    if bad or errors:
-        print("FAILED: " + "; ".join(bad + errors))
+    sources = sr.sources_of(loaded, hashes)
+    sr.write_json_atomic(out, dict(mode=mode, workers=workers, wall_s=round(wall, 1), finished=time.strftime("%Y-%m-%d %H:%M:%S"), load_before=load_before, load_after=os.getloadavg(),
+                                   total=len(RESULTS), passed=len(RESULTS) - len(bad), expected_cases=EXPECTED_CASES, short=short, errors=errors,
+                                   counts=suite_counts(records), **mem, sources=sources, digest=sr.digest(sources),
+                                   sections=[dict(r, seconds=round(r["seconds"], 1)) for r in records],
+                                   cases=[dict(name=n, ok=ok, expected=e, reported=r) for ok, n, e, r in RESULTS]))
+    print(f"record: {os.path.relpath(out, ROOT)} ({len(sources)} files in its digest)")
+    if bad or errors or short:
+        print("FAILED: " + "; ".join(bad + errors + short))
         sys.exit(1)
 
 

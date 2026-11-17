@@ -47,7 +47,8 @@ def _r(x, n=LEN_DECIMALS):
 
 
 def shape_print(shape, material=None):
-    bb, c = shape.BoundingBox(), shape.Center()
+    import frame_v0                     # the box from the geometry, never from a mesh a render or a voxel grid left on a face (frame_v0.exact_box)
+    bb, c = frame_v0.exact_bound_box(shape), shape.Center()
     d = {"volume": _r(shape.Volume(), VOL_DECIMALS),
          "bbox": [_r(v) for v in (bb.xmin, bb.xmax, bb.ymin, bb.ymax, bb.zmin, bb.zmax)],
          "com": [_r(c.x), _r(c.y), _r(c.z)],

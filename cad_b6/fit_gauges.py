@@ -557,7 +557,7 @@ def build_c3(parts_by_name):
     box = Solid.makeBox(2 * half, C3_LEN, 80.0, Vector(-half, -C3_LEN / 2, -40.0)).moved(loc)
     sl = one_solid(part.solid.intersect(box), "C3 slice")
     out = sl.moved(loc.inverse)                                         # x' = across the hose, y' = along it, z' = towards the mouth (+X for the left fan)
-    bb = out.BoundingBox()
+    bb = fv.exact_bound_box(out)
     out = out.translate(Vector(-bb.xmin, -bb.ymin, -bb.zmin))
     it = Item("C3_hose_clip", "C3 hose_clip", "PA6", one_solid(out, "C3"), None, (), [])
     it.slice = sl
@@ -607,7 +607,7 @@ def solid_checks(items: dict, parts_by_name: dict, hardware: dict, extra: dict):
         p = g["G7"].frame.world(x, y)
         vtx = cq.Vertex.makeVertex(p.x, p.y, p.z)
         rows.append((fv.solid_distance(vtx, gpu), fv.solid_distance(vtx, hose)))
-    corner_d = max(fv.solid_distance(cq.Vertex.makeVertex(*g["G7"].frame.world(x, y).toTuple()), gpu) for x in (0, g["G7"].solid.BoundingBox().xmax) for y in (0, g["G7"].solid.BoundingBox().ymax))
+    corner_d = max(fv.solid_distance(cq.Vertex.makeVertex(*g["G7"].frame.world(x, y).toTuple()), gpu) for x in (0, fv.exact_box(g["G7"].solid)[1]) for y in (0, fv.exact_box(g["G7"].solid)[3]))
     g["G7"].checks.append((all(a < TOL and b < TOL for a, b in rows) and corner_d < TOL,
                            "slot centres: distance to hw:gpu " + ", ".join(f"{a:.4f}" for a, _ in rows) + " mm, to hw:gpu_hoses " + ", ".join(f"{b:.4f}" for _, b in rows)
                            + f" mm; plate corners to hw:gpu {corner_d:.4f} mm"))
@@ -621,7 +621,7 @@ def solid_checks(items: dict, parts_by_name: dict, hardware: dict, extra: dict):
 def coupon_checks(items: dict, parts_by_name: dict):
     c1 = items["C1"]
     cs = hole_centres(c1.solid, C1_HOLE_D / 2)
-    bb = c1.solid.BoundingBox()
+    bb = fv.exact_bound_box(c1.solid)
     ok = len(cs) == 7 and abs(bb.xlen - C1_LEG) < 1e-6 and abs(bb.ylen - C1_LEG) < 1e-6
     c1.checks.append((ok, f"{len(cs)} holes of {C1_HOLE_D:g}, legs {bb.xlen:.1f} x {bb.ylen:.1f}, X-leg centres {[c[0] for c in cs if abs(c[1] - STRIP / 2) < 1e-6]}"))
     c2 = items["C2"]
@@ -783,7 +783,7 @@ def main(argv):
     coupon_checks(named, parts_by_name)
     items = list(named.values())
     for it in items:
-        bb = it.bbox = it.solid.BoundingBox()           # before the STL export: after it OCC's box follows the mesh and grows by its deflection
+        bb = it.bbox = fv.exact_bound_box(it.solid)     # from the geometry: after the STL export OCC's BoundingBox() follows the mesh and grows by its deflection
         it.checks.append((max(bb.xlen, bb.ylen) <= BED, f"fits the bed: {bb.xlen:.1f} x {bb.ylen:.1f} mm (limit {BED:g})"))
         export(it)
         it.checks.append((it.stl_ok, it.stl_info))
