@@ -12,11 +12,11 @@ Use it two ways: as the definition of done for a revision (no row may get worse)
 | The 420 hangs on its twelve fan screws | checks 5, 14, 15; `strength.py` "stiff" | gauge `G1` printed, not tried | pattern and port offsets not confirmed; fan screw length (6-32, about 35 mm) not measured |
 | The 360 hangs on its arms | checks 5, 16 | gauge `G2` printed, not tried | the model's least sure numbers (ports taken from ARCTIC's) |
 | The PSU screws to the bulkhead and rests on the skids | checks 5, 16 | gauge `G3` printed, not tried | screw length is an assumption |
-| The card stands in its slot, held at the bracket and resting at the far end | checks 5, 18, 19 | gauge `G7`: height and hose exits fit | the bracket tab's height is inferred from the PCIe drawing (108.3 mm against the model's 108.0), not measured |
+| The card stands in its slot, held at the bracket and resting at the far end | checks 5, 18, 19; check 16 (the rest's screw heads sit in counterbores deep enough for head and washer) | gauge `G7`: height and hose exits fit | the bracket tab's height is inferred from the PCIe drawing (108.3 mm against the model's 108.0), not measured |
 | The CPU block's hoses leave where the model says | hose routes | gauge `G5` fits with a little play; the fittings turn | fitting spacing 23.8 mm not measured |
 | The side fans screw to their brackets | checks 5, 11, 17 | gauge `G6` fits | none |
 | A 3.5" or a 2.5" drive screws into the left bay | check 13 | none | no drive on hand; the bay is a provision |
-| The front I/O module sits in its carrier | check 20 | none | every dimension of the module is a placeholder |
+| The front I/O module sits in its carrier | check 20; check 22 (the sill's rear wall behind it); `test_checks.py`: a module grown to its whole allowance leaves the sill unchanged and passes every check | none | every dimension of the module is a placeholder |
 
 ## Using the case
 
@@ -27,9 +27,9 @@ Use it two ways: as the definition of done for a revision (no row may get worse)
 | A hand reaches the board's rear connectors | measured once: a 60 mm ball reaches them past the left fan | none | no check yet (revision 14b adds one); a hand is not a ball |
 | A drive goes in and out with everything else assembled | `drive_access.py`: least tilt 28° of 30° allowed | none | 2° of margin |
 | Every internal cable reaches its socket with its real length | `cables.py` | none | several real lengths are assumptions; the front I/O leads are not measured |
-| Both pairs of hoses reach without a bend tighter than 35 mm | hose routes, checks 9 and 10 | none | hoses are rigid lines in the model; no maker states a bend radius; the ARCTIC length is 450 or 500 mm depending on the source |
+| Both pairs of hoses reach without a bend tighter than 35 mm | hose routes, checks 9 and 10; `test_checks.py`: the CPU clip still passes check 10 with either hose moved 1 mm | none | hoses are rigid lines in the model; no maker states a bend radius; the ARCTIC length is 450 or 500 mm depending on the source |
 | Nothing sticks out to catch a passer-by | check 8 (|X| 229, the fans and their brackets 260, front plane) | none | none |
-| The power button, the ports and the light line face the user | `front_sill`, check 20 | none | placeholder module; the LED strip is not chosen |
+| The power button, the ports and the light line face the user | `front_sill`, check 20 (the cable window lies behind the module's rear face), `cables.py` (the front USB cables pass through the window) | none | placeholder module; the LED strip is not chosen |
 
 ## Carrying the load
 

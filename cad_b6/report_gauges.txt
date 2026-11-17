@@ -13,7 +13,7 @@ G6_fan140             PLA  140.0 x 152.0 x 2.0             13.22   16.4    18  P
 G7_gpu_end            PLA  51.0 x 150.0 x 2.0               8.39   10.4    12  PASS (4)
 C1_scale_l            ABS  200.0 x 200.0 x 2.0              9.04    9.4    13  PASS (3)
 C2_insert_ladder      ABS  144.0 x 38.0 x 10.0             38.07   39.6    53  PASS (3)
-C3_hose_clip          PA6  18.0 x 17.1 x 20.9               2.95    3.4     4  PASS (3)
+C3_hose_clip          PA6  18.0 x 12.0 x 20.9               2.85    3.2     4  PASS (3)
 
 G1_rad420_ports_end  (PLA)
   note: port slots from the last points of the CPU hoses: x = 8.40 (RAD420_PORT_INSET 8.4), y = 57.10 and 80.90, 23.80 apart (2 x RAD420_PORT_HALF_SPACING = 23.80); slot radius 11
@@ -145,9 +145,9 @@ C2_insert_ladder  (ABS)
   STL watertight True, mesh volume 38065.8 vs 38065.1 mm3
 
 C3_hose_clip  (PA6)
-  note: slice of hose_guide_cpu: the comb's strip 18 across the nearer hose's channel (hose 1, u 235.4) and 20 along the hose, all of X; the comb itself is only 12 mm wide along the hose; turned so the face that lies on the fan is on the bed and the channel horizontal with its mouth up; no engraving (the part's own shape)
-  ok   slice volume 2949.8 mm3 (of the part's 10012.7), channel radius in the slice 6.5 = CPU_HOSE_R + GUIDE_PLAY: cylinder radii [6.5]; turned copy has the same volume: True
-  ok   fits the bed: 18.0 x 17.1 mm (limit 290)
-  ok   STL watertight True, mesh volume 2950.1 vs 2949.8 mm3
-  STL watertight True, mesh volume 2950.1 vs 2949.8 mm3
+  note: slice of hose_guide_cpu: the comb's strip 18 across the nearer hose's channel (hose 1, u 239.6) and 20 along the hose, all of X; the comb itself is only 12 mm wide along the hose; turned so the face that lies on the fan is on the bed and the channel horizontal with its mouth up; no engraving (the part's own shape)
+  ok   slice volume 2848.4 mm3 (of the part's 9755.5), channel radius in the slice 6.5 = CPU_HOSE_R + GUIDE_PLAY: cylinder radii [6.5]; turned copy has the same volume: True
+  ok   fits the bed: 18.0 x 12.0 mm (limit 290)
+  ok   STL watertight True, mesh volume 2848.8 vs 2848.4 mm3
+  STL watertight True, mesh volume 2848.8 vs 2848.4 mm3
 

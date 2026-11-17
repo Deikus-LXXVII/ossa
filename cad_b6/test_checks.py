@@ -786,12 +786,94 @@ def main():
     fl, _ = grown(dx1=5.0)
     case("the module 5 mm longer on the right (carrier rebuilt, its end block 6.6 mm): the walls are used up", "CHECK20 the right end block of front_io_carrier is 6.60 mm thick at the module's screw, needs 8.3",
          fl, "CHECK20 the right end block of front_io_carrier", "needs 8.3")
-    fl, pocket_ok = grown(dx0=3.0, dx1=3.0, dz1=0.2)
-    check("the module grown by its allowance (3 mm each end, 0.2 up) still passes check 20 and every check of the carrier: it changes the carrier only",
-          not [x for x in fl if "front_io_carrier" in x or x.startswith("CHECK20")], ("no carrier failure", f"{[x for x in fl if 'front_io_carrier' in x or x.startswith('CHECK20')][:2]}"))
-    base_pocket = f.bbox_of(f.sill_geometry()["cuts"]["pocket"])
-    check("  and the sill's pocket does not move with the module: the same box, carrier's outside plus 0.3", all(abs(a_ - b_) < 1e-9 for a_, b_ in zip(pocket_ok, base_pocket)) and abs(pocket_ok[1] - (f.CARRIER_X[1] + f.SILL_POCKET_PLAY)) < 1e-9,
-          ("pocket X -82.3..107.3 whatever the module is", f"{pocket_ok[:2]} against {base_pocket[:2]}"))
+    # revision 14a review: the module grown to the whole of its allowance, in each direction and all at once, with the whole frame rebuilt for it (not only the carrier): the sill comes out the same
+    # (volume, box, every hole), every check passes, the cables pass the sill; and one step of 0.1 mm beyond each allowance fails check 20. hardware.py itself, run again with only FRONT_IO_W changed,
+    # changes nothing else (the light strip, which the sill's channel is drawn round, used to follow the module's highest point)
+    import cables
+
+    from OCP.Bnd import Bnd_Box
+    from OCP.BRepBndLib import BRepBndLib
+    from OCP.BRepTools import BRepTools
+
+    def exact_box(shape):
+        """The shape's bounding box from its geometry alone. BoundingBox() uses a face's triangulation when it has one and widens the box by its deflection, and a rebuilt part shares faces (and so the
+        meshes earlier cases made) with the parts built before it: the same solid then has another box."""
+        b_ = Bnd_Box()
+        BRepBndLib.AddOptimal_s(shape.wrapped, b_, False, False)
+        return b_.Get()
+
+    def sill_signature(p):
+        return (round(p.solid.Volume(), 6), tuple(round(x, 9) for x in exact_box(p.solid)),
+                sorted((h.kind, tuple(round(c, 9) for c in h.start), tuple(round(c, 9) for c in h.d), round(h.r, 9), round(h.length, 9)) for h in p.holes))
+    base_sill_sig = sill_signature(part_named(parts, "front_sill"))
+
+    def grown_full(dx0=0.0, dx1=0.0, dz1=0.0, dy1=0.0, route=False):
+        """The module's box grown (its two screws move with its end faces), hardware.py's FRONT_IO_W and FRONT_IO_SCREWS and the hardware solid changed, the whole frame rebuilt with build_frame (the same
+        hardware set, so the same rounding context), every check run on the undamaged parts with the rebuilt sill and carrier in place (every other rebuilt part is compared with the undamaged one, and
+        must be the same), and with `route` the cables routed: (the rebuilt sill's signature, failures, cable failures or None, names of the other parts that changed). The module state the build resets
+        (fasteners, bolt checks, rounding log) is put back afterwards. The cables see the module only through its rear face (their start, cables.usb_start) and the parts: the X and Z growths leave the
+        start where it is and the carrier's outside as it was, so only the cases that move the rear face are routed (routing takes about 90 s)."""
+        old_w, old_s, old_io = hw.FRONT_IO_W, hw.FRONT_IO_SCREWS, hardware["front_io"]
+        new_w = (old_w[0] - dx0, old_w[1] + dx1, old_w[2], old_w[3] + dy1, old_w[4], old_w[5] + dz1)
+        saved = (list(f.FASTENERS), list(f.BOLT_CHECKS), list(f.ROUND_LOG), {k_: list(v_) for k_, v_ in f.KEEP_SHARP.items()}, dict(f._A_LAYER))
+        hw.FRONT_IO_W = new_w
+        hw.FRONT_IO_SCREWS = (((old_s[0][0][0] - dx0,) + old_s[0][0][1:], old_s[0][1]), ((old_s[1][0][0] + dx1,) + old_s[1][0][1:], old_s[1][1]))
+        hardware["front_io"] = hw.wbox(*new_w)
+        try:
+            parts_g, _ = f.build_frame(hardware=hardware)
+            by_g = {p_.name: p_ for p_ in parts_g}
+            others = [p_.name for p_ in parts if p_.name not in ("front_sill", "front_io_carrier")
+                      and (abs(by_g[p_.name].solid.Volume() - p_.solid.Volume()) > 1e-6 or any(abs(a_ - b_) > 1e-9 for a_, b_ in zip(exact_box(by_g[p_.name].solid), exact_box(p_.solid))))]
+            for n_ in ("front_sill", "front_io_carrier"):      # the rebuilt parts share faces with the undamaged ones, and their meshes (see exact_box): checked as freshly built
+                BRepTools.Clean_s(by_g[n_].solid.wrapped)
+            mixed = [by_g[p_.name] if p_.name in ("front_sill", "front_io_carrier") else p_ for p_ in parts]
+            r_ = f.run_checks(hardware, mixed, MEMO)
+            cf_ = None
+            if route:
+                routes_g = cables.build_routes()
+                cf_ = cables.failures(routes_g, cables.evaluate(routes_g, mixed, hardware))
+        finally:
+            hw.FRONT_IO_W, hw.FRONT_IO_SCREWS = old_w, old_s
+            hardware["front_io"] = old_io
+            f.FASTENERS[:], f.BOLT_CHECKS[:], f.ROUND_LOG[:] = saved[0], saved[1], saved[2]
+            f.KEEP_SHARP.clear()
+            f.KEEP_SHARP.update(saved[3])
+            f._A_LAYER.clear()
+            f._A_LAYER.update(saved[4])
+        return sill_signature(by_g["front_sill"]), r_["failures"], cf_, others
+    allowance = (("3.3 mm longer on the left", dict(dx0=3.3)), ("3.3 mm longer on the right", dict(dx1=3.3)), ("0.2 mm taller", dict(dz1=0.2)), ("2.5 mm deeper", dict(dy1=2.5, route=True)),
+                 ("all of these at once", dict(dx0=3.3, dx1=3.3, dz1=0.2, dy1=2.5, route=True)))
+    for label_, kw_ in allowance:
+        sig_, fl, cf_, others_ = grown_full(**kw_)
+        check(f"the module {label_} (its whole allowance), the frame rebuilt: the sill is the same (volume, box, holes) and so is every part but the carrier, every check passes"
+              + (", every cable passes" if kw_.get("route") else ""),
+              sig_ == base_sill_sig and not others_ and not fl and not cf_,
+              ("same sill, no other part changed, 0 failures, 0 cable failures", f"sill same {sig_ == base_sill_sig} (volume {sig_[0]:.3f} against {base_sill_sig[0]:.3f}); changed {others_}; "
+                                                                                f"{len(fl)} failures {fl[:2]}; cable failures {None if cf_ is None else [t_ for _c, t_ in cf_[:2]]}"))
+    for label_, kw_, needle_ in (("3.4 mm longer on the left", dict(dx0=3.4), "CHECK20 the left end block of front_io_carrier"),
+                                 ("3.4 mm longer on the right", dict(dx1=3.4), "CHECK20 the right end block of front_io_carrier"),
+                                 ("0.3 mm taller", dict(dz1=0.3), "CHECK20 the top plate of front_io_carrier"),
+                                 ("2.6 mm deeper", dict(dy1=2.6), "CHECK20 the module's rear")):
+        if "dy1" in kw_:
+            deeper_ = dict(hardware, front_io=hw.wbox(*(hw.FRONT_IO_W[:3] + (hw.FRONT_IO_W[3] + kw_["dy1"],) + hw.FRONT_IO_W[4:])))
+            fl = []
+            f.check_carrier(parts, deeper_, fl)
+        else:
+            fl, _ = grown(**kw_)
+        case(f"the module {label_}: 0.1 mm past its allowance", f"{needle_} ...", fl, needle_)
+    import importlib.util
+    import re as re_
+    src_ = open(hw.__file__, encoding="utf-8").read()
+    w_all = (hw.FRONT_IO_W[0] - 3.3, hw.FRONT_IO_W[1] + 3.3, hw.FRONT_IO_W[2], hw.FRONT_IO_W[3] + 2.5, hw.FRONT_IO_W[4], hw.FRONT_IO_W[5] + 0.2)
+    src_g, n_sub = re_.subn(r"^FRONT_IO_W = .*$", f"FRONT_IO_W = {w_all!r}", src_, count=1, flags=re_.M)
+    spec_ = importlib.util.spec_from_loader("hardware_grown", loader=None)
+    hw_g = importlib.util.module_from_spec(spec_)
+    exec(compile(src_g, hw.__file__, "exec"), hw_g.__dict__)
+    data_ = lambda v_: " at 0x" not in repr(v_)        # noqa: E731
+    changed = sorted(k_ for k_, v_ in vars(hw).items() if not k_.startswith("_") and data_(v_) and k_ in vars(hw_g) and repr(vars(hw_g)[k_]) != repr(v_))
+    check("hardware.py run again with only FRONT_IO_W grown by the whole allowance: nothing else in it changes (LIGHT_STRIP_BS, which the sill's light channel follows, included)",
+          n_sub == 1 and changed == ["FRONT_IO_W"] and hw_g.LIGHT_STRIP_BS == hw.LIGHT_STRIP_BS,
+          ("only FRONT_IO_W differs", f"{n_sub} substitution(s); differing names {changed}"))
     fl, _ = grown(dz1=1.0)
     case("the module 1 mm taller (carrier rebuilt: its top plate 1.7 mm)", "CHECK20 the top plate of front_io_carrier is 1.70 mm thick over the module, needs 2.5", fl, "CHECK20 the top plate of front_io_carrier", "needs 2.5")
     deep = dict(hardware, front_io=hw.wbox(hw.FRONT_IO_W[0], hw.FRONT_IO_W[1], hw.FRONT_IO_W[2], hw.FRONT_IO_W[3] + 3.0, hw.FRONT_IO_W[4], hw.FRONT_IO_W[5]))
@@ -871,6 +953,31 @@ def main():
     check("  the same for a finger only 10 mm thick in X: the knock bends it about u and the margin falls under 2", thin_rest["margin"] < f.STRENGTH_MARGIN_MIN,
           ("margin < 2", f"margin {thin_rest['margin']:.2f}, worst {thin_rest['worst']:.2f} MPa"))
 
+    # revision 14a review: the rest's counterbores follow the rule of every M3 counterbore (head 3 + washer 0.5 + 0.2 = 3.7 deep; they were 3.0 and the head stood 0.5 mm proud) and are recorded as holes (M3cb), so
+    # check 16 measures each on the solid: its depth from the face round it and the material under its floor
+    m3cb = base["m3_counterbores"]
+    rest_cb = [r_ for r_ in m3cb if r_[0] == "rib_A_right"]
+    car_cb = [r_ for r_ in m3cb if r_[0] == "front_io_carrier"]
+    rest_rows = [r_ for r_ in base["screws"]["rows"] if r_["item"] == "gpu_rest"]
+    check("check 16 on the M3 counterbores: 2 under gpu_rest's screws 3.7 mm deep with 24.3 mm of the diagonal under them, 4 in the carrier 7.6 mm deep with 4.0 mm under them; the rest's screws M3 x 30 entering 5.2 mm",
+          len(m3cb) == 6 and len(rest_cb) == 2 and len(car_cb) == 4 and all(abs(r_[3] - 3.7) < 0.02 and abs(r_[4] - 24.3) < 0.02 for r_ in rest_cb)
+          and all(abs(r_[3] - 7.6) < 0.02 and abs(r_[4] - 4.0) < 0.02 for r_ in car_cb) and abs(f.M3_CB_DEPTH - 3.7) < 1e-9 and f.REST_CB_DEPTH == f.M3_CB_DEPTH == f.CARRIER_CB_BELOW
+          and len(rest_rows) == 2 and all(r_["length"] == 30 and abs(r_["stack"] - 24.3) < 1e-9 and abs(r_["entry"] - 5.2) < 1e-9 for r_ in rest_rows),
+          ("rest 2 x (3.70, 24.30), carrier 4 x (7.60, 4.00), M3 x 30 entry 5.2",
+           f"rest {[(round(r_[3], 2), round(r_[4], 2)) for r_ in rest_cb]}, carrier {[(round(r_[3], 2), round(r_[4], 2)) for r_ in car_cb]}, screws {[(r_['length'], round(r_['stack'], 2), round(r_['entry'], 2)) for r_ in rest_rows]}"))
+    cbr = next(h for h in rib_r.holes if h.kind == "M3cb")
+    floor_ = np.array(cbr.point(cbr.length))
+    ring_ = f.cyl(tuple(floor_ - 1.0 * np.array(cbr.d)), cbr.d, 2 * cbr.r, 1.0).cut(f.cyl(tuple(floor_ - 2.0 * np.array(cbr.d)), cbr.d, hw.M3_CLEAR_D, 3.0))
+    fl = []
+    f.check_m3_counterbores(with_part(parts, "rib_A_right", solid=rib_r.solid.fuse(ring_).clean()), fl)
+    case("rib_A_right: one of gpu_rest's counterbores 1 mm too shallow (its floor filled 1 mm, the clearance bore left open)", "CHECK16 rib_A_right: M3cb ... the counterbore is 2.70 mm deep, the head and the washer need 3.5 and 0.2 to spare (3.7)",
+         fl, "CHECK16 rib_A_right", "is 2.70 mm deep")
+    with patched(f, "REST_CB_DEPTH", f.REST_CB_DEPTH - 1.0), patched(f, "REST_STACK", f.REST_STACK + 1.0):
+        sh_solid, sh_holes, sh_blank = f.build_rib_a(True)
+    fl = []
+    f.check_m3_counterbores(with_part(parts, "rib_A_right", solid=sh_solid, blank=sh_blank, holes=sh_holes), fl)
+    case("rib_A_right built with REST_CB_DEPTH 1 mm short (2.7: the head and washer 0.8 mm proud)", "CHECK16 rib_A_right: ... is 2.70 mm deep", fl, "CHECK16 rib_A_right", "is 2.70 mm deep")
+
     # 10c4. revision 14a, item 3: the CPU hose guide is a comb on the left side fan's corner D. One M3 x 30 from the fan's outer face through the fan into an insert in the comb; both hoses in snap channels with
     # their mouths towards +X; the neck no longer carries it. The hoses cross the fan's open circle there, so the guide is held to a shadow, not to check 11's zero
     gd = part_named(parts, "hose_guide_cpu")
@@ -916,28 +1023,69 @@ def main():
     check("neck_left is neck_right mirrored: the same holes apart from the organic layer's pad (the left pad stands where neck_top_L is), now that the guide's pilot is gone",
           sorted(nl_mirror) == sorted(nr_) and abs(neck_l.solid.Volume() - neck_r.solid.Volume()) < 0.005 * neck_r.solid.Volume(), ("same holes mirrored, volumes within 0.5 %", f"{len(nl_mirror)} / {len(nr_)} holes; volumes {neck_l.solid.Volume():.0f} / {neck_r.solid.Volume():.0f}"))
 
+    # revision 14a review: the comb's clearance holds by construction. Each CPU hose's route shifted 1 mm either way in two directions across the hose (towards the board, and square to that and to the
+    # hose), the guide rebuilt for it: check 10 passes every time with the wall inside its window (it was 0.24 mm, 0.04 over the limit, and a 0.05 mm shift of hose 1 failed it)
+    chains0 = f.hoses.keepout_chains()
+    shifted_rows = []
+    for i_ in (0, 1):
+        _p, d_, _ = f.hose_at("cpu", i_, gg["u"][i_])
+        ex_ = np.array([1.0, 0.0, 0.0]) - d_[0] * d_
+        ex_ /= np.linalg.norm(ex_)
+        wy_ = np.cross(d_, ex_)
+        for tag_, v_ in (("+X", ex_), ("-X", -ex_), ("+w", wy_), ("-w", -wy_)):
+            moved_chains = dict(chains0, cpu_hoses=[[np.array(q_) + (v_ if k_ == i_ else 0.0) for q_ in line] for k_, line in enumerate(chains0["cpu_hoses"])])
+            saved_tubes = dict(f._TUBES)
+            f._TUBES.clear()
+            try:
+                with patched(f.hoses, "keepout_chains", lambda m=moved_chains: m):
+                    (s_g, h_g, b_g), _ = f.build_hose_guide_cpu()
+                    fl = []
+                    rows_g = f.check_guides([dataclasses.replace(gd, solid=s_g, blank=b_g, holes=h_g)], fl)
+            finally:
+                f._TUBES.clear()
+                f._TUBES.update(saved_tubes)
+            shifted_rows.append((i_, tag_, [round(r_[3], 3) for r_ in rows_g], fl, len(s_g.Solids())))
+    check("each CPU hose's route shifted 1 mm in four directions across the hose (8 rebuilds): check 10 passes, the wall stays 0.2..0.5 mm from both true hoses, the guide stays one solid",
+          len(shifted_rows) == 8 and all(not fl_ and len(w_) == 2 and all(f.GUIDE_WALL_MIN <= x_ <= f.GUIDE_WALL_MAX for x_ in w_) and n_ == 1 for _i, _t, w_, fl_, n_ in shifted_rows),
+          ("8 x no failure, walls 0.2..0.5, one solid", "; ".join(f"hose {i_} {t_}: walls {w_}, {len(fl_)} failures {fl_[:1]}, {n_} solid(s)" for i_, t_, w_, fl_, n_ in shifted_rows)))
+    check("the comb's channels are placed from the route: the line from corner D's screw axis runs to the point of the nearer hose's chain nearest to it (no literal u), and both walls are the play, 0.30 mm",
+          not hasattr(f, "GUIDE_CPU_U1") and abs(gg["s"][1] - f.chain_nearest_yz([np.array(q_) for q_ in chains0["cpu_hoses"][1]], gg["axis"])[1]) < 1e-9
+          and all(abs(r_[3] - f.GUIDE_PLAY) < 0.005 for r_ in base["guides"] if r_[0] == "hose_guide_cpu"),
+          ("hose 1's channel at the nearest point, walls 0.30", f"s {gg['s'][1]:.2f} mm, u {gg['u'][1]:.1f}; walls {[round(r_[3], 3) for r_ in base['guides'] if r_[0] == 'hose_guide_cpu']}"))
+
     # 10d. skeleton pass 1: the sill's cable window, and the insert pilots of the organic layer's twelve pads
     import numpy as np
     import organic_frame as of
     import cables
     g = f.sill_geometry()
     wx0, wx1, wz0, wz1 = g["window_xz"]
-    io = hw.FRONT_IO_W
     ym = g["y_rear"] - f.SILL_REAR_WALL / 2                                       # the middle of the rear wall
-    # revision 14a: the strip under the window is probed 1 mm behind the pocket's rear plane and 0.5 mm under the window's lower edge: the rear bottom edge is rounded (R 6), and lower down (Z under 12.9) the
-    # rounding leaves less than 2 mm between it and the pocket's rear plane, which moved 2.1 mm forward (it was 0.9 mm tall, Z under 10.9, before)
-    centre, wall_under = (cq.Vector((wx0 + wx1) / 2, ym, (wz0 + wz1) / 2), cq.Vector((wx0 + wx1) / 2, g["pocket_rear"] + 1.0, io[4] + f.SILL_WINDOW_Z_LOW - 0.5))
-    check("the sill's rear wall has the cable window and keeps the strip under it", not sill.solid.isInside(centre) and sill.solid.isInside(wall_under)
-          and (wx0, wx1, wz0, wz1) == (40.0, 90.0, 14.0, 46.0),
-          ("window X 40..90, Z 14..46 (offsets from hw.FRONT_IO_W): empty in the middle, wall below it", f"X {wx0:g}..{wx1:g}, Z {wz0:g}..{wz1:g}; middle empty {not sill.solid.isInside(centre)}, strip under it solid {sill.solid.isInside(wall_under)}"))
-    old_io = hw.FRONT_IO_W
-    hw.FRONT_IO_W = (old_io[0] + 10.0, old_io[1] + 10.0) + old_io[2:]
-    try:
-        moved_xz = f.sill_geometry()["window_xz"]
-    finally:
-        hw.FRONT_IO_W = old_io
-    check("the window follows the module: FRONT_IO_W moved 10 mm in X moves it 10 mm", all(abs(a - b - 10.0) < 1e-9 for a, b in zip(moved_xz[:2], (wx0, wx1))) and moved_xz[2:] == (wz0, wz1),
-          (f"X {wx0 + 10:g}..{wx1 + 10:g}, Z unchanged", f"X {moved_xz[0]:g}..{moved_xz[1]:g}, Z {moved_xz[2]:g}..{moved_xz[3]:g}"))
+    # revision 14a review: the rear bottom edge stays sharp, so the strip under the window is probed in the middle of the rear wall again, and at low Z: from just over the pocket's floor to just under
+    # the window, at both ends of the window and in its middle (revision 14a had moved the probe 1 mm behind the pocket's plane, onto material the R 6 rounding had left)
+    centre = cq.Vector((wx0 + wx1) / 2, ym, (wz0 + wz1) / 2)
+    strip = [cq.Vector(x_, ym, z_) for x_ in (wx0 + 1.0, (wx0 + wx1) / 2, wx1 - 1.0) for z_ in (g["z0"] + 0.2, g["z0"] + 1.0, (g["z0"] + wz0) / 2, wz0 - 0.5)]
+    solid_strip = [q_ for q_ in strip if sill.solid.isInside(q_)]
+    check("the sill's rear wall has the cable window and keeps the strip under it down to the pocket's floor, probed in the middle of the wall", not sill.solid.isInside(centre) and len(solid_strip) == len(strip)
+          and (wx0, wx1, wz0, wz1) == f.SILL_WINDOW_X + f.SILL_WINDOW_Z == (40.0, 90.0, 14.0, 46.0),
+          ("window X 40..90, Z 14..46 (the sill's own numbers): empty in the middle, 12 points of the strip under it solid (Y = the wall's middle, Z 10.2..13.5)",
+           f"X {wx0:g}..{wx1:g}, Z {wz0:g}..{wz1:g}; middle empty {not sill.solid.isInside(centre)}, strip {len(solid_strip)} of {len(strip)} solid"))
+    # the window must let the module's cables through: each front USB route crosses the rear wall's middle plane inside the window, its radius and the cables' 3 mm clear of the window's edges
+    routes = cables.build_routes()
+    through = {}
+    for n_ in ("usb3", "usbc"):
+        rt_ = routes[n_]
+        k_ = next(k for k in range(len(rt_.pts) - 1) if (rt_.pts[k][1] - ym) * (rt_.pts[k + 1][1] - ym) <= 0)
+        a_, b_ = rt_.pts[k_], rt_.pts[k_ + 1]
+        q_ = a_ + (ym - a_[1]) / (b_[1] - a_[1]) * (b_ - a_)
+        m_ = rt_.r + cables.CLEAR_MM
+        through[n_] = (round(float(q_[0]), 1), round(float(q_[2]), 1), wx0 + m_ <= q_[0] <= wx1 - m_ and wz0 + m_ <= q_[2] <= wz1 - m_)
+    check("the front USB cables pass through the window: each crosses the rear wall's middle plane inside it, radius + 3 mm from its edges", all(v_[2] for v_ in through.values()),
+          ("both inside X 40..90, Z 14..46 less r + 3", f"{through}"))
+    short_ = hw.FRONT_IO_W[:1] + (f.SILL_WINDOW_X[1] - 5.0,) + hw.FRONT_IO_W[2:]          # a module 10 mm shorter on the right: its rear face ends 5 mm short of the window's right edge
+    fl = []
+    f.check_carrier(parts, dict(hardware, front_io=hw.wbox(*short_)), fl)
+    case("a module whose rear face does not cover the window (10 mm shorter on the right, X -70..85): its cables could not reach all of it", "CHECK20 the sill's cable window ... is not behind the module's rear face",
+         fl, "CHECK20 the sill's cable window", "is not behind the module's rear face")
     filled = sill.solid.fuse(g["cuts"]["window"].intersect(f.Poly(g["pts"]).solid(-f.SILL_HALF_X, f.SILL_HALF_X))).clean()     # the sill as it was without the window
     parts_nowin = with_part(parts, "front_sill", solid=filled)
     routes = cables.build_routes()
@@ -948,6 +1096,23 @@ def main():
     routes = cables.build_routes()
     ov = cables.evaluate(routes, parts, hardware)
     check("with the window every cable check passes", not cables.failures(routes, ov), ("0 failed cable checks", f"{len(cables.failures(routes, ov))}: {'; '.join(t for _c, t in cables.failures(routes, ov)[:2])}"))
+
+    # 10d2. revision 14a review, check 22: the sill's rear wall behind the pocket keeps 2 mm from the pocket's floor to its roof and over its length; the rear bottom edge stays sharp (a logged exception)
+    sw_ = base["sill_wall"]
+    logged_ = [e for e in f.ROUND_LOG if e.part == "front_sill" and e.radius == 0 and e.reason == f.SILL_REAR_EDGE_SHARP and abs(e.pt[1] - g["y_rear"]) < 0.01 and abs(e.pt[2] - g["z0"]) < 0.01]
+    check("check 22 on the undamaged model: the rear wall is 2.9 mm everywhere it is probed (more than 300 probes, the pocket's floor included), the sharp rear bottom edge is in the rounding log with its reason",
+          sw_ and abs(sw_["min"][0] - f.SILL_REAR_WALL) < 0.01 and sw_["n"] > 300 and abs(sw_["min"][2] - g["z0"]) < 0.5 and len(logged_) == 1 and not [x for x in base["failures"] if x.startswith("CHECK22")],
+          ("min 2.90 mm over > 300 probes, one log entry", f"min {sw_['min'] if sw_ else None}, {sw_.get('n') if sw_ else 0} probes, {len(logged_)} log entries"))
+    yb_, zb_ = g["y_rear"], g["z0"]
+    wedge_ = hw.wbox(-f.SILL_HALF_X - 1.0, f.SILL_HALF_X + 1.0, yb_ - f.ROUND_CONVEX, yb_ + 1.0, zb_ - 1.0, zb_ + f.ROUND_CONVEX).cut(
+        f.cyl((-f.SILL_HALF_X - 2.0, yb_ - f.ROUND_CONVEX, zb_ + f.ROUND_CONVEX), (1.0, 0.0, 0.0), 2 * f.ROUND_CONVEX, 2 * f.SILL_HALF_X + 4.0))
+    fl = []
+    f.check_sill_rear_wall(with_part(parts, "front_sill", solid=sill.solid.cut(wedge_)), fl)
+    case("front_sill with its rear bottom edge rounded R 6 again (as revision 14a had it)", "CHECK22 the sill's rear wall behind the pocket is 0.00 mm thick at ..., needs 2", fl, "CHECK22 the sill's rear wall", "needs 2")
+    deeper_pocket = hw.wbox(f.CARRIER_X[0] - f.SILL_POCKET_PLAY, f.CARRIER_X[1] + f.SILL_POCKET_PLAY, g["pocket_rear"] - 1.0, g["pocket_rear"] + 1.0, zb_ - 1.0, g["roof"])
+    fl = []
+    f.check_sill_rear_wall(with_part(parts, "front_sill", solid=sill.solid.cut(deeper_pocket)), fl)
+    case("front_sill with its pocket 1 mm deeper (the rear wall thinned to 1.9 mm)", "CHECK22 the sill's rear wall behind the pocket is 1.90 mm thick ..., needs 2", fl, "CHECK22 the sill's rear wall", "is 1.90 mm", "needs 2")
 
     pads = list(hw.ORGANIC_PADS.items())
     check("twelve pads, six a side, each with an M3 pilot in its part: derived from the solids", len(pads) == 12 and base["mounts"]["organic"] == 12 and f.EXPECTED_MOUNTS["organic"] == 12
@@ -1383,8 +1548,8 @@ def main():
     pads = [h_ for p_ in parts for h_ in p_.holes if h_.pilot and h_.item == "organic pad"]
     check("the organic layer's 12 pads each have an M3 pilot and a stack of the pad's height, so M3 x 10", len(pads) == 12 and all(h_.stack == hw.ORGANIC_PAD_H for h_ in pads) and f.screw_fit(hw.ORGANIC_PAD_H)[0] == 10,
           ("12 pilots, stack 5, M3 x 10", f"{len(pads)} pilots, stack {sorted({h_.stack for h_ in pads})}, M3 x {f.screw_fit(hw.ORGANIC_PAD_H)[0]}"))
-    check("no M4 or M5 anywhere: the hole kinds are M3, M3c, 6-32c, M3r, 6-32cb and the hardware has no M4 constant",
-          {h_.kind for p_ in parts for h_ in p_.holes} <= {"M3", "M3c", "6-32c", "M3r", "6-32cb"} and not any("M4" in k_ or "M5" in k_ for k_ in vars(hw)) and set(hw.INSERTS) == {"M3"},
+    check("no M4 or M5 anywhere: the hole kinds are M3, M3c, 6-32c, M3r, 6-32cb, M3cb and the hardware has no M4 constant",
+          {h_.kind for p_ in parts for h_ in p_.holes} <= {"M3", "M3c", "6-32c", "M3r", "6-32cb", "M3cb"} and not any("M4" in k_ or "M5" in k_ for k_ in vars(hw)) and set(hw.INSERTS) == {"M3"},
           ("only M3 kinds", f"{sorted({h_.kind for p_ in parts for h_ in p_.holes})}, inserts {sorted(hw.INSERTS)}"))
 
     # last: the undamaged model, once more with nothing remembered

@@ -219,16 +219,18 @@ FRONT_IO_LED_SLIT_BEYOND = 43.0                         # the power-LED slit run
 # the direction out of the module into the holder. Thread, positions, and whether the module has ears at all are not known.
 FRONT_IO_SCREWS = (((-70.0, 21.0, 28.0), (-1.0, 0.0, 0.0)), ((95.0, 21.0, 28.0), (1.0, 0.0, 0.0)))
 FRONT_IO_SCREW_KIND = "M3"                              # key of INSERTS
-FRONT_IO_N_MAX = max(bs_of(x, y, z)[2] for x in FRONT_IO_W[:2] for y in FRONT_IO_W[2:4] for z in FRONT_IO_W[4:])   # the module's highest point along the board's normal
 
 # PLACEHOLDER position: the light line, a reserved channel for an LED strip and its diffuser along the upper edge of the sill's face, over the
 # whole width. 14 x 14 mm in section, aligned with the board (u along the face, n out of it), behind the module's top face and clear of the
-# module in u. The sill is designed around the module, so this moves with it.
+# module in u. Its outer face along n is where the placeholder module's front top edge was when the line was placed (Y 0, Z 46: the module's
+# highest point along the board's normal). Since the review of revision 14a it no longer follows FRONT_IO_W: the module sits in a carrier and may
+# change inside it (frame_v0.py, check 20) without moving the strip, and so without changing the sill, whose light channel is drawn round the strip.
 LIGHT_STRIP_X = (-135.0, 135.0)
 LIGHT_STRIP_SECTION = (14.0, 14.0)                      # (along u, along n)
 LIGHT_STRIP_U0 = -9.0
+LIGHT_STRIP_N1 = bs_of(0.0, 0.0, 46.0)[2]               # the strip's outer face along n: the placeholder module's front top edge (world Y 0, Z 46) of revision 9
 LIGHT_STRIP_BS = (x_to_v(LIGHT_STRIP_X[0]), x_to_v(LIGHT_STRIP_X[1]), LIGHT_STRIP_U0, LIGHT_STRIP_U0 + LIGHT_STRIP_SECTION[0],
-                  FRONT_IO_N_MAX - LIGHT_STRIP_SECTION[1], FRONT_IO_N_MAX)
+                  LIGHT_STRIP_N1 - LIGHT_STRIP_SECTION[1], LIGHT_STRIP_N1)
 # The intended build-up (owner's translucent PLA; not geometry yet): the strip is up to 12 mm wide and sits on the sill (ABS), never on the
 # diffuser (PLA); at least 10 mm from the LEDs to the diffuser, which is 1.6 mm thick and shows as a 4 mm line. The channel stays open at both
 # ends so it breathes: a full-white strip in a closed 14 x 14 channel can pass 50 deg C, PLA softens at 55..60.

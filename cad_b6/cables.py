@@ -239,13 +239,17 @@ USB3_HOOK = dict(n1=29.0, n2=46.0, v_up=283.5, n_top=70.0)  # search: the same f
 EPS_RUN_N = {"eps1": 65.0, "eps2": 59.5}   # search: level of the run over the board: over the DIMMs (n 45) + 3 + r 6 = 54
 EPS_END_U = 300.0                          # u of the last leg: 4 mm from the DIMM box (u 290) and from the 420's core face (u 310) with r 6
 # Front I/O
-# The two USB cables leave the module's rear face (Y FRONT_IO_W[3]) and pass the sill through its cable window (frame_v0.sill_geometry()["window_xz"], which follows
-# the module): X at these offsets from the window's left edge (the plan's 60 and, so that the two do not start together, 70 with the module as it is now), Z in
-# the window's middle. Before the window the start lay behind the sill (Y 54) and the cable passed the board's bottom edge 1.93 mm and the sill's rear face 2.65 mm
-# away, because the 12.6 mm between them is less than 8 + 2 x 3; through the window the cable no longer has the sill beside it there.
+# The two USB cables leave the module's rear face (Y FRONT_IO_W[3], read when the routes are built) and pass the sill through its cable window (frame_v0.sill_geometry()["window_xz"],
+# the sill's own since the review of revision 14a, inside the rear face of every module the carrier admits; check 20 holds that): X at these offsets from the window's left edge
+# (the plan's 60 and, so that the two do not start together, 70), Z in the window's middle. Before the window the start lay behind the sill (Y 54) and the cable passed the board's
+# bottom edge 1.93 mm and the sill's rear face 2.65 mm away, because the 12.6 mm between them is less than 8 + 2 x 3; through the window the cable no longer has the sill beside it there.
 USB_WINDOW_X = {"usb3": 20.0, "usbc": 30.0}
-_WX0, _WX1, _WZ0, _WZ1 = frame_v0.sill_geometry()["window_xz"]
-USB_START_W = {n: (_WX0 + dx, hw.FRONT_IO_W[3], (_WZ0 + _WZ1) / 2) for n, dx in USB_WINDOW_X.items()}
+
+
+def usb_start(name):
+    """World start of a front USB cable: on the module's rear face as hardware.py has it now, in front of the sill's window."""
+    wx0, _wx1, wz0, wz1 = frame_v0.sill_geometry()["window_xz"]
+    return (wx0 + USB_WINDOW_X[name], hw.FRONT_IO_W[3], (wz0 + wz1) / 2)
 U_EDGE = -9.5                              # search: u at which a USB cable passes the board's bottom edge
 USB_DIVE_U = -4.5                          # search: u at which a USB cable has dived under the board at the lane level
 USBC_RISER = dict(v=249.5, u=84.0)         # search: USB-C goes up the gap here, 3 mm + r 4 from the board's edge, and its U-turn stays off gpu_rest (u 75.6) by 3 mm
@@ -297,16 +301,16 @@ def waypoints_all():
         R[name] = [Sec("round", pts, name)]
     # --- USB 3: under the bottom edge, diagonal under the board to the gap, up, hook, down into JUSB3
     hv, hu = header("usb3")
-    c, v0 = GAP_U["usb3"], hw.x_to_v(USB_START_W["usb3"][0])
+    c, v0 = GAP_U["usb3"], hw.x_to_v(usb_start("usb3")[0])
     h = USB3_HOOK
-    pts = [np.array(USB_START_W["usb3"]), B(v0, U_EDGE, -3.0), B(v0, USB_DIVE_U, LANE_N["usb3"]), B(V_GAP, c, LANE_N["usb3"])] \
+    pts = [np.array(usb_start("usb3")), B(v0, U_EDGE, -3.0), B(v0, USB_DIVE_U, LANE_N["usb3"]), B(V_GAP, c, LANE_N["usb3"])] \
         + hook(V_GAP, h["v_up"], c, h["n1"], h["n2"], h["n_top"], hv, top)
     R["usb3"] = [Sec("round", pts, "usb3")]
     # --- USB-C: under the bottom edge, up the gap at u 83, in the board's plane (n 4) a U-turn over the rail, into the lying plug along -v
     hv, hu = header("usbc")
-    v0, rs, ut, pn = hw.x_to_v(USB_START_W["usbc"][0]), USBC_RISER, USBC_U_TURN, USBC_N["plane"]
+    v0, rs, ut, pn = hw.x_to_v(usb_start("usbc")[0]), USBC_RISER, USBC_U_TURN, USBC_N["plane"]
     edge = hw.BOARD_BS[1]
-    pts = [np.array(USB_START_W["usbc"]), B(v0, U_EDGE, -3.0), B(v0, USB_DIVE_U, USBC_N["lane"]), B(rs["v"], rs["u"], USBC_N["lane"]),
+    pts = [np.array(usb_start("usbc")), B(v0, U_EDGE, -3.0), B(v0, USB_DIVE_U, USBC_N["lane"]), B(rs["v"], rs["u"], USBC_N["lane"]),
            B(rs["v"], rs["u"], pn), B(ut["v"], rs["u"], pn), B(ut["v"], ut["u_end"], pn), B(ut["v_exit"], hu, pn), B(edge, hu, pn)]
     R["usbc"] = [Sec("round", pts, "usbc")]
     # --- the front cables that stay in front of the board
@@ -509,7 +513,7 @@ def skeleton_section(routes):
     wx0, wx1, wz0, wz1 = frame_v0.sill_geometry()["window_xz"]
     ys = frame_v0.sill_geometry()["y_rear"]
     out.append(f"1. The sill's cable window: BUILT (frame_v0.py, front_sill). PLACEHOLDER like the module: X {wx0:g}..{wx1:g}, Z {wz0:g}..{wz1:g} through the rear wall (Y {ys - frame_v0.SILL_REAR_WALL:g}..{ys:g}), "
-               f"corners R {frame_v0.SILL_WINDOW_R:g}, given as offsets from hw.FRONT_IO_W. The USB cables start on the module's rear face (Y {hw.FRONT_IO_W[3]:g}) and pass through it:")
+               f"corners R {frame_v0.SILL_WINDOW_R:g}, the sill's own numbers (inside the rear face of every module the carrier admits; check 20). The USB cables start on the module's rear face (Y {hw.FRONT_IO_W[3]:g}) and pass through it:")
     for n in ("usb3", "usbc"):
         rt = routes[n]
         p = rt.pts[0]
