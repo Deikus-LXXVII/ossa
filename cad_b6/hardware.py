@@ -383,6 +383,7 @@ M3_SCREW_STOCK = {4: 55, 5: 55, 6: 105, 8: 105, 10: 105, 12: 105, 14: 30, 16: 80
 M3_WASHER_STOCK = 380                       # flat washers (80 + 300)
 M3_INSERT_STOCK = 220                       # 20 on hand at most + 200 ordered (owner's word, 16 Nov 2026)
 STOCK_SHARE = 0.8                           # a model may use at most this share of the stock of any length and of the inserts, a fifth stays spare
+ABS_STOCK_G = 2 * 1000.0                    # g of black ABS on hand: two spools of 1 kg (docs/printer-and-materials.md, "Stock and order of printing", owner 16 Nov 2026); check_budgets.py holds the skeleton to 90 % of it
 ORGANIC_PAD_H = 5.0                         # the organic layer's pad under each screw head, thick along the screw
 # Hardware screws that stay: 6-32 for the PSU, the radiators and a 3.5 inch drive, M3 for the board and a 2.5 inch drive. Their head and length under the head.
 UNC6_HEAD_D, UNC6_HEAD_H = 6.7, 2.5         # ASSUMPTION: a pan head, the figure DRIVE_FORMS uses for the 3.5 inch drive's screw

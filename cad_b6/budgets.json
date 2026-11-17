@@ -1,0 +1,29 @@
+{
+ "about": "Budgets held by cad_b6/check_budgets.py. 'figure' is the recorded present figure; a run fails when it grows past figure x (1 + margin). Lower a figure only with check_budgets.py --write, in a commit of its own.",
+ "skeleton_abs_g": {
+  "figure": 1731.5,
+  "margin": 0.02,
+  "what": "g of ABS at 4 walls / 20 % infill over every ABS part (frame_v0.mass_estimate); hard limit 90 % of hardware.ABS_STOCK_G"
+ },
+ "organic_cm3": {
+  "figure": 1741.7,
+  "margin": 0.02,
+  "petg_stock_g": 4000.0,
+  "what": "cm3 of the organic layer (voxels with d < 0 in out/organic/field.npz); hard limit: solid PETG (organic_frame.LAYER_RHO) at most 90 % of petg_stock_g, the 4 kg ordered on 16 Nov 2026 (docs/printer-and-materials.md, 'Stock and order of printing')"
+ },
+ "suite": {
+  "counts": {
+   "frame_builds": 9,
+   "run_checks": 122,
+   "cable_routings": 12,
+   "cable_evaluations": 6,
+   "zone_access_runs": 8,
+   "drive_access_maps": 2
+  },
+  "count_margin": 0.1,
+  "wall_s": 315.5,
+  "wall_margin": 0.25,
+  "what": "the fast test_checks.py (out/test_checks/fast.json): counts of expensive operations gate, the wall time only warns",
+  "recorded_from": "fast run of 2026-11-17 12:02:38, 6 workers"
+ }
+}

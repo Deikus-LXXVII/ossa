@@ -36,6 +36,29 @@ Run both after `frame_v0.py`. Neither needs a view, and they can run side by sid
 
 `parts_manifest.py` compares the working tree with `cad_b6/parts_manifest.json` in the last commit. Take the list from the spec (`tie_bridge_*` and `hw:<name>` work). Quote its table in the report. Rewrite the manifest with `--write` only in the commit that carries the revision, after the table has been read. A property that fails is a finding: do not weaken it.
 
+## The checks bite: test_checks.py
+
+```bash
+.venv/bin/python cad_b6/test_checks.py                    # ~5 min (309 and 316 s idle, 330 to 340 s under load; 6 workers): the sections in worker processes; ends "286/286 cases as expected"
+.venv/bin/python cad_b6/test_checks.py --serial           # ~32 min (1943 s, partly under load; the suite before the sections took 3396 s under load): everything in one process, as before the sections
+.venv/bin/python cad_b6/test_checks.py --diff out/test_checks/serial.json out/test_checks/fast.json      # the two case lists must be IDENTICAL
+```
+
+The cases sit in sections (`@section`). Each section needs only the prelude (the hardware, the frame built twice, the undamaged model's checks with an empty memo), so a worker runs the prelude once and then takes sections, longest first by the last run's times. The output comes in the sections' order whatever order they finished in; a section that raises, or a worker that dies, fails the run. The default worker count is the cores less one, held to half the machine's memory at the last run's mean peak per worker; `--workers N` sets it. Measured with 6 workers: about 0.85 GB for a worker that runs no zone_access section, 2.8 to 4.1 GB for one that does, 10.5 to 12.5 GB together; each worker drops its section's memo entries when the section ends. The serial run peaks at 4.0 GB.
+
+Each run writes `out/test_checks/<fast|serial>.json`: every case (name, verdict, expected, reported), the wall time, each section's time and the counts of the expensive operations (frame builds, `run_checks` calls, cable routings and evaluations, zone_access runs, drive_access maps). After a change to the runner or to how sections are cut, run both modes and `--diff` them: same count, same order, same texts. A new case goes into an existing section or a new `@section` function that takes `(hardware, parts, base)` and looks up what it needs itself; it must not read anything another section left behind.
+
+Bounding boxes: read them with `frame_v0.exact_box` or `bbox_of` (the same, cached), never `BoundingBox()`. cadquery's box takes a face's mesh when the face has one, and any tessellation (check 21's shadow, the voxel grids, a render) leaves a mesh on faces that every moved or rebuilt copy shares, so the answer depended on what ran before.
+
+## Budgets: check_budgets.py
+
+```bash
+.venv/bin/python cad_b6/check_budgets.py          # ~20 s (builds the frame once): one line per budget, PASS / FAIL / WARN, exit 1 on a FAIL
+.venv/bin/python cad_b6/test_budgets.py           # ~5 s: each budget exceeded fails, inside its margin passes, a missing input fails
+```
+
+It reads `out/test_checks/fast.json` (run the fast suite first) and `out/organic/field.npz`. Gates: the skeleton's ABS at 4 walls / 20 % (recorded figure + 2 %, and 90 % of `hw.ABS_STOCK_G`), the organic layer's volume (+ 2 %, and its solid PETG at 90 % of the 4 kg ordered), the suite's counts of expensive operations (+ 10 %). Warning only: the suite's wall time (+ 25 %), because it is noisy. Lower a budget with `--write` in a commit of its own after a figure improved; never meet one by removing a check. A budget that has to rise is the owner's call.
+
 ## Drive
 
 1. **Measure.** `cad_b6/measure.py` prints AABBs, minimum distance and overlap volume for named parts and hardware. Names come from running it with no arguments. Hardware names carry the `hw:` prefix.
