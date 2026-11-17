@@ -566,3 +566,14 @@ Where this list and the spec above disagree, this list holds. Revision 14a is fi
 3. **Stiffness.** No push of 30 N may move the layer more than 5 mm (step 1 of `organic_strength.py`; today the left ring's lower front corner moves 9.6 mm). Hold that corner without entering the prism in front of the outputs or either zone. If 5 mm cannot be reached, report the best and what stands in the way. Add the largest movement to the strength report's headline.
 4. **Tests.** The hand's blocking wall is no larger than the region it closes (a plate across the slot under the fan, inside the fan's footprint), and one case blocks only the plug-face goal. A case with an empty goal expects the failure. A case for the bitten ring. Cases removed with the "any side" reading are named in the report.
 5. **Small things from the review:** the bundle's bisection reports the true widest value up to its limit; the ring's X is printed with a decimal.
+
+### Revision 14b, second pass: result (17 Nov 2026)
+
+Built by an Opus child (`688cf3b`), finished and rerun by the main session, re-checked by Grok, fixed (`cf3927a`), regenerated on the merged tree (`65734ac`).
+
+- **Layer:** 1742 cm³, one piece, 12 pads. Both rings closed, mirrored, 12 mm off their fans. The left base bone is closed again, both base bones and the rear window films are back. No film under either fan. A new strut, `ring_tie_L3`, holds the left ring's lower front corner.
+- **Zones:** nothing of the layer in `io_zone`, `gpu_out_zone` or the prism in front of the card's outputs. With the layer a bundle of 52 mm gets out from the board's connectors and 56 mm from the card's outputs (40 mm asked).
+- **Hand:** a ball has to stand in front of the plug face of `io_zone`, coming in through the left flank (the grid's front, rear and top margins are closed). 50 mm without the layer, 44 mm with it. Recorded as a budget, `HAND_BUDGET_D` = 44: the layer costs the hand 6 mm. Both the closed left ring and the left rear sweep stand in the 50 mm route; which of them sets the 6 mm has not been separated, so opening the rings is not known to give the 6 mm back. For the owner to confirm or change.
+- **Strength:** 0 of 320 pushes over 10 MPa, worst 6.5 MPa. Largest movement under 30 N 2.16 mm (limit 5 mm; the left ring's corner moved 9.6 mm after the first pass). `organic_strength.py` now exits 1 when either limit is passed.
+- **Tests:** `test_organic.py`, 26 cases.
+- **Still open for the layer:** the rear panel round the PSU (asked by the owner on 16 Nov 2026), the lumpy surface, the split into pieces that fit the 290 mm bed, a trial piece for the PETG against ABS print test.
