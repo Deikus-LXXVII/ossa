@@ -143,7 +143,7 @@ Source: ATX 2.03/2.2 figures, ATX12V Design Guide v2.0 Fig. 8, PCIe CEM, ruthex 
 - beam_top now spans u 288.45..308.45, which is past the end of rib_A's diagonal. Move its end bolts into rib_B's nose (reshape the nose locally if needed) so each has ≥ 2.1 mm wall; keep rib_A ≤ 290 mm. beam_top must stay clear of rad420 (expect about 4 mm).
 - Lap joints: use `M4S` inserts (depth 5.0) in the 8 mm halves. Thin plates (fan_rail_top, psu_bulkhead): keep the end bosses, use `M4` or `M4S` whichever keeps the wall.
 - gpu_post: u 84..146 so it stays out of `io_zone`.
-- Check 7: raise the minimum wall between holes, and between a hole and the part's outer surface, to the insert's min wall (2.1 mm for M4/M4S pilots, 1.6 mm for M3). Report every hole that fails rather than loosening the limit.
+- Check 7: raise the minimum wall between holes, and between a hole and the part's outer surface, to the insert's min wall (2.1 mm for M4/M4S pilots, 1.6 mm for M3). Report every hole that fails rather than loosening the limit. Revision 15a adds a distance test: 1.6 mm over the insert's zone, 1.2 mm below it and under the floor.
 - Remove `# PLACEHOLDER` only from values this revision replaces.
 
 ## Revision 2 — positions measured on the real board and parts list (14 Nov 2026)
@@ -343,7 +343,7 @@ This changes shape only. No part moves, no hole moves, no mating face changes.
 4. Also add an 8 mm fillet where a boss, ear, tongue or leg meets its plate, where that corner is free.
 
 ### Checks
-- All eleven checks and every `test_checks.py` case stay and pass. The wall rule around holes (check 7) now also has to hold against the rounded outline; if rounding brings an outline within the minimum wall of a hole, reduce that radius locally.
+- All eleven checks and every `test_checks.py` case stay and pass. The wall rule around holes (check 7) now also has to hold against the rounded outline; if rounding brings an outline within the minimum wall of a hole, reduce that radius locally. Revision 15a adds a distance test: 1.6 mm over the insert's zone, 1.2 mm below it and under the floor.
 - Add check 12: count sharp outline corners that remain on the plate parts (interior angle change above 30° with radius below 2 mm, outside the excluded faces) and list them by part. It reports; it fails only if a part that was meant to be rounded has none of its corners rounded.
 - Report the mass before and after, and every part where a corner was left sharp, with the reason.
 

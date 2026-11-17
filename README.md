@@ -22,7 +22,7 @@ The current layout is called B6.
 
 The case is 520.0 mm wide, 382.0 mm deep and 400.0 mm high. The skeleton itself stays inside |X| 229; the side-fan brackets reach the fans' inner face at |X| 235. Every printed part is 290 mm or shorter, to fit a 300 mm printer bed.
 
-The skeleton is 37 printed parts: 3224 cm³, 3356 g solid, ~1754 g at 4 walls and 20 % infill. The organic layer is a separate solid, counted in its own report. Revision 14a made the card's right-hand rest (`gpu_rest`) and the front I/O module's carrier (`front_io_carrier`) separate small parts, and put the CPU hose clip on the left fan's free corner.
+The skeleton is 37 printed parts: 3223 cm³, 3355 g solid, ~1755 g at 4 walls and 20 % infill. The organic layer is a separate solid, counted in its own report. Revision 14a made the card's right-hand rest (`gpu_rest`) and the front I/O module's carrier (`front_io_carrier`) separate small parts, and put the CPU hose clip on the left fan's free corner.
 
 | Component | Model |
 |---|---|
@@ -60,7 +60,13 @@ python3 -m venv .venv
 .venv/bin/pip install -r requirements.txt
 
 .venv/bin/python cad_b6/frame_v0.py      # build, run every check, write the report and STEP
-.venv/bin/python cad_b6/test_checks.py   # prove the checks bite
+.venv/bin/python cad_b6/test_checks.py   # worker processes, about 6 minutes; the record is out/test_checks/fast.json; prove the checks bite
+.venv/bin/python cad_b6/test_checks.py --serial  # the same suite in one process; the record is out/test_checks/serial.json
+.venv/bin/python cad_b6/test_checks.py --diff out/test_checks/serial.json out/test_checks/fast.json  # compare two runs: the case lists must be identical
+.venv/bin/python cad_b6/test_runner.py   # the runner on a fake suite: a dropped or emptied section, a short --diff, a file that moves during the run, and, in worker processes, a section that raises or a worker that dies, all fail
+.venv/bin/python cad_b6/test_budgets.py  # each budget fails when exceeded, when its input is missing, when a figure falls under its floor, and when the suite's record is of other code, other packages or another Python
+.venv/bin/python cad_b6/check_budgets.py # one line per budget of the skeleton's ABS, the organic layer and the suite's counts; exit 1 on a FAIL
+.venv/bin/python cad_b6/organic_trial.py # the boxed trial of the organic layer is one closed piece with its pad inside; writes out/organic/trial_base_mid_R.stl
 .venv/bin/python cad_b6/test_properties.py  # property tests of the helper functions; ends PASS (a known failure is listed, not hidden)
 .venv/bin/python cad_b6/test_organic.py  # the organic layer's checks fail when the field is damaged
 .venv/bin/python cad_b6/zone_access.py   # plug zones free; bundles 52 mm and 72 mm, and 52 mm and 56 mm with the layer; a hand, 50 mm without the layer and 44 mm with it
@@ -93,6 +99,8 @@ Run them from the repository root.
 11. The side fans keep a clear opening.
 12. Every corner left sharp has a stated reason.
 
+The owner's inserts are 4.0 mm long and 4.96 mm in outer diameter, the pilot is 4.4 mm wide and 6.7 mm deep, and each insert is set flush with the face (`docs/printer-and-materials.md`).
+
 A separate check keeps each contact face at 97 % of its area or more after rounding.
 
 ## Strength
@@ -113,10 +121,8 @@ A separate check keeps each contact face at 97 % of its area or more after round
 - The split of the layer into pieces that fit the 290 mm bed.
 - The print test of the layer in PETG against ABS: the trial piece exists (`cad_b6/organic_trial.py` writes `out/organic/trial_base_mid_R.stl`), it has not been printed.
 - The front I/O module's real dimensions.
-- The heat-set insert's real diameter and length.
+- The pilot's diameter of 4.4 mm is the maker's figure until the ladder C2 is tried with the owner's inserts.
 - The second pass of the fit gauges with the PC apart (G1, G2, G3, G4a, G4b) and the coupons C1 and C2.
-- The owner's decision on the hand's access against closed fan rings (`docs/plans/cables-and-organic.md`, "second pass: result").
-- A faster test suite and budgets (in work).
 - The Blender pictures (stale since revision 13).
 - Cable routes are drawn and checked, and eleven tie points for hook-and-loop straps shape them. The graphics card's power cable stands 10.4 mm in front of the front plane, which the owner accepted, up to 11 mm.
 
