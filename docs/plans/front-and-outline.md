@@ -6,7 +6,7 @@
 2. With `previews/b6_full_corners.png` marked up at the four corner arcs: "I meant to get rid of them or to make these arcs smaller, to minimise the bread-bin effect."
 3. After seeing the layer with the arcs left out: "Try to make the outlines of the organic design straighter: not the webs themselves, the parts that form the silhouette."
 
-The main session reads 3 as the answer to 2: the arcs stay as members, their lines become straight, the films between them stay as they are. The owner has seen both sketches below and has not yet said yes to either. **Nothing here is built until he does.**
+The main session reads 3 as the answer to 2: the arcs stay as members, their lines become straight, the films between them stay as they are. **Approved by the owner on 18 Nov 2026** ("Yes, I approve this design"), after photo-style renders of the front sketch with the fans in Noctua's colours (`docs/plans/sketches/pictures/render_proposed_*.png`, made by `docs/plans/sketches/render_blender_sketch.py` and `blender_noctua.py`).
 
 ## Sketches (main session, 18 Nov 2026; scripts and pictures under `docs/plans/sketches/`)
 
@@ -31,7 +31,9 @@ Pictures: `pictures/no_arcs_*.png`, `pictures/straight_*.png`, `pictures/front_*
 - The layer's generator has tubes, balls, flat discs for pads and carving boxes. It has no slab. `shell_concepts.tube` can flatten a tube along one axis (`squash`), which `Field.add` does not pass on today.
 - A straight front post from the old foot (Y 22) crosses the driver's path to the pad `sill_end_R`; the sketch starts it at Y 14. With the sill gone that pad goes too.
 
-## Decisions of the main session, for the owner to confirm
+## Decisions of the main session
+
+The first, second and fifth are what the approved renders show. The third and fourth (how the module is held) were put to the owner in words with the sketch; he did not object and has not said yes to them by name.
 
 | Decision | Why | The other way |
 |---|---|---|
