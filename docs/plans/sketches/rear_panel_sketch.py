@@ -21,14 +21,14 @@ import vtk
 OUT_PNG = sys.argv[1] if len(sys.argv) > 1 else "rear_panel_sketch.png"
 OUT_NPZ = sys.argv[2] if len(sys.argv) > 2 else None
 
-HALF_X = 132.0            # the frame's centre line: inside the posts' inner faces (142) by its radius and the gap to the skeleton
+HALF_X = 131.0            # the frame's centre line: inside the posts' inner faces (142) by its radius and the gap to the skeleton
 BAR_R = 6.5
-Y_LOW, Z_LOW = 392.0, 104.0       # the lower bar: behind a drive in the bay (its rear end Y 375, up to Z 150) by HOT_GAP and the bar's radius, over the bulkhead's top (Z 92)
+Y_LOW, Z_LOW = 384.0, 104.0       # the lower bar: over the bulkhead's top (Z 92), its rear in line with the layer's flanks (Y 385); a drive's body ends at Y 357.6 and stands up to Z 150
 Y_TOP, Z_TOP = 360.0, 250.0       # the upper bar: behind the posts' rear faces (Y 348), under the 420's fans (rear lower corner Y 338.6, Z 266.9)
 GAP_PIECE = 3.0                   # to the rest of the layer: two pieces that are put on separately
 PADS = [((s * 132.0, 381.0, z), (0.0, 1.0, 0.0)) for s in (1, -1) for z in (64.0, 25.0)]        # all four on the bulkhead's end blocks, rear face (the piece stays 285 mm wide)
-Y_GRID = 406.0                    # the layer's grid ends at Y 394; the panel stands behind that
-Y_FLAT = 401.0                    # nothing of the panel behind this plane: the knots round the screws get a flat rear face
+Y_GRID = 394.0                    # the layer's own grid: the panel fits in it
+Y_FLAT = 391.5                    # nothing of the panel behind this plane: the knots round the screws get a flat rear face
 N_STRANDS, LINKS, SEED = 9, 5, 17
 
 
@@ -63,16 +63,21 @@ def main():
         tie = np.array(corners[1 if q[0] > 0 else -1][0])
         mem.append(("ball", tuple(q + n * (of.KNOT_R - 4.0)), of.KNOT_R, 8.0))
         mem.append(("tube", [q + n * (of.PAD_H * 0.6), (q + n * of.PAD_H + tie) / 2 + n * 3.0, tie], of.bone(8.0, 7.0, 8.0), 8.0))
-        if q[2] > 40:      # a brace from the upper pad inwards and up to the lower bar: the legs carry the whole panel
-            brace = np.array([np.sign(q[0]) * 100.0, Y_LOW, Z_LOW + 1.0])
-            mem.append(("tube", [q + n * (of.PAD_H * 0.6), (q + n * of.PAD_H + brace) / 2 + n * 2.0, brace], of.bone(7.5, 6.5, 7.5), 8.0))
+        if q[2] > 40:      # two more legs fan out from the upper pad inwards and up to the lower bar: over the bulkhead's top edge the panel is only as thick as the room behind the
+            for bx in (115.0, 100.0):      # bulkhead (Y 383 to Y_FLAT), so it is made wide there
+                brace = np.array([np.sign(q[0]) * bx, Y_LOW, Z_LOW + 1.0])
+                mem.append(("tube", [q + n * (of.PAD_H * 0.6), (q + n * of.PAD_H + brace) / 2 + n * 2.0, brace], of.bone(7.5, 7.0, 7.5), 8.0))
     for m in mem:
         F.add(m)
     for b in (hw.RAD360_BS, hw.RAD420_ENV_BS, hw.BOARD_BS):
         F.carve_bs_box(b, of.GAP_HW)
     F.carve_world_box(hw.PSU_W, of.HOT_GAP)
+    F.carve_bs_box(hw.GPU_BS, of.HOT_GAP)
+    for name in hw.FAN_SIDE_NAMES:
+        F.carve_bs_box(hw.fan_side_bs(name), of.GAP_HW)
     for b in (hw.DIMMS_BS, hw.IO_ZONE_BS, hw.GPU_OUT_ZONE_BS, hw.ATX24_BS, hw.EPS_BS):
         F.carve_bs_box(b, of.GAP_KEEP)
+    F.carve_bs_box(of.OUT_PRISM_BS, of.OUT_PRISM_GAP)
     for name, (pair, spec) in hoses.routes().items():
         for h in pair:
             F.carve_polyline(h["pts"][::4], spec["r"] + of.GAP_HW + 1.0)
@@ -104,7 +109,8 @@ def main():
     idx = np.argwhere(F.d < 0)
     lo, hi = idx.min(axis=0), idx.max(axis=0)
     ext = [(float(c[a]), float(c[b])) for c, a, b in zip((F.xs, F.ys, F.zs), lo, hi)]
-    print("panel: %.1f cm3, %.0f g of PETG; X %.1f..%.1f (%.0f), Y %.1f..%.1f (%.0f), Z %.1f..%.1f (%.0f)" % (
+    ext = [(a - F.vox / 2, b + F.vox / 2) for a, b in ext]      # the surface stands up to half a voxel outside the last centre
+    print("panel: %.1f cm3, %.0f g of PETG; X %.2f..%.2f (%.1f), Y %.2f..%.2f (%.1f), Z %.2f..%.2f (%.1f)" % (
         sizes[big - 1], sizes[big - 1] * of.LAYER_RHO, *ext[0], ext[0][1] - ext[0][0], *ext[1], ext[1][1] - ext[1][0], *ext[2], ext[2][1] - ext[2][0]))
     for q, n in PADS:
         i = [int(round((q[k] + n[k] * of.PAD_H / 2 + 0.0 - c[0]) / F.vox)) for k, c in enumerate((F.xs, F.ys, F.zs))]
