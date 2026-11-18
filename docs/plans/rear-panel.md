@@ -16,7 +16,7 @@ Asked by the owner on 16 Nov 2026 ("an organic panel at the rear, where the PSU 
 
 ## Sketches (main session, 18 Nov 2026)
 
-`docs/plans/sketches/rear_panel_sketch.py` builds the panel in its own field on the layer's grid, carves it like the layer and draws it on the whole design: `previews/b6_rear_panel_sketch.png` (the panel in red so that it reads) and `previews/b6_rear_panel_sketch_dark.png` (as it will look). `docs/plans/sketches/rear_panel_access.py` runs `zone_access` and `drive_access` with the panel added.
+`docs/plans/sketches/rear_panel_sketch.py` builds the panel in its own field on the layer's grid, carves it like the layer and draws it on the whole design: `previews/b6_rear_panel_sketch.png` (the panel in red so that it reads) and `previews/b6_rear_panel_sketch_dark.png` (as it will look). `docs/plans/sketches/rear_panel_access.py` runs `zone_access` and `drive_access` with the panel added. Both pictures were removed once the panel was built (they showed the fourth sketch, which was not built); `previews/b6_full_corners.png` shows the panel as it is. The sketch scripts are kept as they were run and are not maintained: `rear_panel_sketch.py` would now add the top pads twice.
 
 1. Two pads on the bulkhead and two on the posts' rear faces: 320 mm wide (a pad on a post stands at X 150 and reaches X 158). It does not fit the bed. Its strands leaned over a drive's upper rear corner, 8.1 mm from it.
 2. Four pads on the bulkhead, the lower bar at Y 392: fits, but the case got 19 mm deeper. That depth came from a wrong reading: the main session took the bay's envelope (Y 375) for the drive's end, which is at Y 357.6.
