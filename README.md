@@ -22,7 +22,7 @@ The current layout is called B6.
 
 The case is 520.0 mm wide, 382.0 mm deep and 400.0 mm high. The skeleton itself stays inside |X| 229; the side-fan brackets reach the fans' inner face at |X| 235. Every printed part is 290 mm or shorter, to fit a 300 mm printer bed.
 
-The skeleton is 37 printed parts: 3223 cm³, 3355 g solid, ~1755 g at 4 walls and 20 % infill. The organic layer is a separate solid, counted in its own report. Revision 14a made the card's right-hand rest (`gpu_rest`) and the front I/O module's carrier (`front_io_carrier`) separate small parts, and put the CPU hose clip on the left fan's free corner. Revision 16 cut an open groove through the knee of `visor_arm_left` and `visor_arm_right` so the 360's screw at that end can pass its head.
+The skeleton is 37 printed parts: 3222 cm³, 3354 g solid, ~1756 g at 4 walls and 20 % infill, of which the ABS is 1732.9 g. The organic layer is two pieces, counted in its own report: 2044 cm³, 2596 g of PETG solid. Revision 14a made the card's right-hand rest (`gpu_rest`) and the front I/O module's carrier (`front_io_carrier`) separate small parts, and put the CPU hose clip on the left fan's free corner. Revision 16 cut an open groove through the knee of `visor_arm_left` and `visor_arm_right` so the 360's screw at that end can pass its head. Revision 17 adds the layer's second piece, the rear panel, on four pads, 321 mm wide, printed upright and turned 45 degrees, and taken off before a drive comes out.
 
 | Component | Model |
 |---|---|
@@ -39,11 +39,11 @@ The skeleton is 37 printed parts: 3223 cm³, 3355 g solid, ~1755 g at 4 walls an
 | `cad_b6/hardware.py` | The only place hardware dimensions and mounting coordinates live |
 | `cad_b6/frame_v0.py` | The skeleton, its checks, the report and the STEP export |
 | `cad_b6/rounding.py` | Rounds the skeleton's corners where the checks allow it |
-| `cad_b6/test_checks.py` | Damages the model on purpose to prove each check fails when it should (324 cases) |
+| `cad_b6/test_checks.py` | Damages the model on purpose to prove each check fails when it should (329 cases) |
 | `cad_b6/assembly_access.py`, `cad_b6/test_assembly.py` | Whether every screw can be driven, and one order of assembly: the 360 with its two arms is a bench group, and a part that only sits on another goes on after it (51 cases) |
 | `cad_b6/hoses.py`, `hose_routes.py` | Hose routes built from straight runs and constant-radius bends |
 | `cad_b6/strength.py` | Linear finite-element check of the skeleton, and plastic needed per infill |
-| `cad_b6/organic_frame.py`, `organic_strength.py` | The organic outer layer as one solid with its fixings, and its strength check |
+| `cad_b6/organic_frame.py`, `organic_strength.py`, `organic_manifest.py` | The organic outer layer as named pieces with their fixings, the strength check of each piece, and a fingerprint of each piece |
 | `cad_b6/cables.py` | Cable routes and their checks |
 | `cad_b6/fit_gauges.py` | Thin test plates that check the model's numbers against the real hardware |
 | `cad_b6/render_vtk.py`, `render_full.py`, `measure.py` | Offscreen renders (`render_full.py` draws the whole design from every side) and distance measurements |
@@ -61,7 +61,7 @@ python3 -m venv .venv
 .venv/bin/pip install -r requirements.txt
 
 .venv/bin/python cad_b6/frame_v0.py      # build, run every check, write the report and STEP
-.venv/bin/python cad_b6/test_checks.py   # 324 cases, worker processes, about 6 minutes; the record is out/test_checks/fast.json; prove the checks bite
+.venv/bin/python cad_b6/test_checks.py   # 329 cases, worker processes, about 6 minutes; the record is out/test_checks/fast.json; prove the checks bite
 .venv/bin/python cad_b6/test_checks.py --serial  # the same suite in one process; the record is out/test_checks/serial.json
 .venv/bin/python cad_b6/test_checks.py --diff out/test_checks/serial.json out/test_checks/fast.json  # compare two runs: the case lists must be identical
 .venv/bin/python cad_b6/test_runner.py   # the runner on a fake suite: a dropped or emptied section, a short --diff, a file that moves during the run, and, in worker processes, a section that raises or a worker that dies, all fail
@@ -69,14 +69,15 @@ python3 -m venv .venv
 .venv/bin/python cad_b6/check_budgets.py # one line per budget of the skeleton's ABS, the organic layer and the suite's counts; exit 1 on a FAIL
 .venv/bin/python cad_b6/organic_trial.py # the boxed trial of the organic layer is one closed piece with its pad inside; writes out/organic/trial_base_mid_R.stl
 .venv/bin/python cad_b6/test_properties.py  # property tests of the helper functions; ends PASS (a known failure is listed, not hidden)
-.venv/bin/python cad_b6/test_organic.py  # the organic layer's checks fail when the field is damaged
+.venv/bin/python cad_b6/test_organic.py  # 51 cases: the organic layer's checks fail when the field is damaged
 .venv/bin/python cad_b6/zone_access.py   # plug zones free; bundles 52 mm and 72 mm, and 52 mm and 56 mm with the layer; a hand, 50 mm without the layer and 44 mm with it
 .venv/bin/python cad_b6/assembly_access.py  # about 3 minutes: every screw against the assumed tools; the 360 with its two arms is a bench group, and a node in SITS_ON goes on after what it sits on; writes the order to out/assembly/order.md; exit 0 when that order drives every screw, exit 1 when a screw cannot be driven, no order exists, the order fails the same check, or a bench group or SITS_ON names a node that is not one (tests: cad_b6/test_assembly.py, 51 cases)
 .venv/bin/python cad_b6/parts_manifest.py --expect <parts>  # exit 1 names any part or hardware solid that changed outside the list
+.venv/bin/python cad_b6/organic_manifest.py --expect <pieces>  # exit 1 names any piece of the organic layer that changed outside the list
 .venv/bin/python cad_b6/render_vtk.py    # previews/b6_v0_*.png
 .venv/bin/python cad_b6/render_full.py   # previews/b6_full_*.png, the whole design
 .venv/bin/python cad_b6/render_blender.py # meshes for the Blender render (cad_b6/blender_scene.py, previews/b6_render_*.png)
-.venv/bin/python cad_b6/organic_strength.py  # a 30 N push on the layer; exits with an error if a push is over the allowable stress or the layer moves more than 5 mm
+.venv/bin/python cad_b6/organic_strength.py  # about 5 minutes: judges each piece; a 30 N push, and exits with an error if a push is over the allowable stress or the piece moves more than 5 mm
 .venv/bin/python cad_b6/strength.py 7 2  # strength and plastic, about 3.5 minutes on Apple silicon (Accelerate through the macldlt package)
 ```
 
@@ -118,9 +119,9 @@ A separate check keeps each contact face at 97 % of its area or more after round
 
 ## Not done yet
 
-- The rear panel of the organic layer round the PSU.
+- The rear panel's upright print is not tried.
 - The layer's lumpy surface.
-- The split of the layer into pieces that fit the 290 mm bed.
+- `main` is still not split into printable pieces.
 - The print test of the layer in PETG (ABS only if PETG prints badly): the trial piece exists (`cad_b6/organic_trial.py` writes `out/organic/trial_base_mid_R.stl`), it has not been printed.
 - The front I/O module's real dimensions.
 - The pilot's diameter of 4.4 mm is the maker's figure until the ladder C2 is tried with the owner's inserts. The ladder is printed in PETG first; its figure is confirmed on the first small ABS part.

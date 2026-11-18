@@ -27,19 +27,22 @@ About 20 s. It writes the report, STEP and legacy previews first, then asserts. 
 
 ## Differential and property checks
 
-Run both after `frame_v0.py`. Neither needs a view, and they can run side by side.
+Run these after `frame_v0.py`. None of them needs a view, and they can run side by side.
 
 ```bash
 .venv/bin/python cad_b6/test_properties.py      # ~20 s: property tests of the helper functions; ends PASS (a known failure is listed, not hidden)
 .venv/bin/python cad_b6/parts_manifest.py --expect <parts the revision's spec says it changes>      # ~20 s: exit 1 names any part or hardware solid that changed outside the list
+.venv/bin/python cad_b6/organic_manifest.py --expect <pieces>                                       # exit 1 names any piece of the organic layer that changed outside the list
 ```
 
-`parts_manifest.py` compares the working tree with `cad_b6/parts_manifest.json` in the last commit. Take the list from the spec (`tie_bridge_*` and `hw:<name>` work). Quote its table in the report. Rewrite the manifest with `--write` only in the commit that carries the revision, after the table has been read. A property that fails is a finding: do not weaken it.
+`parts_manifest.py` compares the working tree with `cad_b6/parts_manifest.json` in the last commit. Take the list from the spec (`tie_bridge_*` and `hw:<name>` work). Quote its table in the report. Rewrite the manifest with `--write` only in the commit that carries the revision, after the table has been read. A property that fails is a finding: do not weaken it. `organic_manifest.py --expect <pieces>` is to the layer what `parts_manifest.py` is to the skeleton.
+
+`cad_b6/test_organic.py` has 51 cases, 32 with `--quick`.
 
 ## The checks bite: test_checks.py
 
 ```bash
-.venv/bin/python cad_b6/test_checks.py                    # ~5 min (309 and 316 s idle, 319 to 340 s under load, 403 and 406 s under load in a fresh checkout with no earlier record to order the sections; 6 workers): the sections in worker processes; ends "N/N cases as expected", N being EXPECTED_CASES in test_checks.py (324 now); fewer cases is a failure
+.venv/bin/python cad_b6/test_checks.py                    # ~5 min (309 and 316 s idle, 319 to 340 s under load, 403 and 406 s under load in a fresh checkout with no earlier record to order the sections; 6 workers): the sections in worker processes; ends "N/N cases as expected", N being EXPECTED_CASES in test_checks.py (329 now); fewer cases is a failure
 .venv/bin/python cad_b6/test_checks.py --serial           # ~32 min (1943 s, partly under load; the suite before the sections took 3396 s under load): everything in one process, as before the sections
 .venv/bin/python cad_b6/test_checks.py --diff out/test_checks/serial.json out/test_checks/fast.json      # the two case lists must be IDENTICAL
 .venv/bin/python cad_b6/test_runner.py                    # ~15 s: the runner on a fake suite, both modes: a dropped or emptied section fails, --diff of two short runs fails, a file moved during the run fails; in worker processes a section that raises or a worker that dies fails, sections run longest first, sources and packages are the union over the processes

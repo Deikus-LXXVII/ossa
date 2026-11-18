@@ -168,7 +168,7 @@ Built by an Opus child, rerun in full by the main session (every script named in
 - **The top pads stand at Z 234,** not the 236 this plan gave: at 236 the pad's disc came 0.45 mm from the antler and the pad check asks 1 mm. Walls of the two new pilots in the posts: 5.8 mm, and 6.75 mm to the nearer tongue bolt of the antler. The bulkhead's two: 7.7 mm, 5.3 mm of floor, 12.0 mm to the end bolt.
 - **Access:** a drive in its seat 13.4 mm from the layer; with the panel off it comes out at 28°; with it on the seat is closed. Bundles 52 and 56 mm, the hand 44 mm: unchanged.
 - **Skeleton:** only `psu_bulkhead`, `rib_B_right` and `rib_B_left` changed (four M3 pilots). 23 checks pass; 108 inserts, 106 screws, 97 washers. `strength.py`'s judged case 2.87 MPa of 6.7, as before. `assembly_access.py` exit 0.
-- **Tests:** `test_checks.py` 329 of 329, `test_organic.py` 48 of 48 (now pinned), `test_assembly.py` 51 of 51.
+- **Tests:** `test_checks.py` 329 of 329, `test_organic.py` 48 of 48 (now pinned; 51 after the second review's fixes, below), `test_assembly.py` 51 of 51.
 - **Budget:** `check_budgets.py` fails on one line, as foreseen: the layer is 2044.0 cm³ against the ratchet of 1776.5 (2596 g of PETG of the 3600 allowed). Re-recorded by the main session in a commit of its own.
 
 ## Grok's two reviews of the build (18 Nov 2026) and what was changed
