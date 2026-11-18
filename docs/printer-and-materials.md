@@ -97,6 +97,12 @@ No test of this filament on a K1 or K1 Max was found, and SUNLU publishes no vol
 | Chamber | lid off or door open | K1 Max owners report heat-creep clogs with PETG in a closed chamber; curing it by editing the printer's configuration is not allowed here |
 | Drying | 60 to 65 °C; the time is not confirmed (6 to 8 h appears in search results only) | SUNLU |
 
+What the owner's first PETG prints showed (18 Nov 2026: the insert ladder, the scale coupon and the layer's trial piece):
+
+- **The parts came off the bed very badly.** The bed was neither cleaned nor coated with glue, which the owner takes for the cause. It agrees with the row above: glue stick as a release layer, on a clean plate, and let the plate cool before the part is taken off.
+- **Supports: tree supports come off well, flat (ordinary) supports badly.** The layer's pieces are printed with tree supports. This matters most for the rear panel, which stands upright with support under its bars and legs.
+- The photographs of the trial piece show solid, even sections of the round members, a clean M3 hole, a smooth glossy surface with no visible steps from the model's 1.5 mm grid, and one ragged seam about 30 mm long on a strand (a support's trace or a layer seam; not yet looked at closely). The photographs are not in the repository: a sheet with the owner's address is in the frame.
+
 For the organic layer's thin members (6 to 12 mm, up to 290 mm): dry the spool first; a minimum layer time matters more than a higher flow cap, because the next layer must not land on plastic the fan has already chilled; an open chamber cools the part too, so do not also raise the fan.
 
 ## Setting the heat-set inserts (17 Nov 2026)
