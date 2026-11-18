@@ -982,11 +982,12 @@ SILL_REAR_EDGE_SHARP = (f"the rear wall behind the pocket is {SILL_REAR_WALL:.1f
 
 
 def organic_pilots(name, mirrored=False):
-    """M3 insert pilots for the organic layer's pads on part `name` (hw.ORGANIC_PADS), along X into the part from the pad's centre on its outer face; the screw clamps the pad (hw.ORGANIC_PAD_H).
-    mirrored: the part is built right-handed and mirrored afterwards (the left ribs and neck), so the pilots go in its own coordinates."""
+    """M3 insert pilots for the organic layer's pads on part `name` (hw.ORGANIC_PADS), along minus the pad's normal into the part from the pad's centre on its face; the screw clamps
+    the pad (hw.ORGANIC_PAD_H). mirrored: the part is built right-handed and mirrored afterwards (the left ribs and neck), so the pilots go in its own coordinates: the centre's X
+    and the normal's X flip. (0.0 - c, not -c: a zero component stays +0.0, as the pilots of before revision 17 had it.)"""
     k = -1.0 if mirrored else 1.0
-    return [h for (part, (x, y, z), s) in hw.ORGANIC_PADS.values() if part == name
-            for h in joint_pilots((k * x, y, z), (-k * s, 0.0, 0.0), hw.ORGANIC_PAD_H, "organic pad")]
+    return [h for (part, (x, y, z), (nx, ny, nz), _piece) in hw.ORGANIC_PADS.values() if part == name
+            for h in joint_pilots((k * x, y, z), tuple(0.0 - c for c in (k * nx, ny, nz)), hw.ORGANIC_PAD_H, "organic pad")]
 
 
 # ---------------------------------------------------------------------------
@@ -1320,6 +1321,7 @@ def build_psu_bulkhead():
         for z in SLED_BOLT_Z:
             holes.append(clear_hole("M3c", (sgn * SLED_BOLT_X, hw.PSU_REAR_Y - OVERSHOOT, z), (0, 1, 0), BULK_T + 2 * OVERSHOOT))
     holes += end_pilot_holes("psu_bulkhead")
+    holes += organic_pilots("psu_bulkhead")          # revision 17: the rear panel's two hip pads, on the end blocks' rear face (its two top pads are on the rib B posts)
     desk = "the bottom face stands on the desk (a contact pad)"
     plate = round_box(plate, (lo, hi), 0, "psu_bulkhead", all_corners(-BULK_BLOCK_X, BULK_BLOCK_X, {(False, False): desk, (True, False): desk}),
                       rings=hole_rings(holes), rmax=BULK_R)      # between the end blocks; the blocks keep their sharp ends
@@ -1919,8 +1921,12 @@ def _build_frame():
                  f"assembly order: {SLED_ORDER}")
     fastener("drive sled flanges", "drive_sled_* -> psu_bulkhead", m3(BULK_T), len(hw.DRIVE_SIDES) * len(SLED_BOLT_Z),
              f"{len(SLED_BOLT_Z)} per sled along Y at X {', '.join(f'{sg * SLED_BOLT_X:g}' for sg in hw.DRIVE_SIDES.values())}, Z {SLED_BOLT_Z[0]:g} and {SLED_BOLT_Z[1]:g}: clearance holes through the bulkhead's flank, pilots in the flange; screws from behind (heads on the bulkhead's rear face)")
-    fastener("organic", "rib_A_L/R, rib_B_L/R, neck_L/R, front_sill", m3(hw.ORGANIC_PAD_H), len(hw.ORGANIC_PADS),
-             f"the organic layer's pads (hw.ORGANIC_PADS): 6 a side, one pilot each along X into the outer face, through a {hw.ORGANIC_PAD_H:g} mm pad; the screw and the pad are in organic_frame.py")
+    by_piece = {}
+    for (part, _q, _n, piece) in hw.ORGANIC_PADS.values():
+        by_piece.setdefault(piece, []).append(part)
+    fastener("organic", ", ".join(dict.fromkeys(part for parts_ in by_piece.values() for part in parts_)), m3(hw.ORGANIC_PAD_H), len(hw.ORGANIC_PADS),
+             f"the organic layer's pads (hw.ORGANIC_PADS): " + "; ".join(f"{len(v)} for the piece {k} on {', '.join(dict.fromkeys(v))}" for k, v in by_piece.items())
+             + f"; one pilot each along minus the pad's normal into the part's face, through a {hw.ORGANIC_PAD_H:g} mm pad; the screw and the pad are in organic_frame.py")
     return parts, neck_prims
 
 
@@ -2403,7 +2409,7 @@ def check_pilot_walls(parts, failures, memo=None):
 # ---------------------------------------------------------------------------
 DRIVE_SCREWS = sum(len(fc["holes"]) for fc in hw.drive_layout()["faces"].values())          # per bay: 6 on the 3.5 inch drive + 4 on the 2.5 inch drive
 EXPECTED_MOUNTS = {"board": 9, "rad420": 2 * len(antler_holes_xn(1)), "rad360": 4, "psu": 4, "gpu_post": 2, "gpu_rest": 1, "gpu_rest_screw": len(REST_SCREW_DU_LIST), "front_io": len(hw.FRONT_IO_SCREWS),
-                   "front_io_carrier": 2 * len(CARRIER_SCREWS_YZ), "hose_guide_cpu": 1, "organic": 12,
+                   "front_io_carrier": 2 * len(CARRIER_SCREWS_YZ), "hose_guide_cpu": 1, "organic": len(hw.ORGANIC_PADS),
                    "tie_pilot": len(TIE_POINTS), "tie_bridge": len(TIE_POINTS), **{k: DRIVE_SCREWS for k in hw.DRIVES}}
 ORGANIC_PROBE_DEPTH = 3.0      # check 5: the axis point of a pad's pilot lies this far in from the face
 MIN_MOUNTS = {"fan_side_left": FAN_MIN_SCREWS, "fan_side_right": FAN_MIN_SCREWS}     # at least this many of the four corner holes
@@ -2432,8 +2438,8 @@ def mount_points():
         out.append(("front_io", "front_io_carrier", probe, hw.INSERTS[hw.FRONT_IO_SCREW_KIND][0] / 2, None))
     ax = guide_cpu_geometry()["axis"]      # the CPU hose guide's screw: the axis point inside the pilot, from the fan's face (the fan's own corner D has no hole in the bracket)
     out.append(("hose_guide_cpu", "hose_guide_cpu", (hw.FAN_SIDE_INNER_X[GUIDE_CPU_FAN] + hw.FAN_SIDE_IN[GUIDE_CPU_FAN] * FAN_PROBE_DEPTH, float(ax[0]), float(ax[1])), hw.M3_PILOT_D / 2, None))
-    for (holder, (x, y, z), sgn) in hw.ORGANIC_PADS.values():      # the organic layer's pads: the axis point inside the pilot, which must be an empty bore of the insert's radius
-        out.append(("organic", holder, (x - sgn * ORGANIC_PROBE_DEPTH, y, z), hw.M3_PILOT_D / 2, None))
+    for (holder, q, nrm, _piece) in hw.ORGANIC_PADS.values():      # the organic layer's pads: the axis point inside the pilot (along minus the normal), which must be an empty bore of the insert's radius
+        out.append(("organic", holder, tuple(c - ORGANIC_PROBE_DEPTH * k for c, k in zip(q, nrm)), hw.M3_PILOT_D / 2, None))
     for tp in TIE_POINTS:      # the cable tie points: an empty M3 pilot bore in the host (axis point 3 mm in from the underside) and an empty clearance bore in the bridge's foot, on the same axis
         pt = tie_face_point(tp)
         out.append(("tie_pilot", tp["host"], tuple(c - ORGANIC_PROBE_DEPTH * k for c, k in zip(pt, tp["normal"])), hw.M3_PILOT_D / 2, None))

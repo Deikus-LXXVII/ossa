@@ -493,26 +493,34 @@ SLAB_BEND = 15.0
 
 
 # ---------------------------------------------------------------------------
-# Fixings of the organic outer layer: twelve pads, six a side, each one M3 screw into a heat-set insert in an ABS part
-# (docs/plans/cables-and-organic.md, "Skeleton pass 1"). name -> (part name, centre of the pad = the mouth of the insert pilot on the part's
-# outer face, world (X, Y, Z), sign along X of the face's outward normal). The pilot is cut by frame_v0.py along -sign * X into the part;
-# organic_frame.py puts its pads here and checks that each screw axis lies on a pilot. The rows are organic_frame.py's pads of the first
-# build, except neck_top_L, which moved (8, 8) from its target (216, 289) because the left neck's CPU hose guide had a pilot of its own there (revision 14a took the guide off the neck;
+# Fixings of the organic outer layer: each pad is one M3 screw into a heat-set insert in an ABS part (docs/plans/cables-and-organic.md, "Skeleton pass 1";
+# docs/plans/rear-panel.md, revision 17). name -> (part name, centre of the pad = the mouth of the insert pilot on the part's face, world (X, Y, Z),
+# the face's outward normal as a unit vector, the piece of the layer the pad holds). The pilot is cut by frame_v0.py along minus the normal into the part;
+# organic_frame.py puts its pads here and checks that each screw axis lies on a pilot. The twelve rows of the piece `main` are organic_frame.py's pads of the first
+# build, six a side on the outer faces (normal along X), except neck_top_L, which moved (8, 8) from its target (216, 289) because the left neck's CPU hose guide had a pilot of its own there (revision 14a took the guide off the neck;
 # the pad stays where it is until the layer is redrawn in revision 14b).
-# ---------------------------------------------------------------------------
 ORGANIC_PADS = {
-    "front_foot_R": ("rib_A_right", (158.0, 60.0, 12.0), +1),
-    "sill_end_R": ("front_sill", (140.0, 28.0, 45.0), +1),
-    "base_mid_R": ("rib_B_right", (158.0, 250.0, -6.0), +1),
-    "rear_foot_R": ("rib_B_right", (158.0, 372.0, -6.0), +1),
-    "rear_post_R": ("rib_B_right", (158.0, 374.0, 50.0), +1),
-    "neck_top_R": ("neck_right", (192.0, 216.0, 289.0), +1),
-    "front_foot_L": ("rib_A_left", (-158.0, 60.0, 12.0), -1),
-    "sill_end_L": ("front_sill", (-140.0, 28.0, 45.0), -1),
-    "base_mid_L": ("rib_B_left", (-158.0, 250.0, -6.0), -1),
-    "rear_foot_L": ("rib_B_left", (-158.0, 372.0, -6.0), -1),
-    "rear_post_L": ("rib_B_left", (-158.0, 374.0, 50.0), -1),
-    "neck_top_L": ("neck_left", (-192.0, 208.0, 297.0), -1),
+    "front_foot_R": ("rib_A_right", (158.0, 60.0, 12.0), (1.0, 0.0, 0.0), "main"),
+    "sill_end_R": ("front_sill", (140.0, 28.0, 45.0), (1.0, 0.0, 0.0), "main"),
+    "base_mid_R": ("rib_B_right", (158.0, 250.0, -6.0), (1.0, 0.0, 0.0), "main"),
+    "rear_foot_R": ("rib_B_right", (158.0, 372.0, -6.0), (1.0, 0.0, 0.0), "main"),
+    "rear_post_R": ("rib_B_right", (158.0, 374.0, 50.0), (1.0, 0.0, 0.0), "main"),
+    "neck_top_R": ("neck_right", (192.0, 216.0, 289.0), (1.0, 0.0, 0.0), "main"),
+    "front_foot_L": ("rib_A_left", (-158.0, 60.0, 12.0), (-1.0, 0.0, 0.0), "main"),
+    "sill_end_L": ("front_sill", (-140.0, 28.0, 45.0), (-1.0, 0.0, 0.0), "main"),
+    "base_mid_L": ("rib_B_left", (-158.0, 250.0, -6.0), (-1.0, 0.0, 0.0), "main"),
+    "rear_foot_L": ("rib_B_left", (-158.0, 372.0, -6.0), (-1.0, 0.0, 0.0), "main"),
+    "rear_post_L": ("rib_B_left", (-158.0, 374.0, 50.0), (-1.0, 0.0, 0.0), "main"),
+    "neck_top_L": ("neck_left", (-192.0, 208.0, 297.0), (-1.0, 0.0, 0.0), "main"),
+    # Revision 17 (docs/plans/rear-panel.md, second step): the rear panel's four pads, held at four corners. Two on psu_bulkhead's end blocks, rear face (Y 381,
+    # frame_v0.BULK_Y1), X 132 the middle of the block ((frame_v0.BULK_BLOCK_X + frame_v0.X_IN) / 2), Z 64; two on rib_B's posts, rear face (Y 348, frame_v0.POST_REAR_Y),
+    # X 150 the middle of the rib's thickness ((frame_v0.X_IN + frame_v0.X_OUT) / 2), Z 234: the plan's Z 236 put the pad's disc 0.45 mm from the antler (organic_frame.pad_clear
+    # asks 1 mm), so the pads moved 2 mm down the post's rear face, the least whole millimetre that passes (1.19 mm; Z 235 gives 0.79). The check that a pad sits on its
+    # part's face on a pilot of that part holds them to the part.
+    "panel_hip_R": ("psu_bulkhead", (132.0, 381.0, 64.0), (0.0, 1.0, 0.0), "rear_panel"),
+    "panel_hip_L": ("psu_bulkhead", (-132.0, 381.0, 64.0), (0.0, 1.0, 0.0), "rear_panel"),
+    "panel_top_R": ("rib_B_right", (150.0, 348.0, 234.0), (0.0, 1.0, 0.0), "rear_panel"),
+    "panel_top_L": ("rib_B_left", (-150.0, 348.0, 234.0), (0.0, 1.0, 0.0), "rear_panel"),
 }
 
 

@@ -9,10 +9,16 @@ zone; the hand that reaches the plug face of io_zone is not made smaller; an emp
     .venv/bin/python cad_b6/test_organic.py            about two minutes (zone_access builds the skeleton and voxelises it)
     .venv/bin/python cad_b6/test_organic.py --quick    the field checks only, a few seconds
 
-One line per case: PASS/FAIL, name, the failure that was expected, what was reported. Exit status 1 if any case fails.
+Revision 17: the checks of the layer's pieces (organic_frame.piece_checks: the arrays' layout, each piece one body holding its pads, the pieces GAP_PIECE apart, a piece
+other than `main` fits the bed standing and turned about the vertical, nothing of the layer in front of psu_bulkhead's screw heads), each on a damaged copy of the saved
+arrays; organic_manifest.py (a moved voxel of `main` is named, a piece in --expect may differ, no manifest is exit 2, an empty piece is not fingerprinted); and in the
+full run organic_strength.load_failures (the own weight judged with the pushes).
+
+One line per case: PASS/FAIL, name, the failure that was expected, what was reported. Exit status 1 if any case fails, or if the number of cases is not EXPECTED_CASES.
 """
 from __future__ import annotations
 
+import math
 import os
 import sys
 import warnings
@@ -27,6 +33,8 @@ import hardware as hw  # noqa: E402
 import organic_frame as of  # noqa: E402
 
 FIELD = os.path.join(os.path.dirname(HERE), "out", "organic", "field.npz")
+# The number of cases a run records, pinned so that a reviewer sees it change in the diff that adds or removes cases (quick: the field and piece cases only).
+EXPECTED_CASES = {"quick": 32, "full": 51}
 RESULTS: list[tuple[bool, str]] = []
 
 
@@ -67,6 +75,14 @@ def damaged(f, how):
     g = dict(f)
     g["d"] = f["d"].copy()
     how(g)
+    return g
+
+
+def damaged_piece(f, piece, how):
+    """A copy of the field dict with the field of `piece` (d_<piece>) changed by how(d)."""
+    g = dict(f)
+    g["d_" + piece] = f["d_" + piece].copy()
+    how(g["d_" + piece])
     return g
 
 
@@ -131,6 +147,183 @@ def field_cases(f):
     check("largest(): the true largest radius from 10 up to the limit of 60, 0 below 10", not bad, "no mismatch for thresholds 0..79", bad or "none")
 
 
+def piece_cases(f):
+    """Revision 17: the checks of the pieces on damaged copies of the saved arrays."""
+    pieces = [str(p) for p in f["pieces"]]
+    lines, fails, _joined = of.piece_checks(f)
+    check("the undamaged pieces pass: main and rear_panel, each one body holding its pads, apart, the panel on the bed, six screw heads free",
+          not fails and pieces == ["main", "rear_panel"] and len(f["heads"]) == 6, "no failure; pieces main, rear_panel; 6 heads", f"{fails or 'none'}; pieces {pieces}; {len(f['heads'])} heads")
+    xs, ys, zs = f["xs"], f["ys"], f["zs"]
+
+    def split(d):                                        # a slot 6 mm wide through the panel at X 0, over its whole height and depth
+        d[np.abs(xs) <= 3.0] = np.maximum(d[np.abs(xs) <= 3.0], 1.0)
+    case("the rear panel cut in two at X 0", "ORGANIC_PIECES rear_panel is not one body", of.body_checks(damaged_piece(f, "rear_panel", split))[1], "ORGANIC_PIECES rear_panel is not one body")
+    names = [str(n) for n in f["names"]]
+    i = names.index("panel_hip_R")
+    q, n = f["pads"][i][:3], f["pads"][i][3:]
+
+    def unpad(d):                                        # the pad's disc and knot taken away: nothing of the panel within 12 mm of the disc's middle
+        sl, m = ball_mask(f, q + n * of.PAD_H / 2, 12.0)
+        d[sl] = np.where(m, np.maximum(d[sl], 1.0), d[sl])
+    case("the panel's pad panel_hip_R with its disc and knot gone", "ORGANIC_PIECES panel_hip_R: the pad is not joined to the body of the piece rear_panel",
+         of.body_checks(damaged_piece(f, "rear_panel", unpad))[1], "ORGANIC_PIECES panel_hip_R: the pad is not joined")
+    idx = np.argwhere(f["d_main"] < 0)
+    a = idx[np.argmax(idx[:, 1])]                        # main's rearmost voxel; the one behind it is outside main
+
+    def touch(d):                                        # one voxel of the panel right behind it: voxel centres 1.5 mm apart, the solids touch
+        d[a[0], a[1] + 1, a[2]] = -1.0
+    case(f"a voxel of the panel touching main (behind its rearmost voxel at X {xs[a[0]]:.1f}, Y {ys[a[1]]:.1f}, Z {zs[a[2]]:.1f})",
+         "ORGANIC_PIECES main and rear_panel are 0.00 mm apart ..., they must keep 3 less one voxel", of.gap_checks(damaged_piece(f, "rear_panel", touch))[1],
+         "ORGANIC_PIECES main and rear_panel are 0.00 mm apart", "less one voxel")
+    # the bed (revision 17, second step): the panel stands as built and is turned about the vertical; it fits when some whole degree fits
+    lim, vox = of.frame_v0.MAX_PART, float(xs[1] - xs[0])
+    fit0 = of.bed_fit(f["d_rear_panel"], xs, ys, zs)
+    check("today's rear panel fits the bed standing and turned, at about 45 degrees (it is wider than the bed along X)",
+          fit0["any_fits"] and fit0["fits"] and min(abs(fit0["angle"] - 45), abs(fit0["angle"] - 135)) <= 10 and of.piece_extents(f["d_rear_panel"], xs, ys, zs)[0][1]
+          - of.piece_extents(f["d_rear_panel"], xs, ys, zs)[0][0] > lim and not any("rear_panel" in x for x in of.bed_checks(f)[1]),
+          f"fits at 45 +- 10 (or 135 +- 10) degrees, X over {lim:g}, no failure",
+          f"{fit0['angle']} degrees: {fit0['u']:.1f} x {fit0['v']:.1f}, {fit0['height']:.1f} tall; failures {of.bed_checks(f)[1] or 'none'}")
+    pidx = np.argwhere(f["d_rear_panel"] < 0)
+    b = pidx[np.argmax(pidx[:, 0])]                      # the panel's rightmost voxel
+
+    def lump(k):                                         # a lump of k voxels on the panel's right end, along +X from its rightmost voxel
+        def how(d):
+            d[b[0]:b[0] + k + 1, b[1], b[2]] = -1.0
+        return damaged_piece(f, "rear_panel", how)
+
+    def fits_with(k):
+        return of.bed_fit(lump(k)["d_rear_panel"], xs, ys, zs)["any_fits"]
+    lo_k, hi_k = 0, 1                                    # the shortest lump that no whole degree fits (the extents only grow with k): bisection
+    while fits_with(hi_k) and hi_k < len(xs) - b[0] - 1:
+        lo_k, hi_k = hi_k, 2 * hi_k
+    while hi_k - lo_k > 1:
+        mid = (lo_k + hi_k) // 2
+        lo_k, hi_k = (mid, hi_k) if fits_with(mid) else (lo_k, mid)
+    fit_k = of.bed_fit(lump(hi_k)["d_rear_panel"], xs, ys, zs)
+    got = of.bed_checks(lump(hi_k))[1]
+    # the old case (first build: a lump 6 mm beyond the right end took the X extent from 289.5 to 295.5, 5.5 over the bed) rewritten to the same strictness: the shortest
+    # lump on the end that no angle fits fails the check, one voxel shorter passes it, and it fails by less than two voxels
+    check(f"a lump on the rear panel's right end: {hi_k * vox:.1f} mm, the shortest that no whole degree fits, fails the bed; {lo_k * vox:.1f} mm passes",
+          fits_with(lo_k) and not fit_k["any_fits"] and max(fit_k["u"], fit_k["v"]) <= lim + 2 * vox
+          and first_match(got, "ORGANIC_PIECES rear_panel does not fit the bed at any whole degree") is not None,
+          f"fails at {hi_k} voxels by under {2 * vox:g} mm, passes at {lo_k}",
+          f"{fit_k['angle']} degrees: {fit_k['u']:.2f} x {fit_k['v']:.2f}; {first_match(got, 'ORGANIC_PIECES rear_panel') or 'NOTHING'}")
+    # a turned voxel is wider than a voxel: a straight row whose centres span 408 mm measures 290.00 at 45 degrees by "span plus one voxel" and 290.62 by its cubes
+    row = np.full(f["d_rear_panel"].shape, 1.0, dtype=np.float32)
+    n_row = int(round(408.0 / vox)) + 1
+    row[10:10 + n_row, 100, 100] = -1.0
+    fit_row = of.bed_fit(row, xs, ys, zs)
+    check(f"a straight row of {n_row} voxels (centres {(n_row - 1) * vox:g} mm apart end to end) is over the bed at every angle once the voxels' own width when turned is counted",
+          not fit_row["any_fits"] and abs(max(fit_row["u"], fit_row["v"]) - ((n_row - 1) * vox + 2 * vox) * math.sqrt(0.5)) < 0.01,
+          f"fits no angle; at 45 degrees {((n_row - 1) * vox + 2 * vox) * math.sqrt(0.5):.2f} mm", f"{fit_row['angle']} degrees: {fit_row['u']:.2f} x {fit_row['v']:.2f}, fits {fit_row['any_fits']}")
+    fy = int(pidx[:, 1].min())
+    iy = int(np.searchsorted(ys, ys[fy] - 260.0))
+    bz = pidx[np.argmin(pidx[:, 1])]
+
+    def longer(d):                                       # the panel lengthened 260 mm forward (along -Y) from its frontmost voxel: 321 wide and about 305 deep fits no angle
+        d[bz[0], iy:fy + 1, bz[2]] = -1.0
+    g = damaged_piece(f, "rear_panel", longer)
+    fit_y = of.bed_fit(g["d_rear_panel"], xs, ys, zs)
+    case(f"the rear panel lengthened 260 mm along -Y (at best {fit_y['angle']} degrees: {fit_y['u']:.0f} x {fit_y['v']:.0f})",
+         "ORGANIC_PIECES rear_panel does not fit the bed at any whole degree about the vertical", of.bed_checks(g)[1],
+         "ORGANIC_PIECES rear_panel does not fit the bed at any whole degree")
+    tz = pidx[np.argmax(pidx[:, 2])]
+    top = int(np.searchsorted(zs, zs[int(pidx[:, 2].min())] + lim + 3 * vox))
+
+    def taller(d):                                       # a strand up from the panel's topmost voxel until it is 290 + 3 voxels tall, standing as built
+        d[tz[0], tz[1], tz[2]:top + 1] = -1.0
+    g = damaged_piece(f, "rear_panel", taller)
+    case(f"the rear panel made {of.bed_fit(g['d_rear_panel'], xs, ys, zs)['height']:.1f} mm tall (it is printed standing)",
+         "ORGANIC_PIECES rear_panel does not fit the bed ... tall", of.bed_checks(g)[1] if top < len(zs) else ["the grid is too low for this case"],
+         "ORGANIC_PIECES rear_panel does not fit the bed at any whole degree", "mm tall")
+    ext = of.piece_extents(f["d_main"], xs, ys, zs)
+    check("main, which is not split yet, is wider than the bed and is reported, not failed", max(hi - lo for lo, hi in ext) > of.frame_v0.MAX_PART and not of.bed_checks(f)[1]
+          and any("main" in l_ and "не проверяется" in l_ for l_ in of.bed_checks(f)[0]), f"main over {of.frame_v0.MAX_PART:g}, no failure, a report line",
+          f"main {max(hi - lo for lo, hi in ext):.1f} mm; failures {of.bed_checks(f)[1] or 'none'}")
+    h0 = f["heads"][0]
+
+    def in_head(d):                                      # a lump of the panel 20 mm behind the first screw head, on its axis
+        sl, m = ball_mask(f, h0[:3] + h0[3:] * 10.0, 2.0)
+        d[sl] = np.where(m, -1.0, d[sl])
+    case(f"a lump of the panel 10 mm behind the screw head at X {h0[0]:.1f}, Z {h0[2]:.1f}", "ORGANIC_PIECES rear_panel has ... voxels in the way of the screw head",
+         of.head_checks(damaged_piece(f, "rear_panel", in_head))[1], "ORGANIC_PIECES rear_panel has", "in the way of the screw head")
+    case("no screw head found on the bulkhead is a failure, not a pass", "ORGANIC_PIECES no screw head found", of.head_checks(dict(f, heads=np.zeros((0, 6))))[1],
+         "ORGANIC_PIECES no screw head found")
+    off = np.array([[0.0, float(ys[-1]) + 100.0, 50.0, 0.0, 1.0, 0.0]])
+    case("a screw head whose cylinder lies off the grid is a failure, not a pass", "ORGANIC_PIECES the cylinder behind the head ... has no grid point",
+         of.head_checks(dict(f, heads=off))[1], "ORGANIC_PIECES the cylinder behind the head", "has no grid point")
+    # the arrays' layout (revision 17, second step): each check of the pieces passes when it has nothing to judge, so piece_checks fails first
+    case("a field with no piece is a failure, not a pass", "ORGANIC_PIECES the field has no piece", of.piece_checks(dict(f, pieces=np.array([], dtype=str)))[1],
+         "ORGANIC_PIECES the field has no piece")
+    sm = np.argwhere(f["d_main"] < 0)[0]
+
+    def unmin(g):                                        # one voxel of main taken out of d only: d is no longer the minimum of the pieces' fields
+        g["d"][tuple(sm)] = 1.0
+    case(f"d with one voxel of main taken out (X {xs[sm[0]]:.1f}, Y {ys[sm[1]]:.1f}, Z {zs[sm[2]]:.1f}), the pieces' fields as they are",
+         "ORGANIC_PIECES d is not the minimum of the pieces' fields: 1 voxels differ", of.piece_checks(damaged(f, unmin))[1],
+         "ORGANIC_PIECES d is not the minimum of the pieces' fields: 1 voxels differ")
+    case(f"the last pad ({names[-1]}) without its piece in pad_piece", f"ORGANIC_PIECES the pad {names[-1]} names no piece",
+         of.piece_checks(dict(f, pad_piece=f["pad_piece"][:-1]))[1], f"ORGANIC_PIECES the pad {names[-1]} names no piece")
+    case("a field that names the piece main and holds no d_main", "ORGANIC_PIECES the field names the piece main but has no field d_main",
+         of.piece_checks({k: f[k] for k in f if k != "d_main"})[1], "ORGANIC_PIECES the field names the piece main but has no field d_main")
+
+
+def manifest_cases(f):
+    """Revision 17, second step: organic_manifest.py notices when a piece changes (REVIEW.md row 13 for the layer)."""
+    import organic_manifest as om
+    base = om.normalise(om.build_manifest(f))
+    idx = np.argwhere(f["d_main"] < 0)
+    s = None                                             # a voxel of main with an empty neighbour along +X, in the middle of the list: moved there, the count and the extents stay
+    for k in range(len(idx) // 2, len(idx)):
+        i, j, l_ = idx[k]
+        if f["d_main"][i + 1, j, l_] >= 0:
+            s = (int(i), int(j), int(l_))
+            break
+
+    def moved(d):
+        d[s] = 1.0
+        d[s[0] + 1, s[1], s[2]] = -1.0
+    g = damaged_piece(f, "main", moved)
+    new = om.normalise(om.build_manifest(g))
+    code, lines = om.judge(base, new, ["rear_panel"])
+    check(f"organic_manifest: one voxel of main moved by one cell (X {f['xs'][s[0]]:.1f}, Y {f['ys'][s[1]]:.1f}, Z {f['zs'][s[2]]:.1f}): same count and extents, the hash names it, exit 1",
+          code == 1 and new["main"]["voxels"] == base["main"]["voxels"] and new["main"]["centres"] == base["main"]["centres"]
+          and first_match(lines, "FAIL: outside the expected list: main") is not None and first_match(lines, "solid mask differs") is not None,
+          "exit 1; 'solid mask differs'; 'FAIL: outside the expected list: main'", f"exit {code}; " + "; ".join(x.strip() for x in lines if x.strip()))
+    # a pad moved and no voxel touched: the mask's hash cannot see it, the pads are compared on their own
+    pads = np.array(f["pads"], dtype=float)
+    pads[0, 2] += 0.1
+    code, lines = om.judge(base, om.normalise(om.build_manifest(dict(f, pads=pads))), ["rear_panel"])
+    pad0 = str(f["names"][0])
+    check(f"organic_manifest: the pad {pad0} of main moved 0.1 mm along Z, every voxel as it was: the pad is named, exit 1",
+          code == 1 and first_match(lines, f"pad {pad0}") is not None and first_match(lines, "FAIL: outside the expected list: main") is not None
+          and first_match(lines, "solid mask differs") is None,
+          f"exit 1; 'pad {pad0}'; 'FAIL: outside the expected list: main'; no 'solid mask differs'", f"exit {code}; " + "; ".join(x.strip() for x in lines if x.strip()))
+    pidx = np.argwhere(f["d_rear_panel"] < 0)
+    t = tuple(int(c) for c in pidx[np.argmax(pidx[:, 2])])
+
+    def less(d):                                         # the panel's topmost voxel taken away
+        d[t] = 1.0
+    code, lines = om.judge(base, om.normalise(om.build_manifest(damaged_piece(f, "rear_panel", less))), ["rear_panel"])
+    check("organic_manifest: the rear panel changed, and named in --expect: allowed, exit 0",
+          code == 0 and first_match(lines, "rear_panel", "solid voxels") is not None and first_match(lines, "OK: every difference is in the expected list") is not None,
+          "exit 0; rear_panel changed; OK", f"exit {code}; " + "; ".join(x.strip() for x in lines if x.strip()))
+    with open(os.devnull, "w") as quiet:
+        old_out, sys.stdout = sys.stdout, quiet
+        try:
+            code = om.main(["--against", os.path.join(HERE, "no_such_organic_manifest.json"), "--expect", "rear_panel"])
+        finally:
+            sys.stdout = old_out
+    check("organic_manifest: no manifest to compare with is exit 2, as in parts_manifest.py", code == 2, "exit 2", f"exit {code}")
+    try:
+        om.build_manifest(damaged_piece(f, "rear_panel", lambda d: d.__setitem__(slice(None), 1.0)))
+        why = None
+    except om.Unusable as e:
+        why = str(e)
+    check("organic_manifest: a piece with no solid voxel cannot be fingerprinted (exit 2), it does not compare equal to another empty piece",
+          why is not None and "rear_panel" in why and "no solid voxel" in why, "Unusable: the piece rear_panel: no solid voxel", why or "NOTHING")
+
+
 def zone_cases(f):
     import drive_access
     import frame_v0
@@ -177,6 +370,14 @@ def zone_cases(f):
          ost.push_failures([ok_push, ("внутрь", (1.0, 2.0, 3.0), ost.MOVE_MAX + 4.6, 1.0, (0.0, 0.0, 0.0))]), "ORGANIC_STRENGTH 1 of 2 pushes move the layer more than")
     case("organic_strength: a push over the allowable stress fails the script", "ORGANIC_STRENGTH 1 of 2 pushes are over the allowable",
          ost.push_failures([ok_push, ("вниз", (1.0, 2.0, 3.0), 0.1, ost.ALLOW + 1.0, (0.0, 0.0, 0.0))]), "ORGANIC_STRENGTH 1 of 2 pushes are over the allowable")
+    # revision 17, second step: the own weight is judged with the pushes (load_failures: res[0] the weight, res[1:] the pushes); it was left out before
+    ok_weight = ("вес", None, ost.MOVE_MAX - 0.1, ost.ALLOW - 0.1, (0.0, 0.0, 0.0))
+    check("organic_strength: the own weight and the pushes inside both limits give no failure", not ost.load_failures([ok_weight, ok_push]), "no failure",
+          ost.load_failures([ok_weight, ok_push]) or "none")
+    case("organic_strength: the own weight over the allowable stress fails the script, the pushes inside", "ORGANIC_STRENGTH the layer's own weight gives ... over the allowable",
+         ost.load_failures([("вес", None, 0.1, ost.ALLOW + 0.5, (4.0, 5.0, 6.0)), ok_push]), "ORGANIC_STRENGTH the layer's own weight gives", "over the allowable")
+    case("organic_strength: the own weight moving the layer too far fails the script, the pushes inside", "ORGANIC_STRENGTH the layer's own weight moves it ... more than 5 mm",
+         ost.load_failures([("вес", None, ost.MOVE_MAX + 0.5, 0.1, (4.0, 5.0, 6.0)), ok_push]), "ORGANIC_STRENGTH the layer's own weight moves it", "more than")
     b = za.ZONE_BS[za.HAND_ZONE]
     (u0, u1), n0 = hw.FAN_SIDE_U, hw.FAN_SIDE_N[0]
     plate = (hw.x_to_v(hw.FAN_SIDE_INNER_X["fan_side_left"]), b[0], u0, u1, n0, n0 + 6.0)
@@ -221,13 +422,18 @@ def main():
     if not os.path.exists(path):
         sys.exit(f"{path} is missing: run cad_b6/organic_frame.py first")
     z = np.load(path)
-    f = dict(d=z["d"], xs=z["xs"], ys=z["ys"], zs=z["zs"])
+    f = {k: z[k] for k in z.files}
     field_cases(f)
-    if "--quick" not in sys.argv:
+    piece_cases(f)
+    manifest_cases(f)
+    mode = "quick" if "--quick" in sys.argv else "full"
+    if mode == "full":
         zone_cases(f)
     bad = [n for ok, n in RESULTS if not ok]
     print(f"\n{len(RESULTS) - len(bad)} of {len(RESULTS)} cases pass" + ("" if not bad else ": FAILING " + "; ".join(bad)))
-    sys.exit(1 if bad else 0)
+    if len(RESULTS) != EXPECTED_CASES[mode]:
+        print(f"TEST_ORGANIC the {mode} run recorded {len(RESULTS)} cases, EXPECTED_CASES pins {EXPECTED_CASES[mode]}")
+    sys.exit(1 if bad or len(RESULTS) != EXPECTED_CASES[mode] else 0)
 
 
 if __name__ == "__main__":

@@ -43,6 +43,8 @@ PAD_Y_MM, PAD_Z_MM = 300.0, 90.0          # free air behind and above the grid
 START_BEHIND = 160.0                      # mm: the start pose's centre this far behind the grid's rear end ...
 START_Z = 200.0                           # ... at this height
 DESK_Z = hw.DESK_Z
+REMOVED_FOR_DRIVE = ("rear_panel",)       # revision 17 (docs/plans/rear-panel.md): pieces of the organic layer that come off before a drive goes in or out; the sweep leaves them out,
+                                          # organic_gap (the drive in its seat) keeps the whole layer
 
 
 # ---------------------------------------------------------------------------
@@ -52,7 +54,24 @@ def load_field(path=FIELD):
     if not os.path.exists(path):
         sys.exit(f"{path} is missing: run cad_b6/organic_frame.py first (it writes the layer's field)")
     f = np.load(path)
-    return dict(d=f["d"], xs=f["xs"].astype(float), ys=f["ys"].astype(float), zs=f["zs"].astype(float))
+    out = dict(d=f["d"], xs=f["xs"].astype(float), ys=f["ys"].astype(float), zs=f["zs"].astype(float))
+    if "pieces" in f.files:                   # revision 17: the layer's pieces, each with its own field; d is their union
+        out["pieces"] = tuple(str(p) for p in f["pieces"])
+        for p in out["pieces"]:
+            out["d_" + p] = f["d_" + p]
+    return out
+
+
+def sweep_layer(field, removed=REMOVED_FOR_DRIVE):
+    """(the organic layer's field as the sweep sees it, the pieces taken off): the union of the pieces not in `removed`; a field without pieces is the layer as it is."""
+    pieces = field.get("pieces")
+    if not pieces:
+        return field["d"], ()
+    off = tuple(p for p in pieces if p in removed)
+    kept = [field["d_" + p] for p in pieces if p not in removed]
+    if not kept:
+        return np.full(field["d"].shape, 1e9, dtype=field["d"].dtype), off
+    return (np.minimum.reduce(kept) if len(kept) > 1 else kept[0]), off
 
 
 def voxelise(solid, origin, shape, vox):
@@ -120,8 +139,9 @@ def cable_occupancy(strands, origin, shape, vox):
     return occ[pad:pad + shape[0], pad:pad + shape[1], pad:pad + shape[2]]
 
 
-def bay_maps(parts, hardware, strands, field, side_name):
-    """The (Y, Z) maps of one bay: for each layer a boolean map of the cells where something of that layer, grown by GROW voxels, lies anywhere over the bay's X range."""
+def bay_maps(parts, hardware, strands, field, side_name, removed=REMOVED_FOR_DRIVE):
+    """The (Y, Z) maps of one bay: for each layer a boolean map of the cells where something of that layer, grown by GROW voxels, lies anywhere over the bay's X range.
+    The organic layer is counted without its pieces in `removed` (sweep_layer); the result names them (`removed`)."""
     xs, ys, zs = field["xs"], field["ys"], field["zs"]
     vox = float(xs[1] - xs[0])
     ex = hw.DRIVE_ENVELOPE[0]
@@ -149,12 +169,13 @@ def bay_maps(parts, hardware, strands, field, side_name):
                 occ |= voxelise(s, origin, shape, vox)
         grids[name] = occ
     grids["cables"] = cable_occupancy(strands, origin, shape, vox)
-    grids["organic"] = field["d"][ia:ib] < 0
+    organic, off = sweep_layer(field, removed)
+    grids["organic"] = organic[ia:ib] < 0
     out = {}
     for name, occ in grids.items():
         grown = ndimage.binary_dilation(occ, iterations=GROW)
         out[name] = grown[GROW:GROW + (i1 - i0)].any(axis=0)
-    return dict(layers=out, ys=ys, zs=zs, vox=vox, x_cells=(float(xs[i0]), float(xs[i1 - 1])), side=side_name)
+    return dict(layers=out, ys=ys, zs=zs, vox=vox, x_cells=(float(xs[i0]), float(xs[i1 - 1])), side=side_name, removed=off)
 
 
 # ---------------------------------------------------------------------------
@@ -322,6 +343,11 @@ def run(parts=None, hardware=None, field=None, strands=None, extra_blocks=()):
             if not passes(res):
                 fails.append(f"DRIVE_ACCESS {side} bay {'with' if with_plugs else 'without'} the plug zone: {verdict(res)}")
         cells = maps["x_cells"]
+        lines.append(f"        органический слой в карте без кусков, которые снимают, чтобы вынуть диск: {', '.join(maps['removed']) or 'нет'} (REMOVED_FOR_DRIVE {', '.join(REMOVED_FOR_DRIVE)}); "
+                     f"зазор до диска на месте (ниже) меряется по всему слою")
+        if maps["removed"]:            # for the report only: the way with those pieces on (the plan expects none; test_checks.py proves it)
+            full = bay_maps(parts, hardware, strands, field, side, removed=())
+            lines.append(f"        для сведения, с этими кусками на месте: без зоны штекеров {verdict(access(full, r_plain, extra_blocks))}, с зоной штекеров {verdict(access(full, r_plug, extra_blocks))}")
         lines.append(f"        (слои, у которых есть препятствия в карте {side}: " + ", ".join(f"{n} {int(m.sum())} клеток" for n, m in maps["layers"].items()) + f"; X воксели {cells[0]:.1f}..{cells[1]:.1f})")
         og = organic_gap(field, hardware, parts, side)
         fails += gap_failures(og, side)

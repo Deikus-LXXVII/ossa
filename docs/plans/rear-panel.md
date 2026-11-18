@@ -157,6 +157,33 @@ Against the first build, which stays as it is apart from this:
 4. **Counts that move:** organic pads stay 16 (12 `main`, 4 `rear_panel`: 2 on `psu_bulkhead`, 1 on each rib B); inserts, washers and M3 x 10 screws stay 108, 97 and 20. `parts_manifest.py --expect psu_bulkhead,rib_B_right,rib_B_left`.
 5. **Reruns,** as in section 6 above, with `organic_strength.py` expected to pass both pieces (the sketch gave 6.4 MPa and 0.97 mm for the panel). If it does not, stop and report.
 
+## Result of the second step (18 Nov 2026)
+
+Built by an Opus child, rerun in full by the main session (every script named in section 6, plus `cables.py`, `strength.py 7 2`, `check_budgets.py`, `render_full.py`).
+
+- **The panel:** 302.3 cm³, 384 g of PETG, one body on its four pads. X -160.75..160.25 (321.0), Y 346.75..391.75, Z 51.75..263.25 (211.5).
+- **Strength:** `rear_panel` 6.4 MPa and 0.97 mm; `main` 6.5 MPa and 2.16 mm, as before. Own weight 0.03 and 0.15 MPa. The earlier model (the whole field at once) is printed beside them, not judged.
+- **Bed:** turned 45° about the vertical it takes 244.4 x 243.3 mm and stands 211.5 mm tall (the plan's "about 259" was a guess). Upright, turned, not tried on the printer.
+- **`main`:** 0 of 28,245,000 voxels differ from the field before the revision; `cad_b6/organic_manifest.py` now holds a fingerprint of each piece and names any piece that changes outside an expected list.
+- **The top pads stand at Z 234,** not the 236 this plan gave: at 236 the pad's disc came 0.45 mm from the antler and the pad check asks 1 mm. Walls of the two new pilots in the posts: 5.8 mm, and 6.75 mm to the nearer tongue bolt of the antler. The bulkhead's two: 7.7 mm, 5.3 mm of floor, 12.0 mm to the end bolt.
+- **Access:** a drive in its seat 13.4 mm from the layer; with the panel off it comes out at 28°; with it on the seat is closed. Bundles 52 and 56 mm, the hand 44 mm: unchanged.
+- **Skeleton:** only `psu_bulkhead`, `rib_B_right` and `rib_B_left` changed (four M3 pilots). 23 checks pass; 108 inserts, 106 screws, 97 washers. `strength.py`'s judged case 2.87 MPa of 6.7, as before. `assembly_access.py` exit 0.
+- **Tests:** `test_checks.py` 329 of 329, `test_organic.py` 48 of 48 (now pinned), `test_assembly.py` 51 of 51.
+- **Budget:** `check_budgets.py` fails on one line, as foreseen: the layer is 2044.0 cm³ against the ratchet of 1776.5 (2596 g of PETG of the 3600 allowed). Re-recorded by the main session in a commit of its own.
+
+## Grok's two reviews of the build (18 Nov 2026) and what was changed
+
+First review (the first build's machinery): the gap between pieces, the bed check, the screw-head cylinders, the pad normals, the drive's removed pieces and the tests' counts found sound; `main` equal to the old field on disk. Fixed in the second step: nothing in the repository noticed a change of `main` (now `cad_b6/organic_manifest.py` and its json); the strength script had dropped the earlier load model without printing it beside the new one (REVIEW.md row 11); the pieces' checks passed when there was nothing to judge; the layer's own weight was not judged against the limits.
+
+Second review (the second step): the manifest tool, the earlier strength model, the weight, the left top pad's pilot on the mirrored rib (5.8 mm of wall, 6.71 mm to the antler's nearer tongue bolt), the driver's line to the top pads (9.85 mm clear of the antler, 46 mm of the neck, 47 mm of the 420 and of `main`), the legs and the counts found correct. Fixed by the main session:
+
+- **Important.** The bed check added one voxel to a turned extent. A voxel turned 45° is 1.41 voxels wide, so the check was 0.6 mm short there: a straight row with its cubes 290.62 mm across passed. It now adds the cube's own width along the turned direction, and a case holds that row to a failure. The panel measures 245.0 x 244.0 mm at 45° by this rule (244.4 x 243.3 before).
+- The bed check's line now says what it does not look at: supports, adhesion, whether the nozzle reaches the bed's corners.
+- Two guards had no test: a field that names a piece and holds no array for it; a pad moved with no voxel touched (the manifest names the pad). Both have a case now.
+- A comment in `frame_v0.py` still said the bulkhead holds four of the panel's pads.
+
+Not judged by any check, recorded as a gap in `docs/feature-map.md`: the driver's way to an organic pad past the skeleton and the hardware. `driver_blocked` looks at the layer's own bones only, and `assembly_access.py` skips organic pads.
+
 ## Grok's check of the first specification (18 Nov 2026)
 
 `code-analysis` read the first text against the code, built the bulkhead and measured the four pilots. What it changed: the union alone fails the layer's one-piece check, so that check runs per piece; a column on `pads` would break the strength script, so the piece of a pad is a parallel array; "nothing may assume X" needed seven more places than the text named; the new pads had no names and no way to a bone; the legs were ambiguous between automatic stubs and the sketch's tubes; the pinned counts in `test_checks.py` that move (12, 11, 104, 93, 16) were not named; the bed test and the "extent" of a voxel piece were undefined; the screw-head cylinder had typed numbers; "checks 7 and 15 judge the walls" was wrong for check 15; the drive's end was given as Y 375 where the body ends at Y 357.6 (which also took 9 mm off the panel's depth and made the longer grid unnecessary). Confirmed: bitwise equality of `main` is achievable; the four pilot places clear every wall rule; the readers of `d` do not hard-code the grid's shape.

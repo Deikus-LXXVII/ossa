@@ -6,6 +6,12 @@ Out:  cad_b6/report_organic_strength.txt, out/organic/strength.npz
 
 step = 1 uses the field's own grid (1.5 mm), 2 uses every second point (3 mm, quick, too stiff for thin strands).
 
+Revision 17 (docs/plans/rear-panel.md): one run per piece of the layer (the field's `pieces`): the piece's own field (d_<piece>), fixed at its own pads (`pad_piece`),
+N_POINTS pushes on it, the same limits. The report gives each piece's worst stress and largest movement and a headline; the script fails if any piece fails.
+Those runs are the judgment. Beside them the load model of before revision 17 is run as well and its headline printed, labelled and not judged (REVIEW.md row 11):
+the whole field `d` at once, held at every pad, N_POINTS pushes over its whole surface.
+The layer's own weight is judged with the pushes, per piece, against the same two limits (it was reported only until revision 17's second step).
+
 Method (linear static finite elements on the voxels of the field):
 - every voxel inside the layer is one 8-node cube of solid PETG, taken with the ABS figures of strength.py (the fallback material); all cubes are identical, so one element matrix serves all;
 - fixed at the fixing pads (the first 2 mm above each skeleton face, inside the pad's radius);
@@ -123,12 +129,44 @@ def push_failures(pushes):
     return out
 
 
-def voxel_mesh(step):
-    """The voxels of the field inside the layer that are connected to a pad. Returns (h, pads, names, conn, X, held, dropped cm3); the full-grid arrays it
-    works on (several GB at step 1) are freed when it returns, before the factorisation needs the memory."""
-    f = np.load(os.path.join(ROOT, "out", "organic", "field.npz"))
-    d, xs, ys, zs = f["d"][::step, ::step, ::step], f["xs"][::step], f["ys"][::step], f["zs"][::step]
-    pads, names = f["pads"], [str(n) for n in f["names"]]
+def weight_failures(weight):
+    """Failures of the own-weight case (label, None, movement mm, stress MPa, where): a stress above ALLOW or a movement above MOVE_MAX, the pushes' limits."""
+    _label, _p, move, stress, where = weight
+    out = []
+    if stress > ALLOW:
+        out.append(f"ORGANIC_STRENGTH the layer's own weight gives {stress:.1f} MPa, over the allowable {ALLOW:g} MPa (at X {where[0]:.0f}, Y {where[1]:.0f}, Z {where[2]:.0f})")
+    if move > MOVE_MAX:
+        out.append(f"ORGANIC_STRENGTH the layer's own weight moves it {move:.2f} mm, more than {MOVE_MAX:g} mm")
+    return out
+
+
+def load_failures(res):
+    """Failures of a run's load cases, res[0] the own weight and res[1:] the pushes: both judged against ALLOW and MOVE_MAX (weight_failures, push_failures)."""
+    assert res and res[0][1] is None, "res[0] must be the own-weight case"
+    return weight_failures(res[0]) + push_failures(res[1:])
+
+
+FIELD = os.path.join(ROOT, "out", "organic", "field.npz")
+WHOLE = "весь слой"                         # the label of the earlier model's run (the whole field d, every pad), for the report and strength.npz
+
+
+def field_pieces(path=FIELD):
+    """The pieces of the saved field, in their build order."""
+    f = np.load(path)
+    if "pieces" not in f.files:
+        raise SystemExit(f"{path} has no pieces: run cad_b6/organic_frame.py (revision 17 or later) first")
+    return [str(p) for p in f["pieces"]]
+
+
+def voxel_mesh(step, piece):
+    """The voxels of one piece's field inside the layer that are connected to one of its pads. Returns (h, pads, names, conn, X, held, dropped cm3); the full-grid arrays it
+    works on (several GB at step 1) are freed when it returns, before the factorisation needs the memory. piece None: the whole field d with every pad (the earlier model)."""
+    f = np.load(FIELD)
+    d, xs, ys, zs = f["d" if piece is None else "d_" + piece][::step, ::step, ::step], f["xs"][::step], f["ys"][::step], f["zs"][::step]
+    mine = np.array([piece is None or str(p) == piece for p in f["pad_piece"]], dtype=bool)
+    pads, names = f["pads"][mine], [str(n) for n, m in zip(f["names"], mine) if m]
+    if not len(pads):
+        raise RuntimeError(f"the piece {piece} has no pad")
     h = float(xs[1] - xs[0])
     # a cell is solid if the mean of its 8 corners is inside
     c = sum(d[i:d.shape[0] - 1 + i, j:d.shape[1] - 1 + j, k:d.shape[2] - 1 + k] for i in (0, 1) for j in (0, 1) for k in (0, 1)) / 8.0
@@ -166,12 +204,15 @@ def voxel_mesh(step):
     return h, pads, names, conn, P[used], held[used], dropped
 
 
-def main():
-    step = int(sys.argv[1]) if len(sys.argv) > 1 else 1
+def run_piece(piece, step):
+    """The whole run on one piece (None: the earlier model, the whole field d held at every pad). Returns (report lines, failures, arrays for strength.npz, headline numbers).
+    The failures are load_failures' (the own weight and the pushes); the caller judges them, or not for the earlier model."""
     t0 = time.time()
-    h, pads, names, conn, X, held, dropped = voxel_mesh(step)
+    h, pads, names, conn, X, held, dropped = voxel_mesh(step, piece)
     ne, nn = len(conn), len(X)
-    out = [f"ПРОЧНОСТЬ ОРГАНИЧЕСКОГО СЛОЯ: воксели {h:g} мм, {ne} элементов, {nn} узлов; сплошной PETG (цифры ABS из strength.py), E {E:g} МПа",
+    title = f"КУСОК {piece}" if piece is not None else f"РАНЬШЕ (модель до ревизии 17, для сведения, не судится): {WHOLE}, поле d целиком"
+    piece = WHOLE if piece is None else piece
+    out = [f"{title}: воксели {h:g} мм, {ne} элементов, {nn} узлов; сплошной PETG (цифры ABS из strength.py), E {E:g} МПа",
            f"Объём в расчёте {ne * h ** 3 / 1000:.0f} см³ ({ne * h ** 3 * RHO * 1e6:.0f} г); не связано с креплениями и отброшено {dropped:.1f} см³",
            f"Закреплено у {len(pads)} площадок: {int((held >= 0).sum())} узлов"]
     assert all((held == a).any() for a in range(len(pads))), "a pad holds no node: " + ", ".join(names[a] for a in range(len(pads)) if not (held == a).any())
@@ -257,7 +298,8 @@ def main():
     out.append(f"Решение {t_solve:.0f} с ({solver}), неизвестных {len(free)}")
     out.append("")
     lab_, _, sag, s, where = res[0]
-    out.append(f"Собственный вес: наибольшее смещение {sag:.3f} мм, напряжение {s:.2f} МПа у X {where[0]:.0f}, Y {where[1]:.0f}, Z {where[2]:.0f}")
+    out.append(f"Собственный вес: наибольшее смещение {sag:.3f} мм, напряжение {s:.2f} МПа у X {where[0]:.0f}, Y {where[1]:.0f}, Z {where[2]:.0f} "
+               + (f"(судится по тем же пределам, {ALLOW:g} МПа и {MOVE_MAX:g} мм)" if piece != WHOLE else "(эта модель не судится)"))
     out.append(f"Допустимое напряжение {ALLOW:g} МПа (прочность поперёк слоёв, цифра ABS {STRENGTH_LAYER:g} МПа, запас {SAFETY:g} для редкой нагрузки рукой)")
     pushes = res[1:]
     over = [r_ for r_ in pushes if r_[3] > ALLOW]
@@ -278,18 +320,56 @@ def main():
     for a, name in enumerate(names):
         out.append(f"  {name:14} {reactions[a, 1:].max():6.1f}   ({reactions[a, 0]:.2f})")
     out.append("")
-    fails = push_failures(pushes)
-    out.append("ПРОВЕРКИ НЕ ПРОЙДЕНЫ:" if fails else "Проверки пройдены: ни один толчок не выше допустимого напряжения и предела смещения.")
+    fails = [f"{piece}: " + f_ for f_ in load_failures(res)]
+    if piece == WHOLE:
+        out.append(f"Модель до ревизии 17 (не судится): за пределами {len(fails)} строк" + (":" if fails else "."))
+    else:
+        out.append(f"Кусок {piece}: проверки не пройдены:" if fails else f"Кусок {piece}: ни собственный вес, ни один толчок не выше допустимого напряжения и предела смещения.")
+    out += ["  - " + f for f in fails]
+    out.append(f"Время куска {piece} {time.time() - t0:.0f} с.")
+    arrays = dict(points=np.array([r_[1] for r_ in pushes]), labels=np.array([r_[0] for r_ in pushes]), move=np.array([r_[2] for r_ in pushes]),
+                  stress=np.array([r_[3] for r_ in pushes]), where=np.array([r_[4] for r_ in pushes]), reactions=reactions, names=np.array(names))
+    ws = max(pushes, key=lambda r_: r_[3])
+    arrays["weight"] = np.array([res[0][2], res[0][3], *res[0][4]])            # own weight: movement mm, stress MPa, where (X, Y, Z)
+    head = dict(stress=ws[3], stress_push=ws[1], stress_at=ws[4], move=worst[2], move_push=worst[1], seconds=time.time() - t0,
+                weight_move=res[0][2], weight_stress=res[0][3], weight_at=res[0][4], elements=ne, pads=len(pads))
+    return out, fails, arrays, head
+
+
+def headline(v):
+    return (f"наибольшее напряжение {v['stress']:.1f} МПа (давим в X {v['stress_push'][0]:.0f}, Y {v['stress_push'][1]:.0f}, Z {v['stress_push'][2]:.0f} -> "
+            f"X {v['stress_at'][0]:.0f}, Y {v['stress_at'][1]:.0f}, Z {v['stress_at'][2]:.0f}), наибольшее смещение {v['move']:.2f} мм (давим в X {v['move_push'][0]:.0f}, "
+            f"Y {v['move_push'][1]:.0f}, Z {v['move_push'][2]:.0f}); собственный вес {v['weight_stress']:.2f} МПа, {v['weight_move']:.3f} мм; {v['seconds']:.0f} с")
+
+
+def main():
+    step = int(sys.argv[1]) if len(sys.argv) > 1 else 1
+    t0 = time.time()
+    body, fails, arrays, heads = [], [], {}, {}
+    for piece in field_pieces():
+        lines, fl, arr, hd = run_piece(piece, step)          # one piece at a time: its matrices are freed before the next is built
+        body += lines + [""]
+        fails += fl
+        heads[piece] = hd
+        for k, v in arr.items():
+            arrays[f"{k}_{piece}"] = v
+    lines, fl_whole, arr, whole = run_piece(None, step)      # the earlier model, reported beside the pieces and not judged (REVIEW.md row 11)
+    body += lines + ["  (модель до ревизии 17 не судится: судят прогоны по кускам выше; её отказы только для сведения)", ""]
+    for k, v in arr.items():
+        arrays[f"{k}_whole"] = v
+    head = ["ПРОЧНОСТЬ ОРГАНИЧЕСКОГО СЛОЯ ПО КУСКАМ (" + ("НЕ ПРОЙДЕНА" if fails else "пройдена") + f"; допустимо {ALLOW:g} МПа и {MOVE_MAX:g} мм под толчком {PUSH_N:g} Н "
+            "и под собственным весом): " + "; ".join(f"{k} - {headline(v)}" for k, v in heads.items()),
+            f"Для сведения, модель до ревизии 17 (поле d целиком, закреплено у всех {whole['pads']} площадок, {N_POINTS} точек по всей поверхности; не судится): "
+            f"{headline(whole)}; за пределами {len(fl_whole)} строк" + (": " + "; ".join(fl_whole) if fl_whole else ""), ""]
+    out = head + body
+    out.append("ПРОВЕРКИ НЕ ПРОЙДЕНЫ:" if fails else "Проверки пройдены: ни один толчок ни на одном куске не выше допустимого напряжения и предела смещения.")
     out += ["  - " + f for f in fails]
     out.append(f"Время {time.time() - t0:.0f} с.")
     text = "\n".join(out)
     with open(os.path.join(HERE, "report_organic_strength.txt"), "w", encoding="utf-8") as fh:
         fh.write(text + "\n")
     print(text)
-    np.savez_compressed(os.path.join(ROOT, "out", "organic", "strength.npz"),
-                        points=np.array([r_[1] for r_ in pushes]), labels=np.array([r_[0] for r_ in pushes]),
-                        move=np.array([r_[2] for r_ in pushes]), stress=np.array([r_[3] for r_ in pushes]), where=np.array([r_[4] for r_ in pushes]),
-                        reactions=reactions)
+    np.savez_compressed(os.path.join(ROOT, "out", "organic", "strength.npz"), pieces=np.array(list(heads)), **arrays)      # *_whole: the earlier model
     if fails:
         sys.exit(1)
 

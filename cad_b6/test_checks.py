@@ -68,7 +68,7 @@ SECTIONS: list[tuple[str, object]] = []             # (title, function(hardware,
 # A run that records fewer fails (a section emptied, cut short or skipped would otherwise pass as "N/N cases as expected"), and
 # so does a section, or the prelude, that records none. A run that records more passes and says to raise this in the same commit.
 # Not in budgets.json: check_budgets.py --write rewrites that file from a run's record, and the pin must not follow a run down.
-EXPECTED_CASES = 324
+EXPECTED_CASES = 329
 
 # the expensive operations, counted per process: the budget of the time to verify gates on these (check_budgets.py)
 COUNTS: collections.Counter = collections.Counter()
@@ -1402,52 +1402,76 @@ def s_sill_wall(hardware, parts, base):
 @section("10d3. the organic layer's pads")
 def s_pads(hardware, parts, base):
     pads = list(hw.ORGANIC_PADS.items())
-    check("twelve pads, six a side, each with an M3 pilot in its part: derived from the solids", len(pads) == 12 and base["mounts"]["organic"] == 12 and f.EXPECTED_MOUNTS["organic"] == 12
-          and sum(x["count"] for x in f.FASTENERS if x["item"] == "organic") == 12,
-          ("organic 12 derived, 12 listed", f"{len(pads)} rows; derived {base['mounts']['organic']}, listed {sum(x['count'] for x in f.FASTENERS if x['item'] == 'organic')}"))
-    nm, (pn, q0, sgn) = pads[0]
+    panel_on = collections.Counter(row[0] for _n, row in pads if row[3] == "rear_panel")
+    check("sixteen pads, each with an M3 pilot in its part: twelve of main (six a side) and four of the rear panel, two on psu_bulkhead and one on each rib_B post; derived from the solids",
+          len(pads) == 16 and base["mounts"]["organic"] == 16 and f.EXPECTED_MOUNTS["organic"] == 16 and sum(x["count"] for x in f.FASTENERS if x["item"] == "organic") == 16
+          and sum(1 for _n, row in pads if row[3] == "main") == 12 and panel_on == {"psu_bulkhead": 2, "rib_B_right": 1, "rib_B_left": 1},
+          ("organic 16 derived, 16 listed; 12 main; rear_panel 2 on psu_bulkhead, 1 on each rib_B", f"{len(pads)} rows; derived {base['mounts']['organic']}, listed "
+           f"{sum(x['count'] for x in f.FASTENERS if x['item'] == 'organic')}; rear_panel on {dict(panel_on)}"))
+    nm, (pn, q0, n0, _pc) = pads[0]
+    sgn = n0[0]                    # pads[0] is on an outer face (normal along X)
     pp = part_named(parts, pn)
-    hp = next(h for h in pp.holes if h.kind == "M3" and h.pilot and of.is_pilot_of(h, q0, sgn))
+    hp = next(h for h in pp.holes if h.kind == "M3" and h.pilot and of.is_pilot_of(h, q0, n0))
     r = f.run_checks(hardware, with_part(parts, pn, solid=refilled(pp, hp)), MEMO)
     case(f"{nm}: its M3 pilot filled back in", f"CHECK7 {pn} ... M3 pilot ... is not drilled", r["failures"], f"CHECK7 {pn}", "M3 pilot", "is not drilled")
-    case("  same damage, organic count derived from the solids", "CHECK5 organic: 11 positions have a hole", r["failures"], "CHECK5 organic: 11 positions")
-    nm_l, (pn_l, q_l, sgn_l) = next(row for row in pads if row[1][0] == "neck_left")
+    case("  same damage, organic count derived from the solids", "CHECK5 organic: 15 positions have a hole", r["failures"], "CHECK5 organic: 15 positions")
+    nm_l, (pn_l, q_l, n_l, _pc_l) = next(row for row in pads if row[1][0] == "neck_left")
     pl = part_named(parts, pn_l)
     r = f.run_checks(hardware, with_part(parts, pn_l, solid=refilled(pl, next(h for h in pl.holes if h.pilot and h.item == "organic pad"))), MEMO)
-    case(f"{nm_l}: the left neck's pilot (built right-handed, mirrored) filled back in", f"CHECK5 organic: 11 positions", r["failures"], "CHECK5 organic: 11 positions")
-    hw.ORGANIC_PADS[nm] = (pn, (q0[0], q0[1] + 5.0, q0[2]), sgn)
+    case(f"{nm_l}: the left neck's pilot (built right-handed, mirrored) filled back in", f"CHECK5 organic: 15 positions", r["failures"], "CHECK5 organic: 15 positions")
+    hw.ORGANIC_PADS[nm] = (pn, (q0[0], q0[1] + 5.0, q0[2]), n0, _pc)
     try:
         r = f.run_checks(hardware, parts, MEMO)
     finally:
-        hw.ORGANIC_PADS[nm] = (pn, q0, sgn)
-    case(f"{nm} shifted 5 mm in hardware.py, the pilot left where it was", "CHECK5 organic: 11 positions have a hole", r["failures"], "CHECK5 organic: 11 positions")
+        hw.ORGANIC_PADS[nm] = (pn, q0, n0, _pc)
+    case(f"{nm} shifted 5 mm in hardware.py, the pilot left where it was", "CHECK5 organic: 15 positions have a hole", r["failures"], "CHECK5 organic: 15 positions")
+    # revision 17: a pad whose normal is not along X, the rear panel's on psu_bulkhead's rear face (normal +Y)
+    nm_p, (pn_p, q_p, n_p, pc_p) = next(row for row in pads if row[1][3] == "rear_panel")
+    bulk = part_named(parts, pn_p)
+    hp_p = next(h for h in bulk.holes if h.kind == "M3" and h.pilot and of.is_pilot_of(h, q_p, n_p))
+    r = f.run_checks(hardware, with_part(parts, pn_p, solid=refilled(bulk, hp_p)), MEMO)
+    case(f"{nm_p}: its M3 pilot in {pn_p}'s rear face (normal +Y) filled back in", "CHECK5 organic: 15 positions have a hole", r["failures"], "CHECK5 organic: 15 positions")
+    # revision 17, second step: a pad whose normal is along Y on a part built right-handed and mirrored (rib_B_left): the pilot is cut in its own coordinates and lands on the pad
+    nm_m, (pn_m, q_m, n_m, _pc_m) = next(row for row in pads if row[1][3] == "rear_panel" and row[1][0] == "rib_B_left")
+    rib_l = part_named(parts, pn_m)
+    hp_m = [h for h in rib_l.holes if h.kind == "M3" and h.pilot and of.is_pilot_of(h, q_m, n_m)]
+    r = f.run_checks(hardware, with_part(parts, pn_m, solid=refilled(rib_l, hp_m[0])), MEMO) if len(hp_m) == 1 else {"failures": [f"{len(hp_m)} pilots of {nm_m} in {pn_m}"]}
+    case(f"{nm_m}: its M3 pilot in the mirrored {pn_m}'s rear face (normal +Y) filled back in", "CHECK5 organic: 15 positions have a hole", r["failures"], "CHECK5 organic: 15 positions")
 
     def anchors_of(table):
-        return [dict(name=n, part=p_, q=np.array(q_, dtype=float), n=np.array([float(s_), 0.0, 0.0])) for n, (p_, q_, s_) in table.items()]
+        return [dict(name=n, part=p_, q=np.array(q_, dtype=float), n=np.array(n_, dtype=float)) for n, (p_, q_, n_, _pc_) in table.items()]
     check("organic_frame: every pad's screw axis coincides with an M3 pilot of its part, on the part's face", not of.pad_pilot_failures(anchors_of(hw.ORGANIC_PADS), parts),
           ("no failure", "; ".join(of.pad_pilot_failures(anchors_of(hw.ORGANIC_PADS), parts)[:2]) or "none"))
     moved_pilot = with_part(parts, pn, holes=[h.moved(0.0, 0.5, 0.0) if h is hp else h for h in pp.holes])
     got = of.pad_pilot_failures(anchors_of(hw.ORGANIC_PADS), moved_pilot)
     check(f"organic_frame: the pilot of {nm} moved 0.5 mm in the part, the pad does not follow it", len(got) == 1 and nm in got[0] and "lies on no M3 pilot" in got[0],
           (f"one failure naming {nm}: the screw axis lies on no M3 pilot within 0.01 mm", "; ".join(got) or "NOTHING"))
-    moved_pad = dict(hw.ORGANIC_PADS, **{nm: (pn, (q0[0], q0[1], q0[2] + 0.5), sgn)})
+    moved_pad = dict(hw.ORGANIC_PADS, **{nm: (pn, (q0[0], q0[1], q0[2] + 0.5), n0, _pc)})
     got = of.pad_pilot_failures(anchors_of(moved_pad), parts)
     check(f"organic_frame: the pad {nm} moved 0.5 mm in the table, the pilot does not follow it", len(got) == 1 and nm in got[0] and "lies on no M3 pilot" in got[0],
           (f"one failure naming {nm}", "; ".join(got) or "NOTHING"))
-    deep = dict(hw.ORGANIC_PADS, **{nm: (pn, (q0[0] - sgn * 1.0, q0[1], q0[2]), sgn)})
+    deep = dict(hw.ORGANIC_PADS, **{nm: (pn, (q0[0] - sgn * 1.0, q0[1], q0[2]), n0, _pc)})
     got = of.pad_pilot_failures(anchors_of(deep), parts)
     check(f"organic_frame: the pad {nm} sunk 1 mm into the part is not on its face", any("not on" in x and nm in x for x in got),
           (f"a failure 'not on {pn}'s face'", "; ".join(got) or "NOTHING"))
+    moved_p = dict(hw.ORGANIC_PADS, **{nm_p: (pn_p, (q_p[0], q_p[1], q_p[2] + 0.5), n_p, pc_p)})
+    got = of.pad_pilot_failures(anchors_of(moved_p), parts)
+    check(f"organic_frame: the pad {nm_p} (normal +Y) moved 0.5 mm along Z in the table, the pilot does not follow it", len(got) == 1 and nm_p in got[0] and "lies on no M3 pilot" in got[0],
+          (f"one failure naming {nm_p}", "; ".join(got) or "NOTHING"))
+    deep_p = dict(hw.ORGANIC_PADS, **{nm_p: (pn_p, tuple(c - 1.0 * k for c, k in zip(q_p, n_p)), n_p, pc_p)})
+    got = of.pad_pilot_failures(anchors_of(deep_p), parts)
+    check(f"organic_frame: the pad {nm_p} sunk 1 mm into {pn_p} along minus its normal (-Y) is not on its face", any("not on" in x and nm_p in x for x in got),
+          (f"a failure 'not on {pn_p}'s face'", "; ".join(got) or "NOTHING"))
     # pad_fits: a pad's own pilot is not "another hole too close"; any other hole is
-    check("pad_fits ignores a pad's own pilot and accepts the pad", of.pad_fits(pp, np.array(q0), sgn) is None,
-          ("None (fits)", str(of.pad_fits(pp, np.array(q0), sgn))))
+    check("pad_fits ignores a pad's own pilot and accepts the pad", of.pad_fits(pp, np.array(q0), n0) is None,
+          ("None (fits)", str(of.pad_fits(pp, np.array(q0), n0))))
     other = f.pilot((q0[0], q0[1] + 4.0, q0[2]), (-sgn, 0.0, 0.0), "M3")        # another M3 pilot 4 mm from the pad's axis (centres 6.1 needed)
     with_other = dataclasses.replace(pp, holes=pp.holes + [other])
-    why = of.pad_fits(with_other, np.array(q0), sgn)
+    why = of.pad_fits(with_other, np.array(q0), n0)
     check("pad_fits still counts every other hole: a second M3 pilot 4 mm from the axis rejects the pad", why is not None and "too close" in why and "M3 hole" in why,
           ("'... mm too close to the part's M3 hole'", str(why)))
     moved_own = dataclasses.replace(pp, holes=[h.moved(0.0, 0.5, 0.0) if h is hp else h for h in pp.holes])
-    why = of.pad_fits(moved_own, np.array(q0), sgn)
+    why = of.pad_fits(moved_own, np.array(q0), n0)
     check("pad_fits: a pilot 0.5 mm off the pad's axis is not its own, and is too close", why is not None and "too close" in why, ("'... mm too close to the part's M3 hole'", str(why)))
 
 
@@ -1709,6 +1733,17 @@ def s_drive_access(hardware, parts, base):
     res_l = [da.access(maps_l, rc) for rc in rects_l]
     check("drive_access: the left bay's sled can be carried in from behind with at most 30 degrees of tilt, without and with the plug zone", all(da.passes(x_) for x_ in res_l),
           ("a path, least tilt <= 30 both times", "; ".join(da.verdict(x_) for x_ in res_l)))
+    # revision 17: the rear panel comes off before a drive does. The sweep above leaves out REMOVED_FOR_DRIVE, which must be pieces the field has, with voxels over the bay;
+    # counted, they leave no way; left out, there is one (above)
+    maps_all = da.bay_maps(parts, hardware, strands, field, "left", removed=())
+    res_all = [da.access(maps_all, rc) for rc in rects_l]
+    over_bay = {p_: bool((field["d_" + p_][int(np.searchsorted(field["xs"], -hw.DRIVE_ENVELOPE[0][1])):int(np.searchsorted(field["xs"], -hw.DRIVE_ENVELOPE[0][0])) + 1] < 0).any())
+                for p_ in da.REMOVED_FOR_DRIVE if p_ in field.get("pieces", ())}
+    check("drive_access: with the rear panel counted the left bay's sled has no way in or out, without and with the plug zone; with it left out (REMOVED_FOR_DRIVE) it has one within 30 degrees",
+          da.REMOVED_FOR_DRIVE == ("rear_panel",) and maps_l["removed"] == da.REMOVED_FOR_DRIVE and maps_all["removed"] == () and all(over_bay.values()) and len(over_bay) == len(da.REMOVED_FOR_DRIVE)
+          and not any(da.passes(x_) for x_ in res_all) and all(da.passes(x_) for x_ in res_l),
+          ("counted: no way both times; left out: a path both times", f"counted: {'; '.join(da.verdict(x_) for x_ in res_all)}; left out ({', '.join(maps_l['removed']) or 'nothing'}): "
+           f"{'; '.join(da.verdict(x_) for x_ in res_l)}; pieces over the bay {over_bay}"))
     check("drive_access: every cable route is in the grid (no route without strands), and the body is the sled, the drives and the plug boxes as built",
           not no_strand and len(strands) == 12 and len(rects_l[0]) == 3 and len(rects_l[1]) == 5 and abs(da.silhouette(rects_l[1])[3] - (lay["z_top"] + hw.DRIVE_PLUG_ZONE)) < 1e-6,
           ("12 routes, 3 and 5 rectangles, top at the plug zone's top", f"{len(strands)} routes (without strands: {no_strand}), {len(rects_l[0])} and {len(rects_l[1])} rectangles, top {da.silhouette(rects_l[1])[3]!r} against {lay['z_top'] + hw.DRIVE_PLUG_ZONE!r}"))
@@ -1821,8 +1856,8 @@ def s_screws(hardware, parts, base):
           (f"{want}", f"{got_len}"))
     check("  the board's screw (2 mm of PCB, no washer) is M3 x 6, entering 4 mm", f.screw_fit(2.0, washer=False)[:2] == (6, 4.0), ("(6, 4.0)", f"{f.screw_fit(2.0, washer=False)[:2]}"))
     check("  the lengths fit the rule: at least 3.5 mm into the insert, at least 0.5 mm short of the bottom, no relief bore needed anywhere",
-          all(r_["entry"] >= hw.SCREW_ENGAGE_MIN - 1e-6 and r_["entry"] <= r_["depth"] - hw.SCREW_BOTTOM_GAP + 1e-6 and r_["relief"] == 0 for r_ in base["screws"]["rows"]) and len(base["screws"]["rows"]) == 102,      # revision 14a: 102 (was 96): the rest's 2, the carrier's 4, and the CPU guide's screw moved from the neck (stack 10) to the fan (stack 25)
-          ("102 screws with a stack, all inside the rule, relief 0", f"{len(base['screws']['rows'])} screws, tightest margin {base['screws']['tightest']['margin']:.2f} mm"))
+          all(r_["entry"] >= hw.SCREW_ENGAGE_MIN - 1e-6 and r_["entry"] <= r_["depth"] - hw.SCREW_BOTTOM_GAP + 1e-6 and r_["relief"] == 0 for r_ in base["screws"]["rows"]) and len(base["screws"]["rows"]) == 106,      # revision 14a: 102 (was 96): the rest's 2, the carrier's 4, and the CPU guide's screw moved from the neck (stack 10) to the fan (stack 25); revision 17: 106, the rear panel's 4 pads
+          ("106 screws with a stack, all inside the rule, relief 0", f"{len(base['screws']['rows'])} screws, tightest margin {base['screws']['tightest']['margin']:.2f} mm"))
     check("  the counts stay inside four fifths of the stock: no length over, inserts under 176, washers under 304",
           all(n_ <= hw.STOCK_SHARE * hw.M3_SCREW_STOCK[L_] for L_, (n_, _) in base["screws"]["bill"].items()) and base["screws"]["inserts"] <= hw.STOCK_SHARE * hw.M3_INSERT_STOCK
           and base["screws"]["washers"] <= hw.STOCK_SHARE * hw.M3_WASHER_STOCK,
@@ -1849,10 +1884,10 @@ def s_screws(hardware, parts, base):
          r["failures"], "CHECK15 M3 x 20: 30 needed", "owner has 30")
     with patched(hw, "M3_INSERT_STOCK", 100):
         r = f.run_checks(hardware, parts, MEMO)
-    case("the owner has 100 inserts (the model needs 104)", "CHECK15 104 M3 inserts needed, the owner has 100 and the model may use 0.8 of them (80)", r["failures"], "CHECK15 104 M3 inserts needed")
+    case("the owner has 100 inserts (the model needs 108)", "CHECK15 108 M3 inserts needed, the owner has 100 and the model may use 0.8 of them (80)", r["failures"], "CHECK15 108 M3 inserts needed")
     with patched(hw, "M3_WASHER_STOCK", 100):
         r = f.run_checks(hardware, parts, MEMO)
-    case("the owner has 100 washers (the model needs 93)", "CHECK15 93 M3 washers needed, the owner has 100", r["failures"], "CHECK15 93 M3 washers needed")
+    case("the owner has 100 washers (the model needs 97)", "CHECK15 97 M3 washers needed, the owner has 100", r["failures"], "CHECK15 97 M3 washers needed")
     with patched(hw, "M3_INSERT_LEN", 3.0):          # revision 15: the thread engaged is min(entry, the insert's length); an insert shorter than SCREW_ENGAGE_MIN fails every joint
         r = f.run_checks(hardware, parts, MEMO)
     case("the owner's inserts 3.0 mm long: no screw can engage 3.5 mm of thread", "CHECK15 beam_front: ... engages 3.00 mm of thread (the insert is 3 mm long), needs 3.5",
@@ -1914,8 +1949,8 @@ def s_screws(hardware, parts, base):
           len(base["counterbores"]) == 8 and all(abs(fl_ - 2.0) < 0.05 and abs(en_ - 4.0) < 0.05 for _, _, fl_, _, en_ in base["counterbores"]),
           ("8 rows, floor 2.0, entry 4.0", f"{len(base['counterbores'])} rows, floors {sorted({round(r_[2], 2) for r_ in base['counterbores']})}"))
     pads = [h_ for p_ in parts for h_ in p_.holes if h_.pilot and h_.item == "organic pad"]
-    check("the organic layer's 12 pads each have an M3 pilot and a stack of the pad's height, so M3 x 10", len(pads) == 12 and all(h_.stack == hw.ORGANIC_PAD_H for h_ in pads) and f.screw_fit(hw.ORGANIC_PAD_H)[0] == 10,
-          ("12 pilots, stack 5, M3 x 10", f"{len(pads)} pilots, stack {sorted({h_.stack for h_ in pads})}, M3 x {f.screw_fit(hw.ORGANIC_PAD_H)[0]}"))
+    check("the organic layer's 16 pads each have an M3 pilot and a stack of the pad's height, so M3 x 10", len(pads) == 16 and all(h_.stack == hw.ORGANIC_PAD_H for h_ in pads) and f.screw_fit(hw.ORGANIC_PAD_H)[0] == 10,
+          ("16 pilots, stack 5, M3 x 10", f"{len(pads)} pilots, stack {sorted({h_.stack for h_ in pads})}, M3 x {f.screw_fit(hw.ORGANIC_PAD_H)[0]}"))
     check("no M4 or M5 anywhere: the hole kinds are M3, M3c, 6-32c, M3r, 6-32cb, M3cb and the hardware has no M4 constant",
           {h_.kind for p_ in parts for h_ in p_.holes} <= {"M3", "M3c", "6-32c", "M3r", "6-32cb", "M3cb"} and not any("M4" in k_ or "M5" in k_ for k_ in vars(hw)) and set(hw.INSERTS) == {"M3"},
           ("only M3 kinds", f"{sorted({h_.kind for p_ in parts for h_ in p_.holes})}, inserts {sorted(hw.INSERTS)}"))
