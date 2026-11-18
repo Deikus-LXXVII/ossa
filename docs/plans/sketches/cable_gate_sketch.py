@@ -10,7 +10,12 @@ On top of front_sketch.py. Two layouts were tried:
   the layer stands in a box round the plug and the cable's straight (PLUG_ZONE), like the plug zones of the board's connectors. The layer is carved from every routed cable
   and every hose along the whole centre line (the layer's own carve takes every fourth point of a hose and no cable).
 
-Run from the repository root:  .venv/bin/python docs/plans/sketches/cable_gate_sketch.py <out.png> [--strength]
+- with `--under` (the owner, 18 Nov 2026, on hearing of the two gates: "no need to run the card's power cable over the bio-design panel, it can go under it; the main thing
+  is that there is room for the connector"): the cable's route changes after all, but only above the board. It comes back down beside the connector, into the gap between
+  the card and the 360, and runs under the film to its old way down (UNDER, searched by cable_under_route.py). The lip stays whole. The bone `card` keeps its gate, because
+  the plug stands right under it. The film on the right starts after the loop's far leg (FILM_UNDER_X0).
+
+Run from the repository root:  .venv/bin/python docs/plans/sketches/cable_gate_sketch.py <out.png> [--under] [--strength]
 """
 import os
 import sys
@@ -40,11 +45,23 @@ FILM_R_X1 = 108.0                # the film between `card` and the lip on the ri
 GS = hw.GPU_PWR_SOCKET
 MOUTH_N = hw.GPU_BS[5] - GS["recess"]
 PLUG_ZONE = (GS["v"] - 30.0, GS["v"] + 30.0, GS["u"] - 14.0, GS["u"] + 14.0, MOUTH_N, MOUTH_N + hw.GPU12V_PLUG + hw.GPU12V_STRAIGHT + 10.0)      # board space: the socket's place +- its tolerance and half a plug
+UNDER = (83.0, 192.5, 154.0, 115.0)     # --under: n_a, v_d, u_d, n_run of cable_under_route.under_wps
+FILM_UNDER_X0 = UNDER[1] + hw.ORIGIN[0] + 7.0 + 3.0 + 6.0 + 3.0      # --under: the right film starts here: the loop's far leg, the cable's radius, 3 of air, a strand's radius, 3 to spare
 CABLE_GAP = 3.0                  # the layer keeps this far from a cable's surface (GAP_KEEP); from a hose GAP_HW, as before
 
 
-def patch_gate():
+def patch_gate(under=False):
     fs.patch_front()
+    if under:
+        import cable_under_route as cur
+        old_wps = cables.waypoints_all
+
+        def waypoints_all():
+            R = old_wps()
+            R["gpu12v"][2] = cables.Sec("round", cur.under_wps(*UNDER), "gpu12v")
+            return R
+
+        cables.waypoints_all = waypoints_all
     front_bones, front_films = of.bone_members, of.film_list      # front_sketch's
     cu, cn = of.CARD_BONE_U, of.CARD_BONE_N
     card_l = [of.bp(cu, cn, -of.SWEEP_X), of.bp(cu + 1, cn + 1, -100), of.bp(cu + 1, cn + 1, CARD_GATE_X[0])]
@@ -54,14 +71,16 @@ def patch_gate():
 
     def bone_members():
         out, lines = front_bones()
-        keep = [m for m in out if not (m[0] == "tube" and (ctl_same(m[1], of.LIP_BONE) or ctl_same(m[1], of.CARD_BONE)))]
-        assert len(keep) == len(out) - 2, "the bones card and lip were not found"
-        for name, ctrl, r in (("card_L", card_l, of.BONE_R["card"]), ("card_R", card_r, of.BONE_R["card"]), ("lip_L", lip_l, of.BONE_R["lip"]), ("lip_R", lip_r, of.BONE_R["lip"])):
+        split = [("card_L", card_l, of.BONE_R["card"]), ("card_R", card_r, of.BONE_R["card"])] + ([] if under else [("lip_L", lip_l, of.BONE_R["lip"]), ("lip_R", lip_r, of.BONE_R["lip"])])
+        gone = [of.CARD_BONE] + ([] if under else [of.LIP_BONE])
+        keep = [m for m in out if not (m[0] == "tube" and any(ctl_same(m[1], g) for g in gone))]
+        assert len(keep) == len(out) - len(gone), "the bones card and lip were not found"
+        for name, ctrl, r in split:
             keep.append(("tube", ctrl, of.bone(*r), of.K))
             lines[name] = of.sc.spline(ctrl, step=6.0)
-        for p in (card_l[-1], card_r[0], lip_l[-1], lip_r[0]):          # a bone's free end is a ball, like the feet
+        for p in [card_l[-1], card_r[0]] + ([] if under else [lip_l[-1], lip_r[0]]):          # a bone's free end is a ball, like the feet
             keep.append(("ball", p, 8.0, 8.0))
-        for k in ("card", "lip"):
+        for k in ("card",) if under else ("card", "lip"):
             lines.pop(k)
         return keep, lines
 
@@ -72,6 +91,11 @@ def patch_gate():
         films[1] = of.film_members([of.bp(cu + 1, cn + 1, 44.0), of.bp(cu + 1, cn + 1, 76.0), of.bp(cu + 1, cn + 1, FILM_R_X1)],
                                    [of.bp(of.LIP_U - 1, of.FACE_N + 1, 44.0), of.bp(of.LIP_U - 1, of.FACE_N + 1, 76.0), of.bp(of.LIP_U - 1, of.FACE_N + 1, FILM_R_X1)],
                                    5, seed=8, r_a=6.0, r_b=6.0, sag=(0.0, 0.707, -0.707), sag_mm=4, links=2)
+        if under:                                                 # the lip is whole: the film runs on to the corner as it does today, and starts after the loop
+            x0 = FILM_UNDER_X0
+            films[1] = of.film_members([of.bp(cu + 1, cn + 1, x0), of.bp(cu + 1, cn + 1, (x0 + of.SWEEP_X) / 2), of.bp(cu, cn, of.SWEEP_X)],
+                                       [of.bp(of.LIP_U - 1, of.FACE_N + 1, x0), of.bp(of.LIP_U - 1, of.FACE_N + 1, (x0 + 190.0) / 2), of.bp(of.LIP_U, of.FACE_N, 190)],
+                                       6, seed=8, r_a=6.0, r_b=6.0, sag=(0.0, 0.707, -0.707), sag_mm=4, links=3)
         return films
 
     of.bone_members, of.film_list = bone_members, film_list
@@ -106,7 +130,7 @@ def patch_gate():
 
 def main():
     out_png = sys.argv[1]
-    patch_gate()
+    patch_gate(under="--under" in sys.argv)
     hware = {k: v for k, v in hw.build_hardware().items() if k != "light_strip"}
     parts_all, _ = frame_v0.build_frame(hardware=hw.build_hardware())
     parts = [p for p in parts_all if p.name != "front_sill"]
@@ -127,7 +151,6 @@ def main():
              pad_piece=np.array([hw.ORGANIC_PADS[a["name"]][3] for a in anchors]), **{"d_" + k: f.d for k, f in fields.items()})
     # the zone and the strands against the layer
     Xb = of.sc.to_bs(np.meshgrid(U.xs, U.ys, U.zs, indexing="ij")) if False else None
-    sys.argv = [sys.argv[0], tmp]
     lines = [(f"cable {name}[{k}]", ctl.densify(p), float(r)) for name, rt in routes.items() if name != "argb" for k, (p, r) in enumerate(rt.strands)]
     lines += [(f"hose {name}[{k}]", ctl.densify(h["pts"]), float(spec["r"])) for name, (pair, spec) in hoses.routes().items() for k, h in enumerate(pair)]
     vox = float(U.xs[1] - U.xs[0])
@@ -144,7 +167,7 @@ def main():
     for g, name, p in worst[:5]:
         print(f"   {name:16} {g:6.1f} mm at X {p[0]:.0f}, Y {p[1]:.0f}, Z {p[2]:.0f}")
     try:
-        for b in of.bitten(fields["main"], {k: v for k, v in info["lines"].items() if k in ("card_L", "card_R", "lip_L", "lip_R", "brow", "front_L", "front_R")}, parts, hware):
+        for b in of.bitten(fields["main"], {k: v for k, v in info["lines"].items() if k in ("card_L", "card_R", "lip_L", "lip_R", "lip", "brow", "front_L", "front_R")}, parts, hware):
             print("  bitten:", str(b)[:160])
     except Exception as e:
         print("  (bitten() not run:", type(e).__name__, ")")

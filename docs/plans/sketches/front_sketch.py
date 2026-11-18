@@ -25,7 +25,16 @@ LOW_Y, LOW_Z = 22.0, 60.0                 # the film's lower bar and the hood's 
 LOW_X = 150.0                             # the film is hung between X -150 and 150
 HOOD_X = (-92.0, 117.0)                   # the hood's cheeks: 10 mm outside the carrier's ends (X -82 and 107)
 ROOF_R, ROOF_SQUASH = 26.0, 3.5           # the roof: a tube of this radius along X, flattened along Z by this factor (15 mm thick, 52 mm deep)
-CHEEK_R, CHEEK_SQUASH = 22.0, 3.5         # a cheek: a tube down from the roof, flattened along X (12.6 mm thick)
+CHEEK_R, CHEEK_SQUASH = 22.0, 3.0         # a cheek: a tube down from the roof, flattened along X (14.7 mm thick)
+CHEEK_Z = (56.0, 42.0, 28.0)              # its centre line's Z. The first sketch (the one rendered for the owner) went down to 14 and was 12.6 mm thick. Shorter and thicker was
+                                          # tried against a 4.86 mm movement under a push on a cheek; it changed nothing (4.87), because the cause was the post's foot (POST_PAD_YZ).
+                                          # Kept, because every run behind the plan was made with it; both reach down to the beam's top
+POST_PAD_YZ = (20.0, -6.0)                # a pad under each front post, on the rib's foot between beam_front's two screws (Y 10 and 30, Z 0). Without it the post's foot hangs: the
+                                          # sill's pads are gone, the pad front_foot is 46 mm behind the foot, and the clearance round the screw's head at Y 30 cuts the foot from the
+                                          # base rail. A 30 N push on the hood then swings the whole post back, 5.5 mm at the foot (hood_mode.py at 3 mm voxels: the post turns about its top)
+LINK_ALLOW, LINK_PUSH = 10.0, 30.0        # organic_strength's ALLOW and PUSH_N: a cross-thread is as thick at mid-span as a round bar held loosely at both ends needs to be
+                                          # for that push (r^3 = push * length / (pi * allow)). The layer's own rule gives every link 2.6 mm whatever its length; the front
+                                          # film's longest link, 55 mm, showed 29.7 MPa when a push happened to land on its middle
 FILM = dict(n=13, seed=23, sag=(0.0, 1.0, 0.0), sag_mm=2.0, links=6)     # 13 strands where the veil had 7, nearly straight (the veil sagged up to 12 mm)
 
 
@@ -37,7 +46,23 @@ def patch_front():
     for name in [k for k, v in hw.ORGANIC_PADS.items() if v[0] == "front_sill"]:
         del hw.ORGANIC_PADS[name]
     of.sill_sdf = lambda G: np.full(G[0].shape, 1e9, dtype=np.float32)
+    for sgn, side, tag in ((1.0, "right", "R"), (-1.0, "left", "L")):
+        hw.ORGANIC_PADS[f"front_post_{tag}"] = (f"rib_A_{side}", (158.0 * sgn, POST_PAD_YZ[0], POST_PAD_YZ[1]), (sgn, 0.0, 0.0), "main")
+    of.BONE_OF["front_post"] = "front"
     old_bones, old_films, old_add = of.bone_members, of.film_list, of.Field.add
+    old_members = of.film_members
+
+    def film_members(a_ctrl, b_ctrl, n, seed, links=3, **kw):
+        out = old_members(a_ctrl, b_ctrl, n, seed, links=links, **kw)
+        for k in range(len(out) - links, len(out)):                  # the links are the last `links` members
+            kind, ctrl, _r, blend = out[k]
+            length = float(np.linalg.norm(np.array(ctrl[2]) - np.array(ctrl[0])))
+            r_mid = max(of.LINK_R[1], (LINK_PUSH * length / (np.pi * LINK_ALLOW)) ** (1.0 / 3.0))
+            r_end = max(of.LINK_R[0], r_mid + 0.8)
+            out[k] = (kind, ctrl, of.bone(r_end, r_mid, r_end), blend)
+        return out
+
+    of.film_members = film_members
 
     def bone_members():
         out, lines = old_bones()
@@ -45,7 +70,7 @@ def patch_front():
         lines["front_low"] = sc.spline(low, step=6.0)
         out.append(("slab", [(HOOD_X[0], LOW_Y, LOW_Z - 1.0), (0.0, LOW_Y, LOW_Z - 1.0), (HOOD_X[1], LOW_Y, LOW_Z - 1.0)], ROOF_R, 10.0, ("z", ROOF_SQUASH)))
         for x in HOOD_X:
-            out.append(("slab", [(x, LOW_Y, LOW_Z - 4.0), (x, LOW_Y, 34.0), (x, LOW_Y, 14.0)], CHEEK_R, 10.0, ("x", CHEEK_SQUASH)))
+            out.append(("slab", [(x, LOW_Y, z) for z in CHEEK_Z], CHEEK_R, 10.0, ("x", CHEEK_SQUASH)))
         return out, lines
 
     def film_list():
