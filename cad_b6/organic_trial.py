@@ -12,6 +12,7 @@ import os
 import sys
 
 import numpy as np
+import trimesh
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import cadquery as cq  # noqa: F401  (before vtk, see render_vtk.py)
@@ -57,7 +58,25 @@ def largest_piece(poly):
     clean = vtk.vtkCleanPolyData()
     clean.SetInputConnection(tri.GetOutputPort())
     clean.Update()
-    return clean.GetOutput(), n
+    out = clean.GetOutput()
+    # the field's surface comes out with its faces turned inwards (a negative volume); a slicer may take an inside-out part for a hole, so the faces are turned to look outwards
+    if signed_volume(out) < 0:
+        rev = vtk.vtkReverseSense()
+        rev.SetInputData(out)
+        rev.ReverseCellsOn()
+        rev.ReverseNormalsOff()
+        rev.Update()
+        out = rev.GetOutput()
+    return out, n
+
+
+def signed_volume(poly):
+    """mm3, positive when the triangles' faces look outwards."""
+    from vtk.util.numpy_support import vtk_to_numpy
+    pts = vtk_to_numpy(poly.GetPoints().GetData()).astype(float)
+    tri = vtk_to_numpy(poly.GetPolys().GetConnectivityArray()).reshape(-1, 3)
+    a, b, c = pts[tri[:, 0]], pts[tri[:, 1]], pts[tri[:, 2]]
+    return float(np.einsum("ij,ij->i", a, np.cross(b, c)).sum() / 6.0)
 
 
 def open_edges(poly):
@@ -137,6 +156,9 @@ def main():
             fails.append(f"ORGANIC_TRIAL {name}: the box holds {pieces} separate pieces of the layer; move the box so that the trial is one piece")
         if gaps:
             fails.append(f"ORGANIC_TRIAL {name}: the surface has {gaps} open edges, a slicer may not take it")
+        signed = float(trimesh.load(stl).volume)
+        if signed <= 0:
+            fails.append(f"ORGANIC_TRIAL {name}: the written STL's faces look inwards (signed volume {signed / 1000:.1f} cm3)")
         if not inside:
             fails.append(f"ORGANIC_TRIAL {name}: the pad {pad} is not inside the box")
     if fails:
