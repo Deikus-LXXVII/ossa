@@ -658,7 +658,8 @@ NECK_N = (-58.0, hw.RAD360_INNER_N - 2.0)          # plan: n -30..115; lower end
 JOINT_U = 289.2
 JOINT_MIN_SPACING = 20.0
 JOINT_N = (hw.RAD360_INNER_N - 8.0, hw.RAD360_INNER_N - 28.5)         # n 114 and 93.5: 20.5 apart
-KNEE_U = (NECK_U[0], JOINT_U + 5.3)                # arm tab below the bar, 284..294.5; the radiator screw's hole at u 297 stays clear of it
+KNEE_U = (NECK_U[0], JOINT_U + 5.3)                # arm tab below the bar, 284..294.5; the radiator screw's clearance bore at u 297 stays clear of it, its head does not (2.5 mm from the axis, the head's
+                                                   # radius 3.35): that counterbore starts at the knee's underside, an open groove in the knee's face (revision 16, rad360_cb_mouth_n)
 KNEE_N0 = JOINT_N[1] - 5.5                         # n 88
 ARM_NOTCH_U = (hw.RAD360_PORTS_BS[2] - 1.0, hw.RAD360_PORTS_BS[3] + 1.0)      # 1 mm clear of the port keep-out at both ends
 ARM_NOTCH_X = hw.RAD360_PORTS_BS[0] + hw.ORIGIN[0] - 1.0  # world X of the arm's outer face where it passes the right-hand tank (1 mm gap)
@@ -1455,6 +1456,13 @@ def build_neck_right(side=1):
     return drill(s, holes) + (outlines,)
 
 
+def rad360_cb_mouth_n(u):
+    """n where the counterbore of the 360's screw at u starts on the arm (revision 16): at the knee's underside (KNEE_N0) when the knee's face stands closer to the screw's axis
+    than the counterbore's radius, so the head passes the knee in an open groove; at the bar's underside otherwise. The floor under the head is HW_SCREW_FLOOR either way."""
+    gap = max(KNEE_U[0] - u, u - KNEE_U[1], 0.0)
+    return KNEE_N0 if gap < CLEAR_KINDS["6-32cb"][0] / 2 else hw.RAD360_INNER_N - ARM_T
+
+
 def build_arm_right(notched=True):
     """Bar under the 360's inner face with the two screws into the radiator, a knee below the bar for the second joint
     bolt, and the two joint bolts' pilots on the neck's side. The bar is as wide as the neck is far (X to NECK_X[0]) so
@@ -1468,7 +1476,8 @@ def build_arm_right(notched=True):
         holes += joint_pilots((x1, y, z), (-1, 0, 0), JOINT_STACK, "visor joint")
     v = hw.x_to_v(RAD360_X_ARM)
     for u in hw.RAD360_HOLES_U:    # the radiator's own 6-32 screws, along n through the bar at the outer column: the head sits in a counterbore from below, HW_SCREW_FLOOR under it
-        holes += stepped_bore(hw.bp(v, u, hw.RAD360_INNER_N - ARM_T), hw.N_DIR, ARM_T)
+        n_mouth = rad360_cb_mouth_n(u)
+        holes += stepped_bore(hw.bp(v, u, n_mouth), hw.N_DIR, hw.RAD360_INNER_N - n_mouth)
     notch = bsx(ARM_NOTCH_X, x1 + 1, ARM_NOTCH_U[0], ARM_NOTCH_U[1], n0 - 1, hw.RAD360_INNER_N + 1)
     s = bsx(x0, x1, ARM_U0, hw.BOARD_BS[3], n0, hw.RAD360_INNER_N)
     s = s.fuse(bsx(x0, x1, KNEE_U[0], KNEE_U[1], KNEE_N0, n0)).clean()
@@ -3637,12 +3646,13 @@ def check_screws(parts, hardware, failures):
 
 
 COUNTERBORE_TOL = 0.1    # mm: the material measured under a hardware screw's head against the floor the counterbore was made to leave
+# the length under the head of the hardware 6-32 screw whose head sits in a part's counterbores (6-32cb), by the part's name: checks 16 and 23
+HW_SCREW_LEN = {"psu_bulkhead": hw.PSU_SCREW_LEN, "visor_arm_right": hw.RAD360_SCREW_LEN, "visor_arm_left": hw.RAD360_SCREW_LEN}
 
 
 def check_counterbores(parts, failures):
     """Check 16. Under the head of each hardware 6-32 screw that sits in a counterbore (the PSU's on psu_bulkhead, the 360's on the visor arms) HW_SCREW_FLOOR mm of material is left,
     measured on the solid beside the bore. Returns [(part, position, floor, screw length, entry)]."""
-    screw_len = {"psu_bulkhead": hw.PSU_SCREW_LEN, "visor_arm_right": hw.RAD360_SCREW_LEN, "visor_arm_left": hw.RAD360_SCREW_LEN}
     rows = []
     for p in parts:
         for h in p.holes:
@@ -3653,7 +3663,7 @@ def check_counterbores(parts, failures):
             probe = Hole("probe", tuple(c + rho * k for c, k in zip(h.start, side)), h.d, 0.1, h.length + 12.0, 0.0, False)
             floor = sum(b - a + 2 * SPAN_MARGIN for a, b in material_spans(p.solid, probe))      # material_spans stops SPAN_MARGIN short of each face
             pos = h.point(OVERSHOOT)
-            rows.append((p.name, pos, floor, screw_len[p.name], screw_len[p.name] - floor))
+            rows.append((p.name, pos, floor, HW_SCREW_LEN[p.name], HW_SCREW_LEN[p.name] - floor))
             if abs(floor - HW_SCREW_FLOOR) > COUNTERBORE_TOL:
                 failures.append(f"CHECK16 {p.name}: {h.describe()} leaves {floor:.2f} mm under the head, the plan leaves {HW_SCREW_FLOOR:g}")
     return rows
@@ -3703,6 +3713,57 @@ def m3_counterbore_probes(solid, h):
         spans = material_spans(solid, Hole("probe", tuple(np.array(h.start) + off), h.d, 0.05, reach, 0.0, False))
         return (spans[0][0] - SPAN_MARGIN, spans[0][1] + SPAN_MARGIN) if spans else None
     return [first_span(h.r + 0.5, 2 * math.pi * k / CB_RIM_POINTS) for k in range(CB_RIM_POINTS)], first_span((hw.M3_CLEAR_D / 2 + h.r) / 2, 0.0)
+
+
+# Check 23 (revision 16): the stack an M3 counterbore's screw clamps, by the hole's item; its length is screw_fit of it
+M3CB_STACK = {"gpu_rest": REST_STACK, "front_io_carrier": CARRIER_STACK}
+
+
+HEAD_WAY_TOL = 1e-6      # mm: check 23 compares two distances that are equal by construction where a face is tangent to the head's way
+
+
+def head_way(h, part_name):
+    """(diameter, length, what) of the screw with its head that is offered up to the counterbore h along its axis (check 23), or None when the screw is not known.
+    6-32cb: the hardware screw's head plus hw.TOOL_PLAY, its length (HW_SCREW_LEN) plus the head's height. M3cb: the larger of the head and the washer plus hw.TOOL_PLAY,
+    screw_fit of the joint's stack (M3CB_STACK by the hole's item) plus the head's height."""
+    if h.kind == "6-32cb":
+        if part_name not in HW_SCREW_LEN:
+            return None
+        L = HW_SCREW_LEN[part_name]
+        return hw.UNC6_HEAD_D + hw.TOOL_PLAY, L + hw.UNC6_HEAD_H, f"6-32 x {L:g}"
+    if h.item not in M3CB_STACK:
+        return None
+    L = screw_fit(M3CB_STACK[h.item])[0]
+    return max(hw.M3_HEAD_D, hw.M3_WASHER_D) + hw.TOOL_PLAY, L + hw.M3_HEAD_H, f"M3 x {L:g}"
+
+
+def check_head_way(parts, failures):
+    """Check 23 (revision 16): a screw can be offered up to its counterbore. For every recorded counterbore (Hole kind 6-32cb or M3cb) the screw's axis, from the mouth outward along -d
+    for the screw's length with its head (head_way), keeps the counterbore's own part at least half the head's way (the head, or the washer, with hw.TOOL_PLAY) away. A distance, not
+    the volume a cylinder shares with the part: a short ridge in the head's way has next to no volume (the lesson of revision 15a). It looks at that part only and only as far as the
+    screw is long; whether a tool reaches the head past other parts is assembly_access.py. Returns [(part, kind, item, position, screw, distance, needed)]."""
+    rows = []
+    for p in parts:
+        for h in p.holes:
+            if h.kind not in ("6-32cb", "M3cb"):
+                continue
+            where = f"{p.name}: {h.describe()}"
+            way = head_way(h, p.name)
+            if way is None:
+                failures.append(f"CHECK23 {where}: no screw length is known for this counterbore (part {p.name}, item {h.item!r})")
+                continue
+            dia, length, screw = way
+            mouth = h.point(OVERSHOOT)
+            back = tuple(-c for c in h.d)
+            axis = cq.Edge.makeLine(cq.Vector(*mouth), cq.Vector(*(m + length * c for m, c in zip(mouth, back))))
+            dist = _guard(failures, "CHECK23", where, solid_distance, axis, p.solid)
+            if dist is None:
+                continue
+            rows.append((p.name, h.kind, h.item, mouth, screw, dist, dia / 2))
+            if dist < dia / 2 - HEAD_WAY_TOL:
+                failures.append(f"CHECK23 {where}: the {screw} with its head, offered up along its axis ({length:g} mm from the mouth outward), comes within {dist:.2f} mm of the part, "
+                                f"the head needs {dia / 2:.2f}")
+    return rows
 
 
 def contact_area(a, b):
@@ -3923,6 +3984,9 @@ def run_checks(hardware, parts, memo=None):
     res["screws"] = check_screws(parts, hardware, failures)
     res["counterbores"] = check_counterbores(parts, failures)
     res["m3_counterbores"] = check_m3_counterbores(parts, failures, memo)
+
+    # 23. a screw can be offered up to its counterbore: its head's way out of the mouth, as long as the screw with its head, is clear of the counterbore's own part (revision 16)
+    res["head_way"] = check_head_way(parts, failures)
 
     # 7. extra sanity: one connected solid per part, bolt positions inside outlines, every hole drilled
     #    with the wall its insert or screw needs
@@ -4451,6 +4515,11 @@ def format_report(hardware, parts, res, memo=None):
     w(f"  22. (доп., ревизия 14a, после ревью) задняя стенка порога за карманом: {sw.get('n', 0)} проб вдоль Y через каждые {SILL_WALL_STEP[0]:g} мм по X и {SILL_WALL_STEP[1]:g} мм по Z от пола кармана до потолка, мимо окна; "
       + (f"наименьшая {sw['min'][0]:.2f} мм (X {sw['min'][1]:.1f}, Z {sw['min'][2]:.1f}), нужно не меньше {SILL_WALL_MIN:g}   " if sw else "нет данных   ")
       + ("PASS" if not any(f.startswith('CHECK22') for f in res['failures']) else "FAIL"))
+    hwy = res["head_way"]
+    w(f"  23. (доп., ревизия 16) винт можно подвести к его зенковке: у {len(hwy)} зенковок (6-32 {sum(1 for r in hwy if r[1] == '6-32cb')}, M3 {sum(1 for r in hwy if r[1] == 'M3cb')}) ось винта от устья наружу "
+      f"на длину винт + головка проходит от своей детали не ближе половины Ø головки + {hw.TOOL_PLAY:g} (6-32 {(hw.UNC6_HEAD_D + hw.TOOL_PLAY) / 2:g}, M3 с шайбой {(max(hw.M3_HEAD_D, hw.M3_WASHER_D) + hw.TOOL_PLAY) / 2:g}); "
+      f"наименьший запас {min((r[5] - r[6] for r in hwy), default=0):.2f} мм (расстояние, не объём); только своя деталь и только на длину винта, подход инструмента мимо других деталей меряет assembly_access.py   "
+      + ("PASS" if not any(f.startswith('CHECK23') for f in res['failures']) else "FAIL"))
     w("")
     w("Прочность кронштейна бокового вентилятора (ручной расчёт, ревизия 13, п. 5; расчёт - функция bracket_strength(), числа из модели)")
     for ln in st["fan bracket"]["lines"]:
@@ -5045,6 +5114,18 @@ DEVIATIONS: list[str] = [
     "(2) Окно для кабелей - числа порога (X 40..90, Z 14..46), не смещения от hw.FRONT_IO_W; light_strip больше не следует наивысшей точке модуля (hw.LIGHT_STRIP_N1, те же числа). Модуль, выросший на весь допуск, "
     "не меняет порог; проверка 20 валит модуль, задняя грань которого не закрывает окно. (3) Направляющая CPU: каналы - истинные трубки шлангов + 0.3 мм, протянутые по цепочкам через всю гребёнку; место - ближайшая к оси винта точка шланга 1, "
     "стенка 0.30 и 0.30 мм (было 0.30 и 0.24). (4) Зенковки gpu_rest 3.7 мм (головка + шайба + 0.2, как у каретки; было 3.0, головка торчала на 0.5 мм), M3 x 30 входит на 5.2 мм; все зенковки M3 записаны как отверстия M3cb и меряются проверкой 16.",
+    "Ревизия 16 (docs/plans/assembly-access.md, шаг 2): канал для винта 360 через колено плеча. assembly_access.py нашёл, что винты 360 при u 297 на обоих плечах завернуть нельзя: грань колена "
+    "(u 284..294.5, n 88..108) стоит в 2.5 мм от оси винта, а радиус головки 3.35, головка не проходит мимо колена к своей зенковке. Теперь зенковка этого винта начинается на нижней грани колена "
+    "(n KNEE_N0 = 88), а не бара (n 108): толщина 34 (до внутренней грани радиатора), под головкой по-прежнему HW_SCREW_FLOOR 2 мм, диаметр прежний 7.5. В колене это открытая канавка глубиной "
+    "1.25 мм в грани колена, X 169.7..175.3. Правило геометрическое (rad360_cb_mouth_n): зенковка начинается на колене, когда грань колена ближе к оси винта, чем радиус зенковки; винт при u 192 "
+    "сохраняет прежнюю зенковку. Замерено: канавка забирает из колена 94.38 мм³ сверх прежней зенковки (нескруглённое плечо); от пилота нижнего болта шеи до канавки 2.700 мм в зоне вставки "
+    "(нужно 1.6) и 1.907 мм у конца (нужно 1.2), те же числа у верхнего болта; под головкой 2.00 мм. Нижний наружный угол колена (u 294.5, n 88) теперь острый на обоих плечах "
+    "(«скругление врезалось бы в стенку отверстия»): у правого он был скруглён R 2, у левого уже был острым (площадь контакта у винта площадки шеи); это устье канавки. Проверка 12 на плече: "
+    "углов 8 -> 6 (ушло ребро-щепка 5.6 мм, которое прежняя зенковка оставляла на грани колена у n 107.5, а угол колена, разрезанный канавкой, больше не считается), острых справа 4 -> 3, слева 5 -> 3. "
+    "Новая проверка 23: от устья каждой записанной зенковки (6-32cb, M3cb) наружу ось винта длиной винт + головка проходит от своей детали не ближе половины Ø головки + hw.TOOL_PLAY "
+    "(расстояние, а не объём цилиндра: по замечанию проверки Grok допуск 1 мм³ пропускал короткий выступ на пути головки); до ревизии на плечах 2.50 мм при нужных 3.60 (цилиндр Ø7.2 задевал колено на 31.46 мм³), "
+    "теперь не меньше радиуса зенковки. Длины штатных винтов 6-32 - одна таблица HW_SCREW_LEN для проверок 16 и 23. Прочность колена сеткой не перепроверена: strength.py сеткует заготовку детали до отверстий и "
+    "канавки не видит; вручную сечение колена поперёк n 10.5 x 13.5 = 141.8 мм², канавка забирает 4.84 мм² (3.4 %) с другой стороны от болта шеи.",
 ]
 OPEN_ITEMS: list[str] = [
     "Отсеки под диски: глубина штекера и изгиба кабеля за диском 25 мм (DRIVE_PLUG_ZONE) - ПРЕДПОЛОЖЕНИЕ, источника нет. Головки винтов, нижний предел входа 2.5 дюйма, резиновые втулки (нет размеров), кабели SATA (данные от платы, питание от БП), "

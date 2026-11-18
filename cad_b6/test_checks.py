@@ -68,7 +68,7 @@ SECTIONS: list[tuple[str, object]] = []             # (title, function(hardware,
 # A run that records fewer fails (a section emptied, cut short or skipped would otherwise pass as "N/N cases as expected"), and
 # so does a section, or the prelude, that records none. A run that records more passes and says to raise this in the same commit.
 # Not in budgets.json: check_budgets.py --write rewrites that file from a run's record, and the pin must not follow a run down.
-EXPECTED_CASES = 322
+EXPECTED_CASES = 324
 
 # the expensive operations, counted per process: the budget of the time to verify gates on these (check_budgets.py)
 COUNTS: collections.Counter = collections.Counter()
@@ -1892,6 +1892,24 @@ def s_screws(hardware, parts, base):
     deeper_a = f.cyl(cba.start, cba.d, 2 * cba.r, cba.length + 1.0)
     r = f.run_checks(hardware, with_part(parts, "visor_arm_right", solid=arm.solid.cut(deeper_a)), MEMO)
     case("visor_arm_right: one counterbore cut 1 mm too deep (1 mm left under the head)", "CHECK16 visor_arm_right: 6-32cb ... leaves 1.00 mm under the head, the plan leaves 2", r["failures"], "CHECK16 visor_arm_right", "leaves 1.0", "plan leaves 2")
+    # check 23 (revision 16): a screw can be offered up to its counterbore. The arm as it was before the revision (the u 297 counterbore starting at the bar's underside, so the 360's screw head
+    # meets the knee 2.5 mm from its axis), and a block on rib_A_right in front of one of gpu_rest's counterbore mouths, outward along -n from the diagonal's underside
+    with patched(f, "rad360_cb_mouth_n", lambda u_: hw.RAD360_INNER_N - f.ARM_T):
+        old_arm, old_holes, old_blank = f.build_arm_right(True)
+    old_cb = next(h_ for h_ in old_holes if h_.kind == "6-32cb" and abs(hw.bs_of(*h_.point(f.OVERSHOOT))[1] - hw.RAD360_HOLES_U[1]) < 1e-6)
+    fl = []
+    f.check_head_way(with_part(parts, "visor_arm_right", solid=old_arm, blank=old_blank, holes=old_holes), fl)
+    case("visor_arm_right built with its u 297 counterbore starting at the bar (before revision 16): the 360's screw with its head meets the knee",
+         f"CHECK23 visor_arm_right: {old_cb.describe()}: the 6-32 x 6 with its head ... comes within 2.50 mm of the part, the head needs 3.60", fl, "CHECK23 visor_arm_right", old_cb.describe(),
+         "the 6-32 x 6 with its head", "comes within 2.50 mm of the part, the head needs 3.60")
+    rib_r = part_named(parts, "rib_A_right")
+    cb_r = next(h_ for h_ in rib_r.holes if h_.kind == "M3cb")
+    _v, u_cb, n_cb = hw.bs_of(*cb_r.point(f.OVERSHOOT))
+    fl = []
+    f.check_head_way(with_part(parts, "rib_A_right", solid=rib_r.solid.fuse(f.bsx(f.X_IN, f.X_OUT, u_cb - 5.0, u_cb + 5.0, n_cb - 3.0, n_cb)).clean()), fl)
+    case(f"rib_A_right with a block 3 mm deep in front of one of gpu_rest's counterbore mouths (outward along -n from n {n_cb:.1f})",
+         f"CHECK23 rib_A_right: {cb_r.describe()}: the M3 x 30 with its head ... comes within 0.00 mm of the part, the head needs 3.75", fl, "CHECK23 rib_A_right", cb_r.describe(),
+         "the M3 x 30 with its head", "comes within 0.00 mm of the part, the head needs 3.75")
     check("  the undamaged counterbores: 4 under the PSU's screws and 4 under the 360's (2 per arm), 2.0 mm of floor each, the screws (6.0 mm, both ASSUMPTIONS) entering 4.0 mm",
           len(base["counterbores"]) == 8 and all(abs(fl_ - 2.0) < 0.05 and abs(en_ - 4.0) < 0.05 for _, _, fl_, _, en_ in base["counterbores"]),
           ("8 rows, floor 2.0, entry 4.0", f"{len(base['counterbores'])} rows, floors {sorted({round(r_[2], 2) for r_ in base['counterbores']})}"))

@@ -70,6 +70,7 @@ python3 -m venv .venv
 .venv/bin/python cad_b6/test_properties.py  # property tests of the helper functions; ends PASS (a known failure is listed, not hidden)
 .venv/bin/python cad_b6/test_organic.py  # the organic layer's checks fail when the field is damaged
 .venv/bin/python cad_b6/zone_access.py   # plug zones free; bundles 52 mm and 72 mm, and 52 mm and 56 mm with the layer; a hand, 50 mm without the layer and 44 mm with it
+.venv/bin/python cad_b6/assembly_access.py  # about 3 minutes: every screw against the assumed tools, and an order of assembly in out/assembly/order.md; exit 1 if a screw cannot be driven or no order exists (tests: cad_b6/test_assembly.py)
 .venv/bin/python cad_b6/parts_manifest.py --expect <parts>  # exit 1 names any part or hardware solid that changed outside the list
 .venv/bin/python cad_b6/render_vtk.py    # previews/b6_v0_*.png
 .venv/bin/python cad_b6/render_full.py   # previews/b6_full_*.png, the whole design

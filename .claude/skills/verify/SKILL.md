@@ -60,6 +60,17 @@ Bounding boxes: read them with `frame_v0.exact_box` or `bbox_of` (the same, cach
 
 It reads `out/test_checks/fast.json` (run the fast suite first) and `out/organic/field.npz`. Gates: the skeleton's ABS at 4 walls / 20 % (recorded figure + 2 %, and 90 % of `hw.ABS_STOCK_G`), the organic layer's volume (+ 2 %, and its solid PETG at 90 % of the 4 kg ordered), the suite's counts of expensive operations (+ 10 % rounded down, and never less than + 1, so that the next honest case that adds one operation passes; the line prints the limit). Warning only: the suite's wall time (+ 25 %), because it is noisy. A figure under its floor fails, because a saving is recorded on purpose: a count under its recorded figure (the suite did less work than its record), a mass or a volume more than 5 % under its record. The suite's record is refused when it is not a clean fast run, when it is short of `EXPECTED_CASES` or has a section with no case, when a file in its digest has changed since the run (the record is of other code), and when the Python or a package version installed now differs from the record's: rerun the suite. Lower a budget with `--write` in a commit of its own after a figure improved; `--write` refuses a figure that fails a hard limit (the stock), and a figure under its floor unless `--accept-lower` says the saving is meant (say why in the commit); never meet a budget by removing a check. A budget that has to rise is the owner's call.
 
+## Assembly: assembly_access.py
+
+After a new screw or counterbore, or a part or hardware solid moved near a screw's axis (REVIEW.md row 20):
+
+```bash
+.venv/bin/python cad_b6/assembly_access.py        # ~160 s: every screw against the assumed tools, an order of assembly in out/assembly/order.md; exit 1 if a screw cannot be driven or no order exists
+.venv/bin/python cad_b6/test_assembly.py          # ~80 s: ends "N/N as expected: PASS", N being EXPECTED_CASES (51)
+```
+
+Read the order: a part that goes on after what it should carry, or a long list under "Stand loose", is a finding even when the script exits 0.
+
 ## Drive
 
 1. **Measure.** `cad_b6/measure.py` prints AABBs, minimum distance and overlap volume for named parts and hardware. Names come from running it with no arguments. Hardware names carry the `hw:` prefix.

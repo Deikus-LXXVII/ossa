@@ -401,6 +401,15 @@ ORGANIC_PAD_H = 5.0                         # the organic layer's pad under each
 UNC6_HEAD_D, UNC6_HEAD_H = 6.7, 2.5         # ASSUMPTION: a pan head, the figure DRIVE_FORMS uses for the 3.5 inch drive's screw
 PSU_SCREW_LEN = 6.0                         # ASSUMPTION ("about 6 mm"): the PSU's 6-32 screw under its head; the bulkhead's 6 mm wall is counterbored to match
 RAD360_SCREW_LEN = 6.0                      # ASSUMPTION, not measured: the 360's 6-32 screw under its head; the owner has not measured the radiator's stock screw
+RAD_FAN_SCREW_LEN = 30.0                    # ASSUMPTION: a fan screw of the 420 under its head, the owner's "about 30 mm" (docs/printer-and-materials.md); through the antler it needs ANTLER_T more
+# The tools cad_b6/assembly_access.py drives the screws with (docs/plans/assembly-access.md). Every one is an ASSUMPTION until the owner names the tools on hand.
+TOOL_PLAY = 0.5                             # ASSUMPTION: the corridor of a screw's head, and of the bit that follows it, is the head's diameter plus this (it passes the counterbores)
+DRIVER_SHAFT_LEN = 75.0                     # ASSUMPTION: a straight driver's shaft, from the top of the head
+DRIVER_HANDLE_D, DRIVER_HANDLE_LEN = 30.0, 100.0    # ASSUMPTION: its handle, beyond the shaft
+LKEY_SHORT, LKEY_LONG, LKEY_T = 20.0, 65.0, 4.0     # ASSUMPTION: a 2.5 mm hex key: the short arm in the screw, the long arm a bar LKEY_LONG x LKEY_T x LKEY_T across the axis at the short arm's end
+LKEY_SWING_DEG = 60.0                       # ASSUMPTION: the free sector the long arm needs to turn the screw (a hex socket takes the key every 60 degrees)
+STUBBY_LEN, STUBBY_D, STUBBY_BLADE = 45.0, 30.0, 15.0      # ASSUMPTION: a short cross-head driver, STUBBY_LEN in all: a blade as thin as the head's corridor for STUBBY_BLADE (it enters a
+                                            # counterbore), then a handle STUBBY_D across
 # Rear I/O aperture plus 50 mm for plugs and cable bend. Keep-out volume, not a component.
 IO_ZONE_BS = (-50, 0, 148.49, 307.24, -3.81, 40.64)
 # Revision 13: the card's video outputs. The card's bracket stands at v GPU_BS[0], looks to -X (the left flank), and carries the outputs on a part of its face that is
