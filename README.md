@@ -102,7 +102,7 @@ Run them from the repository root.
 11. The side fans keep a clear opening.
 12. Every corner left sharp has a stated reason.
 
-The owner's inserts are 4.0 mm long and 4.96 mm in outer diameter, the pilot is 4.4 mm wide and 6.7 mm deep, and each insert is set flush with the face (`docs/printer-and-materials.md`).
+The owner's inserts are 4.0 mm long and 4.96 mm in outer diameter, the pilot is 4.5 mm wide and 6.7 mm deep, and each insert is set flush with the face (`docs/printer-and-materials.md`).
 
 A separate check keeps each contact face at 97 % of its area or more after rounding.
 
@@ -123,7 +123,7 @@ A separate check keeps each contact face at 97 % of its area or more after round
 - `main` is still not split into printable pieces.
 - The print test of the layer in PETG (ABS only if PETG prints badly): the trial piece exists (`cad_b6/organic_trial.py` writes `out/organic/trial_base_mid_R.stl`), it has not been printed.
 - The front I/O module's real dimensions.
-- The pilot's diameter of 4.4 mm is the maker's figure until the ladder C2 is tried with the owner's inserts. The ladder is printed in PETG first; its figure is confirmed on the first small ABS part.
+- The pilot's diameter of 4.5 mm comes from the ladder C2 printed in PETG (the owner, 18 Nov 2026: the inserts sit best in 4.5 to 4.6 mm; before that it was the maker's 4.4). The skeleton is ABS: the figure is confirmed on the first small ABS part.
 - The second pass of the fit gauges with the PC apart (G1, G2, G3, G4a, G4b) and the coupons C1 and C2.
 - The Blender pictures (stale since revision 13).
 - Cable routes are drawn and checked, and eleven tie points for hook-and-loop straps shape them. The graphics card's power cable stands 10.4 mm in front of the front plane, which the owner accepted, up to 11 mm.

@@ -1465,7 +1465,7 @@ def s_pads(hardware, parts, base):
     # pad_fits: a pad's own pilot is not "another hole too close"; any other hole is
     check("pad_fits ignores a pad's own pilot and accepts the pad", of.pad_fits(pp, np.array(q0), n0) is None,
           ("None (fits)", str(of.pad_fits(pp, np.array(q0), n0))))
-    other = f.pilot((q0[0], q0[1] + 4.0, q0[2]), (-sgn, 0.0, 0.0), "M3")        # another M3 pilot 4 mm from the pad's axis (centres 6.1 needed)
+    other = f.pilot((q0[0], q0[1] + 4.0, q0[2]), (-sgn, 0.0, 0.0), "M3")        # another M3 pilot 4 mm from the pad's axis (centres 6.6 needed: two pilot radii and PAD_HOLE_WALL)
     with_other = dataclasses.replace(pp, holes=pp.holes + [other])
     why = of.pad_fits(with_other, np.array(q0), n0)
     check("pad_fits still counts every other hole: a second M3 pilot 4 mm from the axis rejects the pad", why is not None and "too close" in why and "M3 hole" in why,

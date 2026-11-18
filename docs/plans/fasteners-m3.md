@@ -193,3 +193,10 @@ Built by an Opus child, rerun by the main session, reviewed by Grok, two finding
 - **The review's two findings, both in the new test and neither hit by the built frame:** the pilot's mouth tolerance had the name of the hose guides' 0.4 mm tolerance, defined later in the module, so 0.4 mm was the value in use and a pocket behind a 0.3 mm skin went unmeasured; and the same-axis exemption let two facing pilots with 0.2 mm of floor between them through. The tolerance has its own name; only a bore that is not a pilot and runs into the pilot is its continuation; each has a test.
 - **The suite pins 322 cases.** The pinned count caught a broken test of the main session's own on its first run (a section cut short).
 - **Not built:** the stepped pilot. The insert's depth is set by hand; see `docs/printer-and-materials.md`, "Setting the heat-set inserts".
+
+## The pilot after the ladder (18 Nov 2026)
+
+The owner printed `C2_insert_ladder` in PETG: the inserts sit best in 4.5 to 4.6 mm. `hw.M3_PILOT_D` went from 4.4 to 4.5 in a step of its own. The 23 parts that carry a pilot changed and nothing else (`parts_manifest.py` against a build of the commit before). The least wall round a pilot in the insert's zone went from 2.300 to 2.250 mm (rule 1.6). Not yet proved in ABS: to be confirmed on the first small ABS part that carries an insert. The ladder, built from the model's pilot, now runs from 4.2 to 5.0 mm with 4.5 marked.
+
+One thing came out with it. `gpu_post`'s bolts follow the pilot's radius and moved 0.05 mm, and `round_box` then rounded two long edges of `beam_mid` that the post and its first screw's washer bear on: the contact `beam_mid x gpu_post` fell to 92 % of its area and the contact check failed. The two edges had been sharp only because any rounding cut into a hole's wall ring. They are declared sharp now, each with its reason. `round_box` still does not look at contacts (the contact check does, afterwards); no other box member has an edge that is sharp only because of a hole's wall.
+

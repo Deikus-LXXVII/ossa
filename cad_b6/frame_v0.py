@@ -694,7 +694,7 @@ GPU_POST_COL_W = 12.0                   # the low-u column's width in u (the hig
 GPU_POST_U_WINDOW = (hw.GPU_BS[2] - GPU_POST_CLEAR, hw.GPU_BS[3] + GPU_POST_CLEAR)       # the opening: the card's whole thickness in u, and a little more
 GPU_POST_BOLT_WALL = 1.9                # wall between the first bolt's pilot and the window's edge (rule 1.6)
 GPU_POST_U_BOLT0 = GPU_POST_U_WINDOW[1] + hw.M3_PILOT_D / 2 + GPU_POST_BOLT_WALL      # the first bolt: its pilot keeps that wall to the window's edge
-GPU_POST_U = (round(GPU_POST_U_BOLT0, 3), round(GPU_POST_U_BOLT0 + 8.0, 3))     # the two bolts into beam_mid (131.2 and 139.2 for the card and the pilot as they are now: they follow the pilot's radius)
+GPU_POST_U = (round(GPU_POST_U_BOLT0, 3), round(GPU_POST_U_BOLT0 + 8.0, 3))     # the two bolts into beam_mid (131.25 and 139.25 for the card and the 4.5 mm pilot: they follow the pilot's radius)
 GPU_POST_U_RANGE = (GPU_POST_U_WINDOW[0] - GPU_POST_COL_W, round(GPU_POST_U[1] + 7.0, 3))     # the frame's outside, along u
 GPU_POST_N_WINDOW = (hw.GPU_OUT_N[0] - GPU_POST_CLEAR, hw.GPU_OUT_N[1] + GPU_POST_CLEAR)      # the opening, along n: the zone's n range, and a little more each end
 GPU_POST_N_RANGE = (hw.ATX_TRAY_N, hw.GPU_BRACKET_TAB_N)      # the base stands on beam_mid, the lintel's top is the seat of the card bracket's tab
@@ -1202,8 +1202,13 @@ def build_beam(name):
     holes = beam_holes(name)
     v0, v1 = hw.x_to_v(-X_IN), hw.x_to_v(X_IN)
     s = hw.bs_box(v0, v1, row_u + lo, row_u + hi, BEAM_N0, hw.ATX_TRAY_N)
+    skip = {}
+    if name == "beam_mid":      # the low-u side (hi_i False): gpu_post's foot stands on the tray face (n ATX_TRAY_N) across this edge, and its screws' heads sit on the underside (n BEAM_N0)
+        washer = GPU_POST_U[0] - hw.M3_WASHER_D / 2 - (row_u + lo)
+        skip = {(False, True): "gpu_post is bolted to this face and stands across this edge: rounding it would take the contact and the flat round its first screw",
+                (False, False): f"the washer under gpu_post's first screw bears on this face {washer:.2f} mm from this edge (the smallest rounding is {ROUND_MIN:g} mm)"}
     s = round_box(s, ((v0, row_u + lo, BEAM_N0), (v1, row_u + hi, hw.ATX_TRAY_N)), 0, name,
-                  all_corners(v0 + COLLAR, v1 - COLLAR), place=bs_place, rings=hole_rings(holes))
+                  all_corners(v0 + COLLAR, v1 - COLLAR, skip), place=bs_place, rings=hole_rings(holes))
     bosses = []
     for (v, u) in hw.ATX_HOLES:
         if u == row_u:      # standoff boss, 1 mm sunk into the beam, up to the board underside
@@ -4208,6 +4213,10 @@ RU_REASONS = [
     (r"the cradle surface \(the 420's pad\) ends here", "здесь кончается поверхность кредла (прокладка под 420)"),
     (r"the top face carries the PSU: rounding its edges would take contact area", "верхняя грань несёт БП: скругление её рёбер отняло бы площадь контакта"),
     (r"the bottom face stands on the desk \(a contact pad\)", "нижняя грань стоит на столе (контактная площадка)"),
+    (r"gpu_post is bolted to this face and stands across this edge: rounding it would take the contact and the flat round its first screw",
+     "к этой грани прикручен gpu_post, его нога стоит поперёк ребра: скругление отняло бы контакт и плоскую площадку вокруг его первого винта"),
+    (r"the washer under gpu_post's first screw bears on this face (\S+) mm from this edge \(the smallest rounding is (\S+) mm\)",
+     r"шайба под первым винтом gpu_post лежит на этой грани в \1 мм от ребра (наименьшее скругление \2 мм)"),
     (r"a fillet of (\S+) mm or more would reach past the start of the (\S+) mm edge rounding: the flat top is (\S+) mm from the boss axis, the boss radius is (\S+)",
      r"галтель от \1 мм вышла бы за начало скругления кромки \2 мм: плоский верх в \3 мм от оси бобышки, радиус бобышки \4"),
     (r"rail, root block, knuckle and tab \(2.5..5.5 mm thin, joined by 1 mm overlaps\): rounding any of them cut the joints into two solids",
@@ -4874,8 +4883,9 @@ DEVIATIONS: list[str] = [
     "Ограничение Guard для вогнутого осколка: он не пересекает соседей (объём < 0.01 мм³), не входит в стенку отверстия и не подходит к железу ближе, чем сама деталь уже к нему подходит (но не ближе 2 мм), "
     "к шлангам - не ближе 5 мм (проверка 9). Измерено на готовой модели: все 16 зазоров < 5 мм детали x железо те же, что до ревизии (до 0.001 мм), зазоры до шлангов те же.",
     "Ревизия 8, коробчатые детали: радиус 3 мм по длинным рёбрам вырезом клина, концы (4 мм) остаются острыми: торец детали упирается в ребро, площадь торца нельзя уменьшать (радиус 3 мм забирает 1.9 мм² с каждого угла торца, 7.7 мм² с торца). Поэтому у beam_front, beam_low, beam_mid, beam_top, skid_front, skid_rear, gpu_post (только нижний конец, верх свободен) "
-    f"на концах остаётся ступенька-плечо 4 мм. beam_mid: два ребра со стороны малых u остались острыми - у них стенка до проходного отверстия болта gpu_post (v {GPU_POST_BOLT_V:g}, u 131; до ревизии 15a v -10.5) была бы "
-    "ниже 2.1 мм при любом радиусе от 2 мм. beam_top: ребро у штифта скруглено 2.5 мм вместо 3 (стенка штифта). Верхние рёбра скидов (грань Z = 0 несёт БП) и нижние рёбра psu_bulkhead "
+    f"на концах остаётся ступенька-плечо 4 мм. beam_mid: два ребра со стороны малых u оставлены острыми намеренно (с 18.11.2026): поперёк верхнего (n лотка) стоит нога gpu_post, скругление отняло бы контакт и плоскую площадку "
+    "вокруг его первого винта; у нижнего на нижней грани лежит шайба этого винта. До 18.11.2026 они были острыми случайно: при пилоте 4.4 любое скругление от 2 мм врезалось в стенку проходного отверстия "
+    f"болта gpu_post (v {GPU_POST_BOLT_V:g}, u 131); с пилотом 4.5 отверстие сдвинулось на 0.05 мм по u, скругление 2 мм прошло и отняло 21 мм² контакта. beam_top: ребро у штифта скруглено 2.5 мм вместо 3 (стенка штифта). Верхние рёбра скидов (грань Z = 0 несёт БП) и нижние рёбра psu_bulkhead "
     "(грань на столе, контактная площадка) оставлены острыми. psu_bulkhead: пластина 6 мм, радиус 2.75 вместо 3 (при 3 на кромке не осталось бы плоского участка), "
     "скруглена только между концевыми бобышками (X ±122), бобышки остались острыми, как их торцы на хвостовой стойке.",
     "Ревизия 8, направляющие шлангов не скруглены: каждое наружное ребро стопы или пластины - ребро полки, а стенка канала у полки 2.5 мм (губа горловины около 2 мм). Радиус 3 мм на ребре полки "
@@ -5174,8 +5184,9 @@ OPEN_ITEMS: list[str] = [
     "Винты порога к beam_front ставятся снизу, зазор до стола 5 мм (собирать до постановки на стол). Порог выступает на 7.4 мм за заднюю грань beam_front (Y 40 -> 47.4), до платы 12.6 мм. "
     "Порог не входит в проверку 12.",
     "PA6 (только две направляющие шлангов; мостики кабелей с 16.11.2026 из ABS, оболочка крепится винтами M3): сушить и печатать из сухой коробки, CFS при 65 % влажности для нейлона не годится; плотность 1.14 г/см³ принята по справочному значению, не по катушке. "
-    "Ревизия 12, открыто: (1) вставка M3: владелец измерил свои вставки 17.11.2026 (ревизия 15): длина 4.0, наружный диаметр 4.96 мм (hardware.M3_INSERT_LEN, M3_INSERT_OD). Пилот Ø4.4 - "
-    "ПРЕДПОЛОЖЕНИЕ до пробы лесенки C2 (hardware.M3_PILOT_D: строка вставки 5.0 x 4.0 в таблице CNC Kitchen, отверстие 4.4, стенка 1.6). Глубина 6.7 (M3_PILOT_DEPTH) - выбор, не размер вставки: "
+    "Ревизия 12, открыто: (1) вставка M3: владелец измерил свои вставки 17.11.2026 (ревизия 15): длина 4.0, наружный диаметр 4.96 мм (hardware.M3_INSERT_LEN, M3_INSERT_OD). Пилот Ø4.5 (hardware.M3_PILOT_D): "
+    "владелец напечатал лесенку C2 из PETG и 18.11.2026 сообщил, что вставка садится лучше всего в 4.5..4.6 мм (docs/plans/fit-gauges.md); в ABS, из которого печатается каркас, это не проверено: "
+    "подтвердить на первой малой ABS-детали со вставкой. До этого было 4.4 (строка вставки 5.0 x 4.0 в таблице CNC Kitchen, отверстие 4.4, стенка 1.6). Глубина 6.7 (M3_PILOT_DEPTH) - выбор, не размер вставки: "
     "вставка сидит в верхних 4.0 мм, остальное место для кончика винта, окно длины винта 3.5..6.2 мм; пилот глубиной 4.5 оставил бы окно 0.5 мм. Стенка 1.6 (M3_MIN_WALL) - правило. "
     "Длины винтов выбраны под глубину 6.7 (screw_fit), в зацеплении резьбы min(вход, 4.0); 30 стыков через ребро 16 мм сидят ровно на нижнем пределе входа 3.5 мм (M3 x 20 - единственная длина набора, которая подходит). "
     "(2) Штатные винты 6-32 БП (6.0 мм) и радиатора 360 (6.0 мм) - ПРЕДПОЛОЖЕНИЯ (hardware.PSU_SCREW_LEN, RAD360_SCREW_LEN): владелец винт БП назвал как около 6 мм, винт 360 не измерял; от них зависит только глубина зенковок (под головкой 2.0 мм), "

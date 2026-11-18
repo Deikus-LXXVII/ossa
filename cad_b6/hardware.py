@@ -370,12 +370,14 @@ GPU_BRACKET_TAB_N = 108.0
 # The owner's M3 heat-set inserts, owner's measurement (17 Nov 2026): 4.0 mm long, 4.96 mm outer diameter.
 M3_INSERT_LEN, M3_INSERT_OD = 4.0, 4.96
 # Pilot of an M3 insert: diameter, depth, minimum wall around it. This is the only place the pilot is written down (revision 15, docs/plans/fasteners-m3.md).
-# Diameter 4.4: ASSUMPTION until the ladder C2_insert_ladder is tried on this printer. It is the row for a 5.0 x 4.0 mm M3 insert in CNC Kitchen's dimension sheet
+# Diameter 4.5: the owner printed the ladder C2_insert_ladder in PETG and reported on 18 Nov 2026 that the insert goes in best at 4.5 to 4.6 mm (docs/plans/fit-gauges.md);
+#   4.5 is the low end of that range. The skeleton is ABS, where this is not yet proved: to be confirmed on the first small ABS part that carries an insert.
+#   Until then it was 4.4, the row for a 5.0 x 4.0 mm M3 insert in CNC Kitchen's dimension sheet
 #   (https://www.cnckitchen.com/s/CNCKitchen_Heat-Set-Insert-Dimensions-and-Design-Guidelines.pdf: hole 4.4, minimum wall 1.6), read by Grok, not re-opened by the main session.
 # Depth 6.7: a choice, not the insert's size. The insert sits in the top M3_INSERT_LEN; the rest is room for the screw's tip, which keeps the screw-length window
 #   (enter SCREW_ENGAGE_MIN at least, stop SCREW_BOTTOM_GAP short of the bottom) 2.7 mm wide. A pilot only as deep as the insert plus the gap would leave 0.5 mm.
 # Wall 1.6: a design rule (the same sheet's minimum wall), not a measurement.
-M3_PILOT_D, M3_PILOT_DEPTH, M3_MIN_WALL = 4.4, 6.7, 1.6
+M3_PILOT_D, M3_PILOT_DEPTH, M3_MIN_WALL = 4.5, 6.7, 1.6
 INSERTS = {"M3": (M3_PILOT_D, M3_PILOT_DEPTH, M3_MIN_WALL)}
 # Revision 15a (docs/plans/fasteners-m3.md, "the rule, stated properly"): the wall M3_MIN_WALL is for the plastic that holds the insert, round the pilot from its mouth over
 # the insert's length plus this allowance (an insert pressed a little under flush, and the melt it pushes ahead of it). Check 7 measures it as a plain distance.

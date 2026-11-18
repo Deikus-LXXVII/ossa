@@ -3,39 +3,39 @@ B6 «Шатёр»: структурный каркас v0
 Оси: X вправо (вид спереди), Y вглубь (перед = 0), Z вверх. Стол Z = -15.
 
 Детали (AABB мм, материал, объём, масса: ABS 1.04 и PA6 1.14 г/см³; 100 % и 4 стенки/20 % заполнения, формула v1)
-  rib_A_right        ABS X   142.0..  158.0  Y     0.0..  286.1  Z   -15.0..  227.8  |   193.4 см³   201.2 г /  100.6 г
+  rib_A_right        ABS X   142.0..  158.0  Y     0.0..  286.1  Z   -15.0..  227.8  |   193.4 см³   201.1 г /  100.6 г
       right rib, front + diagonal + mid leg; 2 x M3 clearance (in counterbores) for gpu_rest
   rib_A_left         ABS X  -158.0.. -142.0  Y     0.0..  286.1  Z   -15.0..  227.8  |   194.8 см³   202.6 г /   99.3 г
       left rib, front + diagonal + mid leg
   gpu_rest           ABS X   142.0..  158.0  Y    22.8..  117.7  Z    65.1..  159.9  |    37.5 см³    39.0 г /   20.1 г
       the card's right-hand rest: a capsule 20 mm wide on the right rib's diagonal, contact face u = 75.6, 2 x M3 along n from the diagonal's underside
-  rib_B_right        ABS X   142.0..  158.0  Y   190.0..  382.0  Z   -15.0..  274.7  |   318.2 см³   330.9 г /  148.5 г
+  rib_B_right        ABS X   142.0..  158.0  Y   190.0..  382.0  Z   -15.0..  274.7  |   318.1 см³   330.8 г /  148.5 г
       right rib, rear post: runner, post, nose, tail post
-  rib_B_left         ABS X  -158.0.. -142.0  Y   190.0..  382.0  Z   -15.0..  274.7  |   318.3 см³   331.0 г /  148.4 г
+  rib_B_left         ABS X  -158.0.. -142.0  Y   190.0..  382.0  Z   -15.0..  274.7  |   318.2 см³   331.0 г /  148.4 г
       left rib, rear post
   beam_front         ABS X  -142.0..  142.0  Y     0.0..   40.0  Z   -10.0..   10.0  |   225.0 см³   234.0 г /   94.9 г
       front beam, ties the front feet; carries the front sill (4 x M3 from below)
-  front_sill         ABS X  -140.0..  140.0  Y    -0.0..   47.4  Z    10.0..   81.5  |   413.8 см³   430.3 г /  198.5 г
+  front_sill         ABS X  -140.0..  140.0  Y    -0.0..   47.4  Z    10.0..   81.5  |   413.7 см³   430.3 г /  198.6 г
       front sill X +-140: 45 deg face parallel to the board, pocket for the I/O module's carrier (the carrier's outside, not the module's PLACEHOLDER box), channel and slit for the light line, 4 x M3 into beam_front, 4 x M3 inserts for the carrier
   front_io_carrier   ABS X   -82.0..  107.0  Y     0.0..   44.2  Z    10.3..   48.9  |    57.6 см³    59.9 г /   47.9 г
       carrier of the front I/O module (PLACEHOLDER box): an inverted U, end blocks and a top plate 2.7 mm, no back wall; 2 x M3 for the module (PLACEHOLDER), 4 x M3 into the sill's end blocks
-  fan_bracket_right  ABS X   158.0..  235.0  Y    77.2..  272.6  Z    87.3..  191.1  |    94.6 см³    98.3 г /   55.7 г
+  fan_bracket_right  ABS X   158.0..  235.0  Y    77.2..  272.6  Z    87.3..  191.1  |    94.5 см³    98.3 г /   55.8 г
       right side fan bracket: plate 28 mm on the fan's inner face (corners A, B, C, spine, bar, root block), leg to rib_A_right's outer face, 2 x M3
-  fan_bracket_left   ABS X  -235.0.. -158.0  Y    77.2..  272.6  Z    87.3..  191.1  |    94.6 см³    98.3 г /   55.7 г
+  fan_bracket_left   ABS X  -235.0.. -158.0  Y    77.2..  272.6  Z    87.3..  191.1  |    94.5 см³    98.3 г /   55.8 г
       left side fan bracket: the right one mirrored (corners A, B, C), leg to rib_A_left's outer face, 2 x M3
-  beam_low           ABS X  -142.0..  142.0  Y    69.6..   98.9  Z    14.5..   43.8  |   112.9 см³   117.4 г /   54.9 г
+  beam_low           ABS X  -142.0..  142.0  Y    69.6..   98.9  Z    14.5..   43.8  |   112.9 см³   117.4 г /   55.0 г
       ATX tray beam, row u = 16.51, 3 standoff bosses
   beam_mid           ABS X  -142.0..  142.0  Y   155.0..  190.4  Z    98.9..  134.4  |   171.5 см³   178.4 г /   76.4 г
       ATX tray beam, row u = 140.97, 3 standoff bosses
-  beam_top           ABS X  -142.0..  142.0  Y   267.4..  295.8  Z   211.3..  243.2  |   113.2 см³   117.7 г /   55.0 г
+  beam_top           ABS X  -142.0..  142.0  Y   267.4..  295.8  Z   211.3..  243.2  |   113.1 см³   117.7 г /   55.0 г
       ATX tray beam, row u = 298.45, 3 standoff bosses
   skid_front         ABS X  -142.0..  142.0  Y   185.0..  205.0  Z   -10.0..    0.0  |    55.4 см³    57.6 г /   34.2 г
       PSU skid, front
   skid_rear          ABS X  -142.0..  142.0  Y   325.0..  345.0  Z   -10.0..    0.0  |    55.3 см³    57.5 г /   34.3 г
       PSU skid, rear
-  psu_bulkhead       ABS X  -142.0..  142.0  Y   369.0..  381.0  Z   -15.0..   92.0  |   158.8 см³   165.2 г /  107.1 г
+  psu_bulkhead       ABS X  -142.0..  142.0  Y   369.0..  381.0  Z   -15.0..   92.0  |   158.8 см³   165.1 г /  107.1 г
       PSU bulkhead with IEC window, 4 PSU screw holes (6-32, counterbored from behind), M3 clearance holes for the drive sleds' flanges (only on the side that has a bay)
-  drive_sled_left    ABS X   -96.5..  -82.5  Y   252.0..  375.0  Z     0.0..  145.0  |    96.0 см³    99.9 г /   74.5 г
+  drive_sled_left    ABS X   -96.5..  -82.5  Y   252.0..  375.0  Z     0.0..  145.0  |    96.0 см³    99.8 г /   74.5 г
       left drive sled: the right one mirrored in X; flange with 2 x M3 inserts against the bulkhead, foot on skid_rear
   antler_right       ABS X    40.0..  228.0  Y   218.4..  371.5  Z   231.9..  385.0  |    83.5 см³    86.8 г /   71.5 г
       420 bracket on the fan face + tongue on the rib's outer face, right
@@ -49,7 +49,7 @@ B6 «Шатёр»: структурный каркас v0
       360 visor arm, right (2 x M3 to the neck, knee below the bar, radiator screws counterbored), notched at the port tank
   visor_arm_left     ABS X  -180.0.. -166.5  Y   105.3..  206.0  Z   237.9..  331.9  |    24.1 см³    25.0 г /   16.4 г
       360 visor arm, left (2 x M3 to the neck, knee below the bar, radiator screws counterbored)
-  gpu_post           ABS X  -152.0.. -127.5  Y    29.5..  169.3  Z    70.0..  208.5  |   117.9 см³   122.6 г /   60.0 г
+  gpu_post           ABS X  -152.0.. -127.5  Y    29.5..  169.3  Z    70.0..  208.5  |   118.0 см³   122.7 г /   60.0 г
       card bracket post, left side: a frame with a window for the card's video outputs, columns outside the card's thickness, a lintel under the tab's seat (tab height PLACEHOLDER)
   hose_guide_cpu     PA6 X  -235.0.. -214.1  Y   168.6..  185.0  Z   224.0..  278.2  |     9.7 см³    11.1 г /    8.1 г
       CPU hose guide: a comb on the left side fan's inner face at corner D, two channels open to +X (towards the board), 1 x M3 through the fan
@@ -79,7 +79,7 @@ B6 «Шатёр»: структурный каркас v0
       cable tie bridge skid 1: foot on skid_front's top face at world (102.0, 195.0, 0.0), 1 x M3 into its insert, a 12.5 x 3.5 slot for a hook-and-loop strap
   ИТОГО 37 деталей: 3222 см³   100 % 3354 г   4 стенки/20 % ~ 1756 г
 Масса по материалам (слой оболочки из PETG и диффузор света - не в этом файле):
-  ABS  35 деталей:  3193.1 см³   100 %  3320.8 г   4 стенки/20 % ~  1732.9 г
+  ABS  35 деталей:  3192.7 см³   100 %  3320.4 г   4 стенки/20 % ~  1733.2 г
   PA6   2 деталей:    29.4 см³   100 %    33.5 г   4 стенки/20 % ~    23.0 г
   ABS: каркас, всё несущее. PA6 (нейлон yxpolyer, не наполненный, чёрный): две направляющие шлангов (горловина защёлкивается на шланге). PETG: органическая оболочка (organic_frame.py, запасной вариант ABS); диффузор светлой линии из прозрачного PLA. Оболочка не несёт нагрузки и держится не ближе 10 мм к видеокарте и БП, 4 мм к радиаторам и вентиляторам (в этом файле таких деталей нет).
 
@@ -229,7 +229,7 @@ B6 «Шатёр»: структурный каркас v0
   neck_right       x rad360       2.00 мм
   neck_left        x rad360       2.00 мм
   rib_A_left       x io_zone      2.19 мм
-  gpu_post         x io_zone      2.29 мм
+  gpu_post         x io_zone      2.24 мм
   front_sill       x front_io     2.50 мм
   front_io_carrier x light_strip  2.84 мм
   neck_right       x rad420       3.00 мм
@@ -270,11 +270,11 @@ B6 «Шатёр»: структурный каркас v0
   7. (доп.) связность, болты внутри контуров, 228 отверстий: полость пуста и стенка до поверхности и до соседних отверстий >= 1.6 мм (вставка M3, проходные M3 и 6-32, зенковки и рассверловки)   PASS
      стенки пилотов M3 как расстояния (ревизия 15a, вдобавок к объёму кольца): от каждого пилота до каждого другого отверстия детали и до её поверхности (кроме плоскости устья и соосного продолжения: рассверловка, зенковка); в зоне вставки (от устья 4.3 мм) >= 1.6, глубже и под дном >= 1.2; измерено 209 расстояний (дальше 4 мм по габаритам не меряются)
      ближайшие пять, зона вставки, правило 1.6:
-       2.300 мм  gpu_post: M3 pilot at (-132.0, 158.7, 116.9) along (0.00, -0.71, 0.71) (gpu_post)  -  the part's outside
-       2.300 мм  gpu_post: M3 pilot at (-132.0, 164.3, 122.5) along (0.00, -0.71, 0.71) (gpu_post)  -  the part's outside
-       2.700 мм  visor_arm_right: M3 pilot at (180.0, 183.9, 315.1) along (-1.00, 0.00, 0.00) (visor joint)  -  the 6-32cb clearance at (172.5, 207.8, 302.2) along (0.00, -0.71, 0.71)
-       2.700 мм  visor_arm_right: M3 pilot at (180.0, 198.4, 300.6) along (-1.00, 0.00, 0.00) (visor joint)  -  the 6-32cb clearance at (172.5, 207.8, 302.2) along (0.00, -0.71, 0.71)
-       2.700 мм  visor_arm_left: M3 pilot at (-180.0, 183.9, 315.1) along (1.00, 0.00, 0.00) (visor joint)  -  the 6-32cb clearance at (-172.5, 207.8, 302.2) along (-0.00, -0.71, 0.71)
+       2.250 мм  gpu_post: M3 pilot at (-132.0, 158.7, 116.9) along (0.00, -0.71, 0.71) (gpu_post)  -  the part's outside
+       2.250 мм  gpu_post: M3 pilot at (-132.0, 164.4, 122.6) along (0.00, -0.71, 0.71) (gpu_post)  -  the part's outside
+       2.650 мм  fan_bracket_right: M3 pilot at (235.0, 262.6, 184.1) along (-1.00, 0.00, 0.00) (side fan)  -  the part's outside
+       2.650 мм  fan_bracket_left: M3 pilot at (-235.0, 262.6, 184.1) along (1.00, 0.00, 0.00) (side fan)  -  the part's outside
+       2.650 мм  fan_bracket_left: M3 pilot at (-235.0, 86.5, 184.1) along (1.00, 0.00, 0.00) (side fan)  -  the part's outside
      ближайшие пять, глубже и дно, правило 1.2:
        1.300 мм  rib_A_right: M3 pilot at (150.0, 262.0, 205.0) along (-1.00, 0.00, 0.00) (lap A<->B)  -  the part's outside
        1.300 мм  rib_A_right: M3 pilot at (150.0, 268.0, 210.0) along (-1.00, 0.00, 0.00) (lap A<->B)  -  the part's outside
@@ -325,16 +325,16 @@ B6 «Шатёр»: структурный каркас v0
 Прочность рамки стойки карты (ручной расчёт, ревизия 13, п. 6; функция post_strength())
   Нагрузка (план, п. 6): тяга кабеля 20 Н вдоль -X в середине перемычки (n 104.25); допустимое 6.67 МПа, запас не меньше 2.
   Окно: u 75.1..127.1 (52.0 мм, вся толщина карты 51.0 и по 0.5 мм с каждой стороны) x n 9.5..100.5 (91 мм, зона n 10..100 и по 0.5 мм), насквозь по v 24.5 мм.
-  Перемычка: n 100.5..108 (7.5 мм) x v 24.5 мм, на всю ширину рамки u 63.1..146.2; верх n 108 - место лапки планки карты (GPU_BRACKET_TAB_N, ЗАГЛУШКА).
-  Колонны: высокая u 127.1..146.2 (19.1 мм, в ней два болта M3 u 131.2 и 139.2, стенка вокруг пилота 1.9 мм), низкая u 63.1..75.1 (12 мм); плита под окном n -8.35..9.5. Наименьшая стенка сечения 7.5 мм (перемычка 7.5, колонна 12); вокруг пилота болта 1.9 мм (правило 1.6).
+  Перемычка: n 100.5..108 (7.5 мм) x v 24.5 мм, на всю ширину рамки u 63.1..146.25; верх n 108 - место лапки планки карты (GPU_BRACKET_TAB_N, ЗАГЛУШКА).
+  Колонны: высокая u 127.1..146.25 (19.2 мм, в ней два болта M3 u 131.25 и 139.25, стенка вокруг пилота 1.9 мм), низкая u 63.1..75.1 (12 мм); плита под окном n -8.35..9.5. Наименьшая стенка сечения 7.5 мм (перемычка 7.5, колонна 12); вокруг пилота болта 1.9 мм (правило 1.6).
   Момент тяги у верха плиты под окном: M = 20 x 94.75 = 1895 Н мм (плечо до середины перемычки; от ступни 112.60).
     high column above the slab    0.99 МПа (запас  6.7): pull at the lintel's middle, the high column alone
     the same with torsion         1.17 МПа (запас  5.7): von Mises with the torque of the load's offset
     low column above the slab     1.58 МПа (запас  4.2): the whole moment in the low column
     the same with torsion         2.03 МПа (запас  3.3): von Mises with the torque of the load's offset from the low column (640 N mm, shear 0.73 MPa)
     lintel                        1.39 МПа (запас  4.8): pull at the window's free end, a cantilever the width of the window
-    сечение колонны 19.1 x 24.5 мм, W = 1911 мм3 (низкая 1200); крутящий момент 711 Н мм, касательное 0.36 МПа (a/b = 1.28, коэффициент 0.222).
-  Жёсткость: прогиб верха под 20 Н = F h^3 / (3 E I) при E = 2000 МПа, h = 112.60 мм: обе колонны одной кривизны (I = 38113 мм4) 0.12 мм (160 Н/мм); одна высокая (I = 23407 мм4) 0.20 мм (98 Н/мм). Податливость болтов и вставок не учтена; значения для сплошной стенки.
+    сечение колонны 19.2 x 24.5 мм, W = 1916 мм3 (низкая 1200); крутящий момент 712 Н мм, касательное 0.36 МПа (a/b = 1.28, коэффициент 0.222).
+  Жёсткость: прогиб верха под 20 Н = F h^3 / (3 E I) при E = 2000 МПа, h = 112.60 мм: обе колонны одной кривизны (I = 38175 мм4) 0.12 мм (160 Н/мм); одна высокая (I = 23469 мм4) 0.20 мм (99 Н/мм). Податливость болтов и вставок не учтена; значения для сплошной стенки.
 
 Прочность упора карты gpu_rest (ручной расчёт, ревизия 14a, п. 1; функция rest_strength())
   Нагрузки (план, п. 1): весь вес карты 1.6 кг = 15.70 Н на контактную грань посередине её плоской части (n 49); удар 20 Н вдоль X в кончик пальца (n 114). Допустимое 6.67 МПа, запас не меньше 2, то есть не выше 3.33 МПа.
@@ -344,18 +344,18 @@ B6 «Шатёр»: структурный каркас v0
   Растяжение двух винтов M3: от веса 52 Н на дальний (поворот вокруг нижней по u кромки, плечи 5 и 15 мм), от удара 150 Н на каждый (поворот вокруг кромки по X, плечо 8 мм); вместе до 202 Н на винт. Прочность вставки на вырыв в данных проекта нет (docs/plans/fasteners-m3.md: около 1170 Н хорошая вставка в PETG, 380 Н плохая, для ABS не найдено).
 
 Скругление (ревизии 8 и 8a)
-  Масса до и после скругления (материалы по деталям): объём 3228 -> 3222 см³ (-5.7), 100 % 3360 -> 3354 г (-6.0), 4 стенки/20 % 1772 -> 1756 г (-16.5)
+  Масса до и после скругления (материалы по деталям): объём 3228 -> 3222 см³ (-5.7), 100 % 3360 -> 3354 г (-6.0), 4 стенки/20 % 1773 -> 1756 г (-16.5)
       rib_A_right           192.0 ->    193.4 см³ (+1.41)
       rib_A_left            193.4 ->    194.8 см³ (+1.41)
-      rib_B_right           317.2 ->    318.2 см³ (+0.92)
-      rib_B_left            317.3 ->    318.3 см³ (+0.92)
-      beam_front            226.1 ->    225.0 см³ (-1.07)
-      front_sill            416.4 ->    413.8 см³ (-2.60)
-      fan_bracket_right      93.7 ->     94.6 см³ (+0.82)
-      fan_bracket_left       93.7 ->     94.6 см³ (+0.82)
+      rib_B_right           317.2 ->    318.1 см³ (+0.92)
+      rib_B_left            317.3 ->    318.2 см³ (+0.92)
+      beam_front            226.0 ->    225.0 см³ (-1.07)
+      front_sill            416.3 ->    413.7 см³ (-2.60)
+      fan_bracket_right      93.7 ->     94.5 см³ (+0.82)
+      fan_bracket_left       93.7 ->     94.5 см³ (+0.82)
       beam_low              115.0 ->    112.9 см³ (-2.13)
       beam_mid              172.0 ->    171.5 см³ (-0.45)
-      beam_top              115.1 ->    113.2 см³ (-1.97)
+      beam_top              115.1 ->    113.1 см³ (-1.97)
       skid_front             56.5 ->     55.4 см³ (-1.07)
       skid_rear              56.4 ->     55.3 см³ (-1.07)
       psu_bulkhead          159.6 ->    158.8 см³ (-0.79)
@@ -366,34 +366,34 @@ B6 «Шатёр»: структурный каркас v0
       neck_left              66.4 ->     66.2 см³ (-0.21)
       visor_arm_right        20.3 ->     20.5 см³ (+0.15)
       visor_arm_left         23.9 ->     24.1 см³ (+0.15)
-      gpu_post              118.0 ->    117.9 см³ (-0.10)
+      gpu_post              118.1 ->    118.0 см³ (-0.10)
   Скруглено 130 углов, рёбер и стыков (из них радиус меньше желаемого у 28), оставлено острыми 53. Желаемые радиусы: внутренние углы 8 мм, внешние 6 мм, длинные рёбра коробчатых деталей 3 мм, галтель стыка до 8 мм; меньше 2 мм не делается.
   Правило ревизии 8a: скругление может отнять площадь у контакта из отчёта, если контакт сохраняет не меньше 97 % своей площади без скругления и не меньше 4 мм плоского контакта вокруг каждого винта (от края самого большого отверстия винта, то есть от пилота вставки). Две скруглённые плиты на одном контакте делят допуск пополам (по 1.5 %); допуск делится между углами так, чтобы каждый угол, который проходит по стенкам и винтам, получил хотя бы 2 мм.
-  Площади контактов (zero-gap, деталь x железо и деталь x деталь), без скругления -> теперь: 60 пар, потеряли площадь 12, выросли 9 (галтели внутренних углов добавили материал на плоскости контакта); наименьшая доля 98.44 % (пол 97 %), наибольшее изменение +59.75 мм²   PASS
+  Площади контактов (zero-gap, деталь x железо и деталь x деталь), без скругления -> теперь: 60 пар, потеряли площадь 12, выросли 9 (галтели внутренних углов добавили материал на плоскости контакта); наименьшая доля 98.43 % (пол 97 %), наибольшее изменение +59.75 мм²   PASS
   Контакты, потерявшие площадь (до -> после, доля):
-      rib_B_left         x antler_left          1036.80 ->   1020.58 мм² (-16.23, 98.44 %)
-      rib_B_right        x antler_right         1036.80 ->   1020.58 мм² (-16.23, 98.44 %)
-      rib_A_left         x fan_bracket_left      632.51 ->    623.41 мм² (-9.10, 98.56 %)
-      rib_A_right        x fan_bracket_right     632.51 ->    623.41 мм² (-9.10, 98.56 %)
-      neck_left          x visor_arm_left        431.59 ->    425.54 мм² (-6.05, 98.60 %)
-      neck_right         x visor_arm_right       431.59 ->    425.54 мм² (-6.05, 98.60 %)
-      psu_bulkhead       x drive_sled_left      1059.59 ->   1045.84 мм² (-13.75, 98.70 %)
-      rib_A_left         x gpu_post              195.29 ->    193.37 мм² (-1.92, 99.02 %)
-      rib_A_left         x rib_B_left           1412.43 ->   1403.42 мм² (-9.01, 99.36 %)
-      rib_A_right        x rib_B_right          1412.43 ->   1403.42 мм² (-9.01, 99.36 %)
+      rib_B_left         x antler_left          1035.40 ->   1019.18 мм² (-16.23, 98.43 %)
+      rib_B_right        x antler_right         1035.40 ->   1019.18 мм² (-16.23, 98.43 %)
+      rib_A_left         x fan_bracket_left      631.11 ->    622.01 мм² (-9.10, 98.56 %)
+      rib_A_right        x fan_bracket_right     631.11 ->    622.01 мм² (-9.10, 98.56 %)
+      neck_left          x visor_arm_left        430.19 ->    424.14 мм² (-6.05, 98.59 %)
+      neck_right         x visor_arm_right       430.19 ->    424.14 мм² (-6.05, 98.59 %)
+      psu_bulkhead       x drive_sled_left      1058.19 ->   1044.44 мм² (-13.75, 98.70 %)
+      rib_A_left         x gpu_post              195.40 ->    193.49 мм² (-1.92, 99.02 %)
+      rib_A_left         x rib_B_left           1410.33 ->   1401.32 мм² (-9.01, 99.36 %)
+      rib_A_right        x rib_B_right          1410.33 ->   1401.32 мм² (-9.01, 99.36 %)
       antler_left        x rad420              14412.55 ->  14383.70 мм² (-28.85, 99.80 %)
       antler_right       x rad420              14412.55 ->  14383.70 мм² (-28.85, 99.80 %)
   Контакты, выросшие в площади (галтели):
-      fan_bracket_right  x fan_side_right        966.27 ->   1026.02 мм² (+59.75)
-      fan_bracket_left   x fan_side_left         966.27 ->   1026.02 мм² (+59.75)
-      rib_B_left         x beam_top              194.89 ->    197.96 мм² (+3.07)
-      rib_B_right        x beam_top              194.89 ->    197.96 мм² (+3.07)
-      rib_B_right        x neck_right            775.82 ->    777.68 мм² (+1.86)
-      rib_B_left         x neck_left             775.82 ->    777.68 мм² (+1.86)
-      rib_A_right        x hose_guide_gpu        341.76 ->    343.14 мм² (+1.38)
-      rib_A_left         x beam_front            547.43 ->    547.71 мм² (+0.29)
-      rib_A_right        x beam_front            547.43 ->    547.71 мм² (+0.29)
-  Плоский контакт в 4 мм вокруг винта: 68 винтов пересекают контакт, потерявший площадь, у каждого площадь в круге не уменьшилась (наименьшее +0.0000 мм²)
+      fan_bracket_left   x fan_side_left         964.17 ->   1023.92 мм² (+59.75)
+      fan_bracket_right  x fan_side_right        964.17 ->   1023.92 мм² (+59.75)
+      rib_B_left         x beam_top              193.49 ->    196.57 мм² (+3.07)
+      rib_B_right        x beam_top              193.49 ->    196.57 мм² (+3.07)
+      rib_B_right        x neck_right            774.43 ->    776.28 мм² (+1.86)
+      rib_B_left         x neck_left             774.43 ->    776.28 мм² (+1.86)
+      rib_A_right        x hose_guide_gpu        341.06 ->    342.44 мм² (+1.38)
+      rib_A_left         x beam_front            546.03 ->    546.31 мм² (+0.29)
+      rib_A_right        x beam_front            546.03 ->    546.31 мм² (+0.29)
+  Плоский контакт в 4 мм вокруг винта: 68 винтов пересекают контакт, потерявший площадь, у каждого площадь в круге не уменьшилась (наименьшее -0.0000 мм²)
   Меньше желаемого (радиус, причина):
       rib_A_right                        concave  Y 206.0 Z 5.0  r = 5.5: радиус 2..8 мм не помещается между соседними рёбрами
       rib_A_left                         concave  Y 206.0 Z 5.0  r = 5.5: радиус 2..8 мм не помещается между соседними рёбрами
@@ -402,8 +402,8 @@ B6 «Шатёр»: структурный каркас v0
       fan_bracket_right plate            concave  Y 178.8 Z 92.2  r = 6: радиус 2..8 мм не помещается между соседними рёбрами
       fan_bracket_right plate            concave  Y 194.0 Z 108.1  r = 6.5: радиус 2..8 мм не помещается между соседними рёбрами
       fan_bracket_right leg              convex   Y 146.3 Z 107.8  r = 4: скругление оставило бы меньше 4 мм плоского контакта вокруг винта в (158.0, 155.5, 105.7)
-      fan_bracket_right leg              convex   Y 166.1 Z 88.0  r = 2: скругление сняло бы 1.3 мм² с контакта rib_A_right (633 мм²); от допуска 1.5 % осталось 1.2 мм² за вычетом нужного остальным углам
-      fan_bracket_right leg              convex   Y 190.1 Z 112.0  r = 2: скругление сняло бы 5.3 мм² с контакта rib_A_right (633 мм²); от допуска 1.5 % осталось 3.8 мм² за вычетом нужного остальным углам
+      fan_bracket_right leg              convex   Y 166.1 Z 88.0  r = 2: скругление сняло бы 1.3 мм² с контакта rib_A_right (631 мм²); от допуска 1.5 % осталось 1.2 мм² за вычетом нужного остальным углам
+      fan_bracket_right leg              convex   Y 190.1 Z 112.0  r = 2: скругление сняло бы 5.3 мм² с контакта rib_A_right (631 мм²); от допуска 1.5 % осталось 3.8 мм² за вычетом нужного остальным углам
       beam_top                           edge     Y 281.5 Z 239.7  r = 2.5: скругление врезалось бы в стенку отверстия
       antler_right plate                 concave  Y 256.1 Z 326.0  r = 2: the added material would overlap fan openings (0.0 мм³)
       antler_right plate                 concave  Y 279.6 Z 302.5  r = 2: the added material would overlap fan openings (0.0 мм³)
@@ -412,13 +412,13 @@ B6 «Шатёр»: структурный каркас v0
       antler_left plate                  concave  Y 279.6 Z 302.5  r = 2: the added material would overlap fan openings (0.0 мм³)
       antler_left: tongue meets chord    junction Y 332.2 Z 271.1  r = 5: добавленный материал закрыл бы подход к отверстию (головка винта)
       neck_right strut                   convex   Y 176.0 Z 315.7  r = 2.5: скругление оставило бы меньше 4 мм плоского контакта вокруг винта в (180.0, 183.9, 315.1)
-      neck_right pad                     convex   Y 292.6 Z 231.5  r = 3: скругление сняло бы 2.6 мм² с контакта rib_B_right (776 мм²); от допуска 1.5 % осталось 2.2 мм² за вычетом нужного остальным углам
-      neck_right pad                     convex   Y 301.8 Z 189.8  r = 2: скругление сняло бы 1.3 мм² с контакта rib_B_right (776 мм²); от допуска 1.5 % осталось 1.1 мм² за вычетом нужного остальным углам
-      neck_right pad                     convex   Y 318.1 Z 206.1  r = 2: скругление сняло бы 1.3 мм² с контакта rib_B_right (776 мм²); от допуска 1.5 % осталось 1.1 мм² за вычетом нужного остальным углам
+      neck_right pad                     convex   Y 292.6 Z 231.5  r = 3: скругление сняло бы 2.6 мм² с контакта rib_B_right (774 мм²); от допуска 1.5 % осталось 2.2 мм² за вычетом нужного остальным углам
+      neck_right pad                     convex   Y 301.8 Z 189.8  r = 2: скругление сняло бы 1.3 мм² с контакта rib_B_right (774 мм²); от допуска 1.5 % осталось 1.1 мм² за вычетом нужного остальным углам
+      neck_right pad                     convex   Y 318.1 Z 206.1  r = 2: скругление сняло бы 1.3 мм² с контакта rib_B_right (774 мм²); от допуска 1.5 % осталось 1.1 мм² за вычетом нужного остальным углам
       neck_left strut                    convex   Y 176.0 Z 315.7  r = 2.5: скругление оставило бы меньше 4 мм плоского контакта вокруг винта в (180.0, 183.9, 315.1)
-      neck_left pad                      convex   Y 292.6 Z 231.5  r = 3: скругление сняло бы 2.6 мм² с контакта rib_B_left~ (776 мм²); от допуска 1.5 % осталось 2.2 мм² за вычетом нужного остальным углам
-      neck_left pad                      convex   Y 301.8 Z 189.8  r = 2: скругление сняло бы 1.3 мм² с контакта rib_B_left~ (776 мм²); от допуска 1.5 % осталось 1.1 мм² за вычетом нужного остальным углам
-      neck_left pad                      convex   Y 318.1 Z 206.1  r = 2: скругление сняло бы 1.3 мм² с контакта rib_B_left~ (776 мм²); от допуска 1.5 % осталось 1.1 мм² за вычетом нужного остальным углам
+      neck_left pad                      convex   Y 292.6 Z 231.5  r = 3: скругление сняло бы 2.6 мм² с контакта rib_B_left~ (774 мм²); от допуска 1.5 % осталось 2.2 мм² за вычетом нужного остальным углам
+      neck_left pad                      convex   Y 301.8 Z 189.8  r = 2: скругление сняло бы 1.3 мм² с контакта rib_B_left~ (774 мм²); от допуска 1.5 % осталось 1.1 мм² за вычетом нужного остальным углам
+      neck_left pad                      convex   Y 318.1 Z 206.1  r = 2: скругление сняло бы 1.3 мм² с контакта rib_B_left~ (774 мм²); от допуска 1.5 % осталось 1.1 мм² за вычетом нужного остальным углам
       visor_arm_right                    convex   Y 198.6 Z 293.0  r = 2: скругление оставило бы меньше 4 мм плоского контакта вокруг винта в (180.0, 198.4, 300.6)
       visor_arm_right                    convex   Y 199.3 Z 322.0  r = 3: скругление врезалось бы в стенку отверстия
       visor_arm_left                     convex   Y 198.6 Z 293.0  r = 2: скругление оставило бы меньше 4 мм плоского контакта вокруг винта в (180.0, 198.4, 300.6)
@@ -430,7 +430,7 @@ B6 «Шатёр»: структурный каркас v0
       rib_B_left                         concave  X 142.0 Y 293.4 Z 232.8        радиус 2..8 мм не помещается между соседними рёбрами
       beam_front                         edge     X 0.0 Y 0.0 Z 10.0             верхняя грань несёт порог и модуль: скругление её рёбер отняло бы площадь контакта (14 % при 3 мм)
       beam_front                         edge     X 0.0 Y 40.0 Z 10.0            верхняя грань несёт порог и модуль: скругление её рёбер отняло бы площадь контакта (14 % при 3 мм)
-      front_sill                         convex   X -140.0 Y 0.0 Z 10.0          скругление сняло бы 180.8 мм² с контакта beam_front (3555 мм²); от допуска 3.0 % осталось 106.7 мм² за вычетом нужного остальным углам
+      front_sill                         convex   X -140.0 Y 0.0 Z 10.0          скругление сняло бы 180.8 мм² с контакта beam_front (3552 мм²); от допуска 3.0 % осталось 106.6 мм² за вычетом нужного остальным углам
       front_sill                         convex   X -140.0 Y 47.4 Z 10.0         the rear wall behind the pocket is 2.9 mm thick (the pocket keeps 2.5 mm of room behind the module): a 6 mm rounding of this edge cuts through the pocket's rear plane and leaves no wall under Z 10.9, and a radius that keeps 2 mm (0.9 at most) is under 2
       fan_bracket_right plate            convex   X 207.0 Y 86.5 Z 191.1         скругление оставило бы меньше 4 мм плоского контакта вокруг винта в (235.0, 86.5, 184.1)
       fan_bracket_right plate            convex   X 207.0 Y 93.5 Z 184.2         скругление оставило бы меньше 4 мм плоского контакта вокруг винта в (235.0, 86.5, 184.1)
@@ -441,8 +441,8 @@ B6 «Шатёр»: структурный каркас v0
       fan_bracket_right plate            convex   X 207.0 Y 262.6 Z 191.1        скругление оставило бы меньше 4 мм плоского контакта вокруг винта в (235.0, 262.6, 184.1)
       fan_bracket_right: leg meets plate (3 edges) junction X 207.0 Y 167.4 Z 89.3         ядро не смогло сделать галтель (Standard_Failure) на большем радиусе
       beam_low: boss meets beam          junction                                галтель от 2 мм вышла бы за начало скругления кромки 3 мм: плоский верх в 7.0 мм от оси бобышки, радиус бобышки 5
-      beam_mid                           edge     X 0.0 Y 169.2 Z 98.9           скругление врезалось бы в стенку отверстия
-      beam_mid                           edge     X 0.0 Y 155.0 Z 113.2          скругление врезалось бы в стенку отверстия
+      beam_mid                           edge     X 0.0 Y 169.2 Z 98.9           шайба под первым винтом gpu_post лежит на этой грани в 1.78 мм от ребра (наименьшее скругление 2 мм)
+      beam_mid                           edge     X 0.0 Y 155.0 Z 113.2          к этой грани прикручен gpu_post, его нога стоит поперёк ребра: скругление отняло бы контакт и плоскую площадку вокруг его первого винта
       beam_top: boss meets beam          junction                                галтель от 2 мм вышла бы за начало скругления кромки 3 мм: плоский верх в 3.5 мм от оси бобышки, радиус бобышки 5
       skid_front                         edge     X 0.0 Y 185.0 Z 0.0            верхняя грань несёт БП: скругление её рёбер отняло бы площадь контакта
       skid_front                         edge     X 0.0 Y 205.0 Z 0.0            верхняя грань несёт БП: скругление её рёбер отняло бы площадь контакта
@@ -453,13 +453,13 @@ B6 «Шатёр»: структурный каркас v0
       drive_sled_left                    convex   X 87.0 Y 375.0 Z 0.0           the foot's bottom face and the rear face against the bulkhead are contacts: this corner joins them and its rounding would take 30 мм² from the bulkhead contact, which the bulkhead's own top edge has already cut by 1.3 %
       drive_sled_left flange             convex   X 82.5 Y 375.0 Z 18.0          the flange's rear face lies against the bulkhead: its two rear corners stay whole, the bulkhead's own top edge has already taken 1.3 % of the contact and the allowance is 3 %
       drive_sled_left flange             convex   X 82.5 Y 375.0 Z 88.0          the flange's rear face lies against the bulkhead: its two rear corners stay whole, the bulkhead's own top edge has already taken 1.3 % of the contact and the allowance is 3 %
-      antler_right chord                 convex   X 158.0 Y 311.0 Z 257.0        скругление сняло бы 37.4 мм² с контакта rib_B_right (1037 мм²); от допуска 1.5 % осталось 0.0 мм² за вычетом нужного остальным углам
+      antler_right chord                 convex   X 158.0 Y 311.0 Z 257.0        скругление сняло бы 37.4 мм² с контакта rib_B_right (1035 мм²); от допуска 1.5 % осталось 0.0 мм² за вычетом нужного остальным углам
       antler_right chord                 convex   X 158.0 Y 314.6 Z 253.4        the tongue's inner face continues this wall: no edge
       antler_right tongue                convex   X 158.0 Y 314.6 Z 253.4        flush with the chord's face above it: not a corner of the fused part
       antler_right tongue                convex   X 158.0 Y 349.9 Z 288.8        flush with the chord's face above it: not a corner of the fused part
       antler_right end rib               convex   X 222.0 Y 320.2 Z 266.2        flush with the chord's top face: not a corner of the fused part
       antler_right end rib               convex   X 228.0 Y 320.2 Z 266.2        flush with the chord's top face: not a corner of the fused part
-      antler_left chord                  convex   X 158.0 Y 311.0 Z 257.0        скругление сняло бы 37.4 мм² с контакта rib_B_left~ (1037 мм²); от допуска 1.5 % осталось 0.0 мм² за вычетом нужного остальным углам
+      antler_left chord                  convex   X 158.0 Y 311.0 Z 257.0        скругление сняло бы 37.4 мм² с контакта rib_B_left~ (1035 мм²); от допуска 1.5 % осталось 0.0 мм² за вычетом нужного остальным углам
       antler_left chord                  convex   X 158.0 Y 314.6 Z 253.4        the tongue's inner face continues this wall: no edge
       antler_left tongue                 convex   X 158.0 Y 314.6 Z 253.4        flush with the chord's face above it: not a corner of the fused part
       antler_left tongue                 convex   X 158.0 Y 349.9 Z 288.8        flush with the chord's face above it: not a corner of the fused part
@@ -498,16 +498,16 @@ B6 «Шатёр»: структурный каркас v0
 Кабельные точки крепления (проход 2 скелета, docs/plans/cables-and-organic.md, «Cable fixing»): 11 штифтов M3: в нижних гранях beam_low, beam_mid, beam_top и правого рельса (rib_A_right), во внутренних гранях правых рёбер (средняя нога rib_A_right, пост rib_B_right) и в верхней грани skid_front, на каждом мостик tie_bridge (ABS, одна форма). Мостик 28 x 13 x 9 мм: лапа 3 мм с проходным отверстием M3 Ø3.4 и арка рядом, в арке щель 12.5 x 3.5 мм под липучку 12 мм или стяжку (вдоль стороны 13 мм). Печать лапой вниз: потолок щели - мостик 12.5 мм на высоте 3 мм, других нависаний нет. Винт M3 x 10 с головкой на лапе. Мостик держит 2 мм от всех деталей, кроме своей, и от железа; 3 мм до кабелей проверяет cables.py.
   мостик             деталь       грань                  мир (X, Y, Z) оси отверстия на грани    стенка штифта            ближайшая другая деталь
   tie_bridge_mid_3   beam_mid     underside of the beam  (   84.0,   179.8,   109.5)                >= 8 мм                      board 26.5 мм
-  tie_bridge_rail_2  rib_A_right  underside of the rail  (  149.0,   156.9,    78.8)                4.86 мм           fan_bracket_right 8.1 мм
-  tie_bridge_rail_3  rib_A_right  underside of the rail  (  149.0,   214.9,   136.8)                4.86 мм              hose_guide_gpu 2.9 мм
-  tie_bridge_rail_4  rib_A_right  underside of the rail  (  149.0,   236.8,   158.7)                4.86 мм           tie_bridge_rail_3 3.0 мм
-  tie_bridge_low_1   beam_low     underside of the beam  (   60.0,    91.8,    21.5)                6.06 мм                      board 26.5 мм
-  tie_bridge_low_2   beam_low     underside of the beam  (  102.0,    91.8,    21.5)                6.06 мм                      board 26.5 мм
-  tie_bridge_top_2   beam_top     underside of the beam  (  109.0,   288.7,   218.4)                6.06 мм                  ничего ближе 6 мм
-  tie_bridge_leg_1   rib_A_right  inner face, mid leg    (  142.0,   196.0,    36.0)                7.84 мм                rib_B_right 26.7 мм
-  tie_bridge_leg_2   rib_A_right  inner face, mid leg    (  142.0,   194.0,    72.0)                7.84 мм                   beam_mid 16.0 мм
+  tie_bridge_rail_2  rib_A_right  underside of the rail  (  149.0,   156.9,    78.8)                4.80 мм           fan_bracket_right 8.1 мм
+  tie_bridge_rail_3  rib_A_right  underside of the rail  (  149.0,   214.9,   136.8)                4.80 мм              hose_guide_gpu 2.9 мм
+  tie_bridge_rail_4  rib_A_right  underside of the rail  (  149.0,   236.8,   158.7)                4.80 мм           tie_bridge_rail_3 3.0 мм
+  tie_bridge_low_1   beam_low     underside of the beam  (   60.0,    91.8,    21.5)                6.02 мм                      board 26.5 мм
+  tie_bridge_low_2   beam_low     underside of the beam  (  102.0,    91.8,    21.5)                6.02 мм                      board 26.5 мм
+  tie_bridge_top_2   beam_top     underside of the beam  (  109.0,   288.7,   218.4)                6.02 мм                  ничего ближе 6 мм
+  tie_bridge_leg_1   rib_A_right  inner face, mid leg    (  142.0,   196.0,    36.0)                7.80 мм                rib_B_right 26.7 мм
+  tie_bridge_leg_2   rib_A_right  inner face, mid leg    (  142.0,   194.0,    72.0)                7.80 мм                   beam_mid 16.0 мм
   tie_bridge_post_1  rib_B_right  inner face, post       (  142.0,   336.0,   104.0)                >= 8 мм                  ничего ближе 6 мм
-  tie_bridge_skid_1  skid_front   top face               (  102.0,   195.0,     0.0)                7.83 мм                  ничего ближе 6 мм
+  tie_bridge_skid_1  skid_front   top face               (  102.0,   195.0,     0.0)                7.78 мм                  ничего ближе 6 мм
 
 Отсеки под диски (проход 1, docs/plans/cables-and-organic.md, «Drive bays, pass 1»): салазки сбоку от БП (слева); диск стоит на дальнем торце разъёмом вверх. Отсек один, левый (наружная грань смотрит в -X; строится правосторонним и зеркалится по X); правого отсека нет: кабели БП идут через его объём (см. hardware.DRIVE_SIDES). Места дисков и таблицы отверстий - hardware.py (стандарты: SFF-8301 для 3.5, SFF-8201 для 2.5, SFF-8323/8223 разъём).
   Пластина 5 мм: X 87..92; от БП (X 75): воздух 4 мм, внутренний диск 2.5 (X 79..86), бобышка 1 мм, пластина, бобышка, внешний диск 3.5 (X 93..119.1). Разъёмы всех дисков на Z 150 (сверху), зона штекеров 25 мм выше (ПРЕДПОЛОЖЕНИЕ, источника нет).
@@ -550,7 +550,7 @@ B6 «Шатёр»: структурный каркас v0
   ok  joint bolts 20.5 mm apart (>= 20)
   ok  fan bracket bolt (163.9,97.2) in rib_A + bracket leg
   ok  fan bracket bolt (155.5,105.7) in rib_A + bracket leg
-  ok  fan bracket bolts 12.0 mm apart (>= 2 x pilot + wall = 6.0)
+  ok  fan bracket bolts 12.0 mm apart (>= 2 x pilot + wall = 6.1)
   ok  tongue bolt (328.7,256.3) in antler tongue + rib_B
   ok  tongue bolt (340.0,245.0) in antler tongue + rib_B
   ok  sill bolt (X -105.0, Y 10.0) inside beam_front's top face, the sill's section and an end block
@@ -573,7 +573,7 @@ B6 «Шатёр»: структурный каркас v0
   ok  drive sled bolt (X 89.5, Z 30.0) pilot inside the flange's section (X, Z) with the M3 wall
   ok  drive sled bolt (X 89.5, Z 76.0) in the bulkhead's flank: outside the window (|X| 63) and the end blocks (|X| 122) by the M3 wall, 15.4 mm of wall to the PSU's screw holes (needs 1.6)
   ok  drive sled bolt (X 89.5, Z 76.0) pilot inside the flange's section (X, Z) with the M3 wall
-  ok  drive sled bolts 46.0 mm apart (>= pilot + wall = 6.0)
+  ok  drive sled bolts 46.0 mm apart (>= pilot + wall = 6.1)
   ok  beam_front bolt (10.0,0.0) pilot inside section
   ok  beam_front bolt (30.0,0.0) pilot inside section
   ok  skid_front bolt (197.0,-5.0) pilot inside section
@@ -632,7 +632,7 @@ ASSERTS: все проверки пройдены.
   - Ревизия 8, как устроено: контур плиты скругляется в 2D до выдавливания (cad_b6/rounding.py, BRepFilletAPI_MakeFillet2d по грани контура), коробчатые детали - вырезом клина по длинному ребру, галтели стыков (правило 4) - 3D-галтелью выбранных вогнутых рёбер. build_frame(rounded=False) даёт каркас до ревизии 8 (острые углы): с ним сравнивается каждое скругление, и его берёт check 12 как эталон. Для каждого угла радиус ищется делением пополам от желаемого (8 / 6 мм) вниз до 2 мм; принимается наибольший, при котором снятый (выпуклый угол) или добавленный (вогнутый) осколок проходит Guard. Левые детали строятся правосторонними и зеркалятся, поэтому для них соседи (железо и другие детали) зеркалятся тоже; левые и правые детали скругляются каждая своим расчётом (ребро B слева и справа, антлеры, шеи, плечи).
   - Ревизия 8, главный конфликт плана: правило 1 велит скруглять внешние углы радиусом 6 мм, правило 3 запрещает уменьшать площадь любого контакта из отчёта. Каждый выпуклый угол грани, лежащей на железе или на другой детали, снимает с неё площадь (r = 6 мм: 7.7 мм², 3 мм: 1.9 мм²). Выбрано правило 3 (предел жёсткий): 56 выпуклых углов оставлены острыми, из них 36 из-за площади контакта (антлеры на грани вентиляторов 420: 3 угла пластины и 2 угла язычка на ребре B на антлер; накладка шеи на пост B: 4 угла; ноги кронштейнов на ребре A: 4 угла на кронштейн; плечо визора на шее: 2 угла; шея на плече: 1; ребро B: угол на нахлёсте (9.2 мм²) и угол у антлера (7.7 мм²)), 9 из-за стенки отверстия (плечи визора у винтов 6-32, кронштейны у вставок вентилятора, beam_top у штифта), 7 потому что между соседними рёбрами не помещается 2 мм, 4 - концы поверхности кредла (по правилу 3). Нижние углы пластин антлера, которые висят за краем 420 (n -18.25 против грани n -15), скруглены радиусом 3.5 мм; нижние углы плеч визора вне шеи - 2.5 мм. Если владелец хочет скругления и на контактных гранях, цена - увеличить сами грани примерно на 0.1 мм по контуру (площадь потерь 31 мм² на пластину антлера при r = 6 мм при периметре около 300 мм): я этого не делал, это меняет сопрягаемые грани.
   - Ревизия 8, внутренние углы: 34 угла скруглены радиусом 8 мм, 5 - меньше (4 / 5.5 / 6 мм: ребро A у стопы мидлега на Y 206 Z 5 даёт 5.5 мм, у gpu_rest правого ребра 6 мм - при 8 мм осколок вошёл бы в карту, язычок антлера 4 мм), 6 остались острыми: пара углов B на носке (Y 292.4 Z 232.5 и Y 293.4 Z 232.8) в 0.9 мм друг от друга на каждом ребре B, четыре угла (двум кромкам нужно 1.55 r, то есть r не больше 0.6 мм), и по одному углу у каждого плеча визора рядом с отверстием винта 6-32 на u = 297 (колено плеча в 2.5 мм от оси; добавленный материал закрыл бы подход к головке винта; при 8 мм стенка вокруг отверстия была бы 0.08 мм, проверка 7 это поймала). Ограничение Guard для вогнутого осколка: он не пересекает соседей (объём < 0.01 мм³), не входит в стенку отверстия и не подходит к железу ближе, чем сама деталь уже к нему подходит (но не ближе 2 мм), к шлангам - не ближе 5 мм (проверка 9). Измерено на готовой модели: все 16 зазоров < 5 мм детали x железо те же, что до ревизии (до 0.001 мм), зазоры до шлангов те же.
-  - Ревизия 8, коробчатые детали: радиус 3 мм по длинным рёбрам вырезом клина, концы (4 мм) остаются острыми: торец детали упирается в ребро, площадь торца нельзя уменьшать (радиус 3 мм забирает 1.9 мм² с каждого угла торца, 7.7 мм² с торца). Поэтому у beam_front, beam_low, beam_mid, beam_top, skid_front, skid_rear, gpu_post (только нижний конец, верх свободен) на концах остаётся ступенька-плечо 4 мм. beam_mid: два ребра со стороны малых u остались острыми - у них стенка до проходного отверстия болта gpu_post (v -10, u 131; до ревизии 15a v -10.5) была бы ниже 2.1 мм при любом радиусе от 2 мм. beam_top: ребро у штифта скруглено 2.5 мм вместо 3 (стенка штифта). Верхние рёбра скидов (грань Z = 0 несёт БП) и нижние рёбра psu_bulkhead (грань на столе, контактная площадка) оставлены острыми. psu_bulkhead: пластина 6 мм, радиус 2.75 вместо 3 (при 3 на кромке не осталось бы плоского участка), скруглена только между концевыми бобышками (X ±122), бобышки остались острыми, как их торцы на хвостовой стойке.
+  - Ревизия 8, коробчатые детали: радиус 3 мм по длинным рёбрам вырезом клина, концы (4 мм) остаются острыми: торец детали упирается в ребро, площадь торца нельзя уменьшать (радиус 3 мм забирает 1.9 мм² с каждого угла торца, 7.7 мм² с торца). Поэтому у beam_front, beam_low, beam_mid, beam_top, skid_front, skid_rear, gpu_post (только нижний конец, верх свободен) на концах остаётся ступенька-плечо 4 мм. beam_mid: два ребра со стороны малых u оставлены острыми намеренно (с 18.11.2026): поперёк верхнего (n лотка) стоит нога gpu_post, скругление отняло бы контакт и плоскую площадку вокруг его первого винта; у нижнего на нижней грани лежит шайба этого винта. До 18.11.2026 они были острыми случайно: при пилоте 4.4 любое скругление от 2 мм врезалось в стенку проходного отверстия болта gpu_post (v -10, u 131); с пилотом 4.5 отверстие сдвинулось на 0.05 мм по u, скругление 2 мм прошло и отняло 21 мм² контакта. beam_top: ребро у штифта скруглено 2.5 мм вместо 3 (стенка штифта). Верхние рёбра скидов (грань Z = 0 несёт БП) и нижние рёбра psu_bulkhead (грань на столе, контактная площадка) оставлены острыми. psu_bulkhead: пластина 6 мм, радиус 2.75 вместо 3 (при 3 на кромке не осталось бы плоского участка), скруглена только между концевыми бобышками (X ±122), бобышки остались острыми, как их торцы на хвостовой стойке.
   - Ревизия 8, направляющие шлангов не скруглены: каждое наружное ребро стопы или пластины - ребро полки, а стенка канала у полки 2.5 мм (губа горловины около 2 мм). Радиус 3 мм на ребре полки сводит стенку к нулю на торцах полки (дуга касается на 3 мм от угла, радиус канала 6.3..6.5 из 8.8..9 мм полувысоты), радиус 2 мм оставляет 0.5 мм. План называет направляющие среди коробчатых деталей; выполнить правило 2 для них нельзя, не нарушив проверки 10 по смыслу (стенка канала).
   - Ревизия 8, кронштейн правого вентилятора: рельс, корневой блок, шарнир и лапка (2.5..5.5 мм, соединены нахлёстами по 1 мм) остались острыми: скругление любой из этих четырёх коробок разрывало кронштейн на два тела (проверка 7 ловила 'two separate solids', измерено 18789 + 21208 мм³). Плита и нога скруглены.
   - Ревизия 8, правило 4 (галтель 8 мм на стыке бобышки, ушка, язычка, ноги): шея, накладка к стойке - 8 мм (одно ребро по u на каждую шею); антлер, язычок к планке - 8 мм (одно ребро); бобышки beam_mid - 5 мм (высота бобышки 6.35 мм, остаётся 1.35 до платы); beam_low и beam_top - нет (подошва галтели 5 + r должна лежать на плоской вершине, которая от оси бобышки 7.0 и 3.5 мм); ноги кронштейнов - 5.5 мм справа и 3.0 мм слева (ядро не берёт больше: Standard_Failure на 6 мм и выше справа, 3.5 мм слева), по 3 ребра; ушки кронштейна и бобышки - углы контура, они в п. 1. Галтели добавляют материал, Guard проверил их так же, как вогнутые углы.
@@ -721,5 +721,5 @@ ASSERTS: все проверки пройдены.
   - ПОРОГ И МОДУЛЬ ВВОДА (ревизия 9), всё PLACEHOLDER до обмера модуля Fractal North XL: бокс front_io, два винта M3 в торцевые стенки кармана, положение канала light_strip, шаги портов (таблица в hardware.py, +-1 мм). Нужно обмерить: плату модуля (контур, толщину), крепёжные отверстия и винты, высоту разъёмов и на сколько они выступают, переключатель и выходит ли колпачок кнопки вместе с модулем, длины четырёх кабелей. Вырезов под порты в пороге нет: они режутся в коже 5 мм по грани после обмера.
   - Светлая линия: подключение ленты (заголовок LED платы или 5 В, чтобы горела при включённом ПК) и прокладка кабелей, как и остальные кабели, не сделаны. Посадочного места под диффузор (PLA прозрачный, 1.6 мм, щель 4 мм) нет; лента клеится на ABS-порог, не на диффузор. Мощность ленты в канале 14 x 14: полный белый может дать 50 °C на поверхности, нужна лента малой мощности или снижение яркости; канал через торцы упирается в рёбра (зазор 2 мм).
   - Порог: масса 490 г при 100 % (210 г при 4 стенках/20 %), 280 x 47 x 70 мм, длинная ABS-деталь с большой плоской гранью склонна к короблению: если печать повело, делить пополам по X = 0 (каждая половина 140 мм). Винты порога к beam_front ставятся снизу, зазор до стола 5 мм (собирать до постановки на стол). Порог выступает на 7.4 мм за заднюю грань beam_front (Y 40 -> 47.4), до платы 12.6 мм. Порог не входит в проверку 12.
-  - PA6 (только две направляющие шлангов; мостики кабелей с 16.11.2026 из ABS, оболочка крепится винтами M3): сушить и печатать из сухой коробки, CFS при 65 % влажности для нейлона не годится; плотность 1.14 г/см³ принята по справочному значению, не по катушке. Ревизия 12, открыто: (1) вставка M3: владелец измерил свои вставки 17.11.2026 (ревизия 15): длина 4.0, наружный диаметр 4.96 мм (hardware.M3_INSERT_LEN, M3_INSERT_OD). Пилот Ø4.4 - ПРЕДПОЛОЖЕНИЕ до пробы лесенки C2 (hardware.M3_PILOT_D: строка вставки 5.0 x 4.0 в таблице CNC Kitchen, отверстие 4.4, стенка 1.6). Глубина 6.7 (M3_PILOT_DEPTH) - выбор, не размер вставки: вставка сидит в верхних 4.0 мм, остальное место для кончика винта, окно длины винта 3.5..6.2 мм; пилот глубиной 4.5 оставил бы окно 0.5 мм. Стенка 1.6 (M3_MIN_WALL) - правило. Длины винтов выбраны под глубину 6.7 (screw_fit), в зацеплении резьбы min(вход, 4.0); 30 стыков через ребро 16 мм сидят ровно на нижнем пределе входа 3.5 мм (M3 x 20 - единственная длина набора, которая подходит). (2) Штатные винты 6-32 БП (6.0 мм) и радиатора 360 (6.0 мм) - ПРЕДПОЛОЖЕНИЯ (hardware.PSU_SCREW_LEN, RAD360_SCREW_LEN): владелец винт БП назвал как около 6 мм, винт 360 не измерял; от них зависит только глубина зенковок (под головкой 2.0 мм), при другой длине зенковку надо пересчитать (HW_SCREW_FLOOR, ARM_T, BULK_T). Головка 6-32 6.7 x 2.5 - тоже предположение (как у винта диска 3.5 дюйма). (3) Угол D правого бокового вентилятора: винт идёт с внешней грани через лапку (2.5 мм) и вентилятор (25 мм) и заканчивается в воздухе: во вставку ему некуда, внутри кронштейна в этом углу нет (шланги GPU в 4.10 мм). Это было так и с M4; решение за владельцем: гайка M3 (их около 700) с внутренней стороны вентилятора или два винта вместо трёх (вентилятор держат A и C, проверка 5 требует три из четырёх). В ведомость этот винт не внесён. (4) Винты 6-32 для вентиляторов 420 (по 6 на половину, 12 штук) и штатные винты 6-32 и M3 дисков и платы в ведомость не входят: они штатные.
+  - PA6 (только две направляющие шлангов; мостики кабелей с 16.11.2026 из ABS, оболочка крепится винтами M3): сушить и печатать из сухой коробки, CFS при 65 % влажности для нейлона не годится; плотность 1.14 г/см³ принята по справочному значению, не по катушке. Ревизия 12, открыто: (1) вставка M3: владелец измерил свои вставки 17.11.2026 (ревизия 15): длина 4.0, наружный диаметр 4.96 мм (hardware.M3_INSERT_LEN, M3_INSERT_OD). Пилот Ø4.5 (hardware.M3_PILOT_D): владелец напечатал лесенку C2 из PETG и 18.11.2026 сообщил, что вставка садится лучше всего в 4.5..4.6 мм (docs/plans/fit-gauges.md); в ABS, из которого печатается каркас, это не проверено: подтвердить на первой малой ABS-детали со вставкой. До этого было 4.4 (строка вставки 5.0 x 4.0 в таблице CNC Kitchen, отверстие 4.4, стенка 1.6). Глубина 6.7 (M3_PILOT_DEPTH) - выбор, не размер вставки: вставка сидит в верхних 4.0 мм, остальное место для кончика винта, окно длины винта 3.5..6.2 мм; пилот глубиной 4.5 оставил бы окно 0.5 мм. Стенка 1.6 (M3_MIN_WALL) - правило. Длины винтов выбраны под глубину 6.7 (screw_fit), в зацеплении резьбы min(вход, 4.0); 30 стыков через ребро 16 мм сидят ровно на нижнем пределе входа 3.5 мм (M3 x 20 - единственная длина набора, которая подходит). (2) Штатные винты 6-32 БП (6.0 мм) и радиатора 360 (6.0 мм) - ПРЕДПОЛОЖЕНИЯ (hardware.PSU_SCREW_LEN, RAD360_SCREW_LEN): владелец винт БП назвал как около 6 мм, винт 360 не измерял; от них зависит только глубина зенковок (под головкой 2.0 мм), при другой длине зенковку надо пересчитать (HW_SCREW_FLOOR, ARM_T, BULK_T). Головка 6-32 6.7 x 2.5 - тоже предположение (как у винта диска 3.5 дюйма). (3) Угол D правого бокового вентилятора: винт идёт с внешней грани через лапку (2.5 мм) и вентилятор (25 мм) и заканчивается в воздухе: во вставку ему некуда, внутри кронштейна в этом углу нет (шланги GPU в 4.10 мм). Это было так и с M4; решение за владельцем: гайка M3 (их около 700) с внутренней стороны вентилятора или два винта вместо трёх (вентилятор держат A и C, проверка 5 требует три из четырёх). В ведомость этот винт не внесён. (4) Винты 6-32 для вентиляторов 420 (по 6 на половину, 12 штук) и штатные винты 6-32 и M3 дисков и платы в ведомость не входят: они штатные.
   - Оболочка (PETG, запасной вариант ABS): держать не ближе 10 мм к видеокарте и БП и 4 мм к радиаторам и вентиляторам, нести только свой вес, крепиться к каркасу несколькими точками с зазором (разная усадка ABS и PETG): в этом файле её нет.

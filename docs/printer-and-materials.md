@@ -67,7 +67,7 @@ All screws are M3 hex socket head cap screws. There are no M4 screws.
 | M3 x 40 | | 20 | | 20 |
 
 - **M3 nuts:** about 700 (180 + 220 + 300). **M3 flat washers:** 380 (80 + 300). **M3 lock washers:** 180.
-- **M3 heat-set inserts:** 20 at most on hand, 200 more ordered (owner's word, 16 Nov 2026). The owner measured them on 17 Nov 2026: 4.0 mm long, 4.96 mm outer diameter (`hw.M3_INSERT_LEN`, `hw.M3_INSERT_OD`). The pilot hole is 4.4 mm across (the maker's figure for a 5.0 x 4.0 mm insert, until the ladder `C2_insert_ladder` is tried) and 6.7 mm deep (Revision 15, `docs/plans/fasteners-m3.md`).
+- **M3 heat-set inserts:** 20 at most on hand, 200 more ordered (owner's word, 16 Nov 2026). The owner measured them on 17 Nov 2026: 4.0 mm long, 4.96 mm outer diameter (`hw.M3_INSERT_LEN`, `hw.M3_INSERT_OD`). The pilot hole is 4.5 mm across (since 18 Nov 2026, from the ladder `C2_insert_ladder` in PETG: the owner's inserts sit best in 4.5 to 4.6 mm; before that 4.4, the maker's figure for a 5.0 x 4.0 mm insert; not yet proved in ABS) and 6.7 mm deep (Revision 15, `docs/plans/fasteners-m3.md`).
 - An M2 kit (M2 x 4 to M2 x 20 with nuts and washers). The case has no use for it so far.
 - The counts are the kits' labels, not a count of what is left in the boxes. The ordered kit's contents were read off its Amazon listing (the label in the product picture and the description agree).
 

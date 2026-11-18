@@ -69,7 +69,7 @@ After a new screw or counterbore, or a part or hardware solid moved near a screw
 
 ```bash
 .venv/bin/python cad_b6/assembly_access.py        # ~160 s: every screw against the assumed tools, an order of assembly in out/assembly/order.md; exit 1 if a screw cannot be driven or no order exists
-.venv/bin/python cad_b6/test_assembly.py          # ~80 s: ends "N/N as expected: PASS", N being EXPECTED_CASES (51)
+.venv/bin/python cad_b6/test_assembly.py          # ~80 s: ends "N/N as expected: PASS", N being EXPECTED_CASES (52)
 ```
 
 Read the order: a part that goes on after what it should carry, or a long list under "Stand loose", is a finding even when the script exits 0.
