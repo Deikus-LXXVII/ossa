@@ -65,7 +65,7 @@ A key of `build_hardware()` that is in none of the three lists is a failure.
 
 Nodes are the printed parts and the hardware units. A unit goes in as one piece:
 
-- `cpu_aio`: `cpu_block`, `cpu_hoses`, `rad360`, `rad360_ports` (a closed loop);
+- `cpu_aio`: `cpu_block`, `cpu_hoses`, `rad420`, `rad420_ports` (a closed loop: the CPU's cooler is the ARCTIC with the 420). *This plan first had the 360 here and the 420 with the card: wrong, see "The radiators were in the wrong units" below;*
 - `gpu_aio`: `gpu`, `gpu_hoses`, `rad420`, `rad420_ports` (the card with its cooler);
 - `board`: `board`, `dimms`, `atx24`, `eps`;
 - `drive_left_25` and `drive_left_35`: the two bodies of `drive_left` are separate nodes (the 2.5 inch drive's screws end up under the 3.5 inch drive, `SLED_ORDER`); `drive_plugs_left` goes with the 3.5 inch one;
@@ -200,6 +200,10 @@ Second review (the preference for a tied node and the bench groups): both sound 
 - **`SITS_ON`**, from the review's design remarks: the group could go into the case before the board, because no screw of the model holds the CPU block. A node that sits on another with no screw between them now goes on after it: both coolers after the board, the PSU after its skids, the I/O module after its carrier, the strip after the sill.
 
 What the review says the model still cannot see, and is not changed: `cpu_aio` is one unit, so the block's seating on the socket and the arms' meeting the necks are one step; a screw that the block or the hoses would cover only in their final position fails or passes as if the loop could not be swung aside; no path into the case is computed.
+
+### The radiators were in the wrong units (found on 18 Nov 2026, cured the same day)
+
+The main session wrote the units from memory: the 360 with the CPU block, the 420 with the card. It is the other way round (`hoses.keepout_chains`: the CPU's hoses end on the 420's ports, the card's on the 360's; the 420 is the ARCTIC CPU cooler, the 360 is the card's own). Grok's check of the plan found no solid in two units and did not ask which hose goes where; nobody did, until the owner said which fans go on "the card's radiator". Cured: the units and the bench group (`rad360_with_arms` is the two arms and the card's unit) are corrected, and `hose_unit_failures` now reads from the solids that everything a hose ends on is in the hose's unit, with a case that puts the radiators back the wrong way and expects the failure. The order is still found (92 states): the CPU's cooler with the 420 at step 33, the card with its 360 and the arms at step 34. What the model does not see there is now this: **the card** hangs on its hoses from the bench group and goes into its slot in the same step.
 
 ## Grok's check of the first draft (18 Nov 2026)
 

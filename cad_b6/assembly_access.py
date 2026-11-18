@@ -58,14 +58,17 @@ NOT_OBSTACLES = ("io_zone", "gpu_out_zone")
 LISTS = dict(hard=HARD_HARDWARE, soft=SOFT_HARDWARE, none=NOT_OBSTACLES)
 # A unit goes in as one piece. The two bodies of a bay's drives are separate solids (split_drives) and separate nodes: the 2.5 inch drive's screws end up under the
 # 3.5 inch drive (frame_v0.SLED_ORDER). A hardware solid in no unit is a node of its own.
-UNITS = {"cpu_aio": ("cpu_block", "cpu_hoses", "rad360", "rad360_ports"),
-         "gpu_aio": ("gpu", "gpu_hoses", "rad420", "rad420_ports"),
+# The CPU's cooler is the ARCTIC with the 420; the card's own cooler has the 360 (hoses.keepout_chains: each pair of hoses ends on its radiator's ports). Until 18 Nov 2026 the
+# two radiators were the wrong way round here; hose_unit_failures now reads the units against where the hoses really end.
+UNITS = {"cpu_aio": ("cpu_block", "cpu_hoses", "rad420", "rad420_ports"),
+         "gpu_aio": ("gpu", "gpu_hoses", "rad360", "rad360_ports"),
          "board": ("board", "dimms", "atx24", "eps"),
          "drive_left_25": ("drive_left_25",),
          "drive_left_35": ("drive_left_35", "drive_plugs_left")}
 # Put together on the bench and installed as one node, where its last member stands in the preference. A screw whose whole joint lies inside a group is driven on the bench, with
 # nothing but the group's own solids round it. The 360 goes on and comes off with its two arms (revision 16): in the case the neck stands 7.5 mm from the axis of the arms' u 297 screws.
-BENCH = {"rad360_with_arms": ("visor_arm_right", "visor_arm_left", "cpu_aio")}
+# The 360 is the card's radiator, so the card hangs on its hoses from this group and is put in its slot in the same step.
+BENCH = {"rad360_with_arms": ("visor_arm_right", "visor_arm_left", "gpu_aio")}
 # A node that sits on another with no screw of the model between them goes on after it: the CPU block on the board's socket, the card in the board's slot, the PSU on its skids,
 # the I/O module in its carrier, the strip on the sill. Without this the search may put a cooler in before the board it stands on.
 SITS_ON = {"cpu_aio": ("board",), "gpu_aio": ("board",), "psu": ("skid_front", "skid_rear"), "front_io": ("front_io_carrier",), "light_strip": ("front_sill",)}
@@ -640,6 +643,26 @@ def preference_of(parts, units, hardware_preference=HARDWARE_PREFERENCE):
     return pref, fails
 
 
+HOSE_TOUCH = 1.0                        # mm: a hose "ends on" a hardware solid that stands this close to it (it is trimmed at the port box's face and starts inside its block)
+
+
+def hose_unit_failures(solids, nodes, lists=LISTS):
+    """A hose is one loop with what it joins: every hardware solid a hose of hw.HOSES ends on must be in the hose's unit. Read from the solids, so that a unit typed with the
+    wrong radiator is caught (it was, until 18 Nov 2026: the 360 stood in the CPU's unit and the 420 in the card's)."""
+    fails = []
+    where = node_of(nodes)
+    hardware_names = [k for k in solids if k in lists["hard"] or k in lists["soft"]]
+    for h in hw.HOSES:
+        if h not in solids:
+            fails.append(f"ASSEMBLY the hose {h} is no obstacle solid: its unit cannot be read against where it ends")
+            continue
+        ends = [k for k in hardware_names if k != h and frame_v0.solid_distance(solids[h], solids[k]) < HOSE_TOUCH]
+        if len(ends) < 2:
+            fails.append(f"ASSEMBLY the hose {h} ends on {', '.join(ends) if ends else 'nothing'}: a hose joins two things")
+        fails += [f"ASSEMBLY the hose {h} ends on {k}, which is in the unit {where[k]}, not in the hose's unit {where[h]}" for k in ends if where[k] != where[h]]
+    return fails
+
+
 def model_of(parts, hardware, fasteners, bill=BILL, lists=LISTS, groups=CLASS_B, units=UNITS):
     """Everything but the tools: dict(solids, kind, screws, organic, placeholder, units, preference) and the failures. Fast: no tool is measured."""
     solids, kind, fails = obstacles_of(parts, hardware, lists)
@@ -647,7 +670,7 @@ def model_of(parts, hardware, fasteners, bill=BILL, lists=LISTS, groups=CLASS_B,
     fails += f2 + bill_check(screws, organic, placeholder, fasteners, bill)
     nodes, f3 = units_of(parts, solids, units)
     pref, f4 = preference_of(parts, nodes)
-    return dict(solids=solids, kind=kind, screws=screws, organic=organic, placeholder=placeholder, units=nodes, preference=pref), fails + f3 + f4
+    return dict(solids=solids, kind=kind, screws=screws, organic=organic, placeholder=placeholder, units=nodes, preference=pref), fails + f3 + f4 + hose_unit_failures(solids, nodes, lists)
 
 
 # ---------------------------------------------------------------------------

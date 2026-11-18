@@ -20,7 +20,7 @@ import frame_v0  # noqa: E402
 import hardware as hw  # noqa: E402
 
 RESULTS = []
-EXPECTED_CASES = 51
+EXPECTED_CASES = 52
 
 
 def expect(name, got, want):
@@ -124,12 +124,12 @@ def tables():
     fails, res = aa.judge([screw("s", {"P", "board"}, straight={"atx24"})], u, ["P", "board"], hard)
     expect("a soft one (the 24-pin plug) is no failure and the screw needs a look", (fails, [x[0] for x in res["look"]]), ([], ["s"]))
 
-    # a unit's solids arrive together: the 360 comes with the CPU block's unit, so the part it covers must go on first
-    u = units("part", cpu_aio={"cpu_block", "rad360"})
+    # a unit's solids arrive together: the 360 comes with the card's unit, so the part it covers must go on first
+    u = units("part", gpu_aio={"gpu", "rad360"})
     sc = [screw("x", {"part"}, straight={"rad360"})]
-    res = aa.search(sc, u, ["cpu_aio", "part"], hard)
-    expect("a unit's solids arrive together: a part the 360 covers goes on before the CPU unit, although the CPU block itself is in nobody's way", res["order"], ["part", "cpu_aio"])
-    expect("and the order the preference asks for is refused, naming the 360", any("rad360" in p for p in aa.check_order(["cpu_aio", "part"], sc, u, hard)), True)
+    res = aa.search(sc, u, ["gpu_aio", "part"], hard)
+    expect("a unit's solids arrive together: a part the 360 covers goes on before the card's unit, although the card itself is in nobody's way", res["order"], ["part", "gpu_aio"])
+    expect("and the order the preference asks for is refused, naming the 360", any("rad360" in p for p in aa.check_order(["gpu_aio", "part"], sc, u, hard)), True)
     # the drives: the 2.5 inch drive's screws stand under the 3.5 inch drive
     u = units("sled", d25={"d25"}, d35={"d35", "plugs"})
     sc = [screw(f"m3 {k}", {"sled", "d25"}, straight={"d35"}, stubby={"plugs", "d35"}) for k in range(4)] + [screw(f"6-32 {k}", {"sled", "d35"}, straight=set()) for k in range(6)]
@@ -228,6 +228,10 @@ def real_model():
     _, f = aa.model_of(parts, hardware, fast, bill=bill)
     expect("a row removed from the script's table (neck pad) makes the script fail, twice: the row is judged by nobody and its screws by no row",
            (any("'neck pad' has no entry" in x for x in f), any("picked by 0 rows" in x for x in f)), (True, True))
+    swapped = dict(aa.UNITS, cpu_aio=("cpu_block", "cpu_hoses", "rad360", "rad360_ports"), gpu_aio=("gpu", "gpu_hoses", "rad420", "rad420_ports"))
+    _, f = aa.model_of(parts, hardware, fast, units=swapped)
+    expect("the two radiators the wrong way round in the units (as they were until 18 Nov 2026) make the script fail: each hose ends on a radiator of the other unit",
+           (any("the hose cpu_hoses ends on rad420_ports, which is in the unit gpu_aio" in x for x in f), any("the hose gpu_hoses ends on rad360_ports, which is in the unit cpu_aio" in x for x in f)), (True, True))
     lists = dict(aa.LISTS, hard=tuple(k for k in aa.HARD_HARDWARE if k != "dimms"))
     _, f = aa.model_of(parts, hardware, fast, lists=lists)
     expect("a hardware key removed from the lists (dimms) makes the script fail", any("dimms is in no list" in x for x in f), True)
