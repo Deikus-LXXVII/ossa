@@ -4,6 +4,8 @@ Run from the repository root with the Python that has bpy (out/blender-venv, see
     out/blender-venv/bin/python docs/plans/sketches/blender_noctua.py [--prefix P] [--pictures DIR] -- <blender_scene.py's own arguments>
         --prefix P       the pictures are saved as <DIR>/<P><view>.png (default render_)
         --pictures DIR   default docs/plans/sketches/pictures
+        --noctua LIST    which fans are Noctuas, of 360, 420, side, psu (default: all four groups). The owner's choice of 18 Nov 2026 is 360,psu: the fans on the
+                         card's radiator, and the PSU's own fan (a Noctua edition); the 420 keeps its ARCTIC fans and the side fans are the present case's
     e.g. ... blender_noctua.py --prefix render_proposed_ -- --data out/blender-sketch --out out/blender-renders/proposed --views hero
 
 blender_scene.py is executed as it is committed (its source, less the last line that calls main()), and three of its functions are
@@ -12,8 +14,8 @@ wrapped, none rewritten:
   setup_render      after the original: Cycles on the Mac's GPU through Metal (the original tries OptiX and CUDA only),
                     then the fan colours below;
   main              unchanged; afterwards the pictures it wrote (b6_render_<view>.png in --out) are copied to <DIR>/<P><view>.png.
-Fan colours: the material "fan_frame" (frames and struts of the build_fan fans, nothing else uses it) gets the beige; the hubs, blades
-and hub stickers of the 120 and 140 mm fans and the PSU's fan get a new brown material made from "fan_blade". The graphics card's and
+Fan colours: the frames and struts of the chosen fans get a beige copy of the material "fan_frame"; their hubs, blades and hub stickers
+get a new brown material made from "fan_blade". A fan that is not chosen keeps the pipeline's dark materials. The graphics card's and
 the CPU block's fans keep "fan_blade". Every other material stays as the pipeline has it.
 """
 import os
@@ -36,6 +38,10 @@ def srgb_to_linear(hexrgb):
 def own_args():
     mine = sys.argv[1:sys.argv.index("--")] if "--" in sys.argv else sys.argv[1:]
     prefix, pictures = "render_", os.path.join(ROOT, "docs", "plans", "sketches", "pictures")
+    global NOCTUA
+    if "--noctua" in mine:
+        NOCTUA = tuple(mine[mine.index("--noctua") + 1].split(","))
+        assert set(NOCTUA) <= {"360", "420", "side", "psu"}, NOCTUA
     if "--prefix" in mine:
         prefix = mine[mine.index("--prefix") + 1]
     if "--pictures" in mine:
@@ -51,18 +57,23 @@ def load_scene_module():
     return ns
 
 
+NOCTUA = ("360", "420", "side", "psu")
+
+
 def principled_of(mat):
     return next(n for n in mat.node_tree.nodes if n.type == "BSDF_PRINCIPLED")
 
 
 def noctua(bpy, HW):
     beige, brown = srgb_to_linear(BEIGE_SRGB), srgb_to_linear(BROWN_SRGB)
-    frame = bpy.data.materials["fan_frame"]
+    frame = bpy.data.materials["fan_frame"].copy()
+    frame.name = "noctua_frame"
     principled_of(frame).inputs["Base Color"].default_value = (*beige, 1.0)
     impeller = bpy.data.materials["fan_blade"].copy()
     impeller.name = "noctua_impeller"
     principled_of(impeller).inputs["Base Color"].default_value = (*brown, 1.0)
-    fans = [f"fan360_{k}" for k in range(3)] + [f"fan420_{k}" for k in range(len(HW["RAD420_FAN_X"]))] + list(HW["FAN_SIDE_X"]) + ["psu_fan"]
+    groups = {"360": [f"fan360_{k}" for k in range(3)], "420": [f"fan420_{k}" for k in range(len(HW["RAD420_FAN_X"]))], "side": list(HW["FAN_SIDE_X"]), "psu": ["psu_fan"]}
+    fans = [f for g in NOCTUA for f in groups[g]]
     done = {}
     for ob in bpy.data.objects:
         base = next((f for f in fans if ob.name.startswith(f + "_")), None)
@@ -73,6 +84,7 @@ def noctua(bpy, HW):
                 ob.data.materials[i] = impeller
                 done.setdefault(base, []).append(ob.name[len(base) + 1:])
             elif m is not None and m.name == "fan_frame":
+                ob.data.materials[i] = frame
                 done.setdefault(base, []).append(ob.name[len(base) + 1:] + "(beige)")
     missing = [f for f in fans if f not in done]
     assert not missing, f"no fan objects found for {missing}"
@@ -103,7 +115,7 @@ def main():
     prefix, pictures = own_args()
     ns = load_scene_module()
     bpy, ARGS = ns["bpy"], ns["ARGS"]
-    orig_light, orig_setup = ns["build_light_line"], ns["setup_render"]
+    orig_light, orig_setup = ns.get("build_light_line"), ns["setup_render"]      # revision 18 took the light line out of blender_scene.py
 
     def build_light_line():
         if "light_slit" not in ns["MESH"]:
@@ -116,7 +128,9 @@ def main():
         noctua(bpy, ns["HW"])
         return device
 
-    ns["build_light_line"], ns["setup_render"] = build_light_line, setup_render
+    ns["setup_render"] = setup_render
+    if orig_light is not None:
+        ns["build_light_line"] = build_light_line
     ns["main"]()
     if ARGS.check_only:
         return
