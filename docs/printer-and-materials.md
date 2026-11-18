@@ -15,20 +15,20 @@ Given by the owner on 15 Nov 2026. Facts about his equipment, not design decisio
 ## Filament, 1.75 mm
 | Material | Colour | Use in this project |
 |---|---|---|
-| Creality CR-ABS, Creality Hyper ABS | black | load-bearing skeleton (`cad_b6/frame_v0.py`) and, since 16 Nov 2026, the organic outer layer (`cad_b6/organic_frame.py`): the owner finds ABS cheaper than PLA now |
-| Creality Hyper PLA | black | no planned use since the organic layer went to ABS |
-| ELEGOO translucent PLA | translucent | diffuser of the light line |
-| yxpolyer Nylon PA6, unfilled, 1 kg | black | parts that snap: the two hose guides only. The cable tie bridges are ABS since 16 Nov 2026 (hook-and-loop straps hold the cables), and the PLA layer is fixed with M3 screws |
+| Creality CR-ABS, Creality Hyper ABS | black | load-bearing skeleton (`cad_b6/frame_v0.py`). The organic layer is PETG, which the owner's trial prints of 18 Nov 2026 proved; ABS stays its fallback and is not expected to be needed |
+| Creality Hyper PLA | black | no planned use since the organic layer left PLA |
+| ELEGOO translucent PLA | translucent | no planned use since revision 18 dropped the light line |
+| yxpolyer Nylon PA6, unfilled, 1 kg | black | parts that snap: the two hose guides only. The cable tie bridges are ABS since 16 Nov 2026 (hook-and-loop straps hold the cables), and the organic layer is fixed with M3 screws |
 | plain PLA | white | test prints of every part before it is printed in ABS (owner's decision, 16 Nov 2026) |
 
 ## Stock and order of printing (owner, 16 Nov 2026)
 
-- **Black ABS:** two spools of 1 kg. The skeleton is about 1.73 kg at 4 walls and 20 % infill (`cad_b6/check_budgets.py`, 18 Nov 2026; 1.65 kg when this was written), before supports and rejects, so nothing is wasted on trials.
+- **Black ABS:** two spools of 1 kg. The skeleton is 1534.6 g at 4 walls and 20 % infill (`cad_b6/report_frame_v0.txt`; 1.65 kg when this was written), before supports and rejects, so nothing is wasted on trials.
 - **Trials in white PLA first.** A part is printed in white PLA and checked on the hardware; ABS follows only when the trial fits.
 - **Black PLA:** about 1.8 kg. Not needed for the case since the organic layer left PLA.
-- **Black PETG:** 4 kg ordered on 16 Nov 2026 (SUNLU Rapid PETG, four 1 kg spools, matte, nozzle 230 to 270 C, bed 70 to 80 C). For the organic layer: 2044 cm3, 2596 g solid of that 4 kg (`cad_b6/report_organic.txt`). It has to be dried and kept dry: the CFS is at about 65 % humidity. Whether the spool fits the CFS is not known; the outside holder takes any spool.
+- **Black PETG:** 4 kg ordered on 16 Nov 2026 (SUNLU Rapid PETG, four 1 kg spools, matte, nozzle 230 to 270 C, bed 70 to 80 C). For the organic layer: 2218.7 cm3, `main` 2431 g and `rear_panel` 387 g of PETG solid (`cad_b6/report_organic.txt`). It has to be dried and kept dry: the CFS is at about 65 % humidity. Whether the spool fits the CFS is not known; the outside holder takes any spool.
 - **M3 inserts:** 200 ordered on 16 Nov 2026.
-- **If the layer goes to ABS after all, ABS needed in all:** about 1.73 kg for the skeleton and 2.1 kg solid for the organic layer (2044 cm3 at the report's 1.04 g/cm3), before supports and rejects, against the 2 kg on hand. The earlier band, 1.5 to 2 kg for the layer with its supports and 4 to 5 kg in all, was for the layer at 1742 cm3.
+- **If the layer goes to ABS after all, ABS needed in all:** 1534.6 g for the skeleton and about 2.3 kg solid for the organic layer (2218.7 cm3 at the report's 1.04 g/cm3), before supports and rejects, against the 2 kg on hand. The earlier band, 1.5 to 2 kg for the layer with its supports and 4 to 5 kg in all, was for the layer at 1742 cm3.
 - **Side fans:** the two 140 mm fans come from the owner's present case.
 - **Radiator fans (owner, 18 Nov 2026):** the 420 keeps the ARCTIC fans it came with. The card's 360 gets Noctua fans; the owner says they are as thick as ordinary ones (the model has 25 mm for the 360's fans). The side fans stay the two from the present case.
 - **PETG is proved for the organic layer (owner, 18 Nov 2026):** the trial piece of the layer, the insert ladder and the scale coupon were printed in PETG. The trial piece shows no problem with the surface's steps, the supports or the strength; the coupon's legs come out at about 150 mm where the model has 150. ABS as the fallback for the layer is not needed. Which slicer settings the owner used is not recorded.
@@ -38,7 +38,7 @@ Given by the owner on 15 Nov 2026. Facts about his equipment, not design decisio
 
 Mind when reading a PLA trial: ABS shrinks more than PLA as it cools, so a hole or a fit that is right in PLA comes out a little tighter in ABS. Fits that matter (insert pilots, screw clearances, the fit gauges) are confirmed on a small ABS piece, not on the PLA trial.
 
-**The insert ladder goes in PETG first (owner, 17 Nov 2026).** The owner has PETG to spare, and the ladder in ABS would take, by the main session's estimate, 20 to 30 g of the about 67 g left under the ABS limit (`cad_b6/budgets.json`). What the PETG ladder gives is a first figure for the pilot, not the last one. Both reasons are the main session's, from typical figures, not measured: ABS shrinks more than PETG, so the same hole comes out a little tighter in ABS (about 0.02 mm on a 4.4 mm hole, under the ladder's 0.1 mm step), and ABS softens at a higher temperature (glass transition about 105 °C against about 80 °C), so the insert goes in differently. The figure is confirmed on the first small ABS part that carries an insert, before any large part is printed. `C1_scale_l` printed in PETG beside the ladder gives PETG's shrinkage, which the organic layer needs anyway.
+**The insert ladder goes in PETG first (owner, 17 Nov 2026).** The owner has PETG to spare, and the ladder in ABS would take, by the main session's estimate, 20 to 30 g of the about 67 g then left under the ABS limit. The skeleton is 1534.6 g now (`cad_b6/report_frame_v0.txt`). What the PETG ladder gives is a first figure for the pilot, not the last one. Both reasons are the main session's, from typical figures, not measured: ABS shrinks more than PETG, so the same hole comes out a little tighter in ABS (about 0.02 mm on a 4.4 mm hole, under the ladder's 0.1 mm step), and ABS softens at a higher temperature (glass transition about 105 °C against about 80 °C), so the insert goes in differently. The figure is confirmed on the first small ABS part that carries an insert, before any large part is printed. `C1_scale_l` printed in PETG beside the ladder gives PETG's shrinkage, which the organic layer needs anyway.
 
 ## What follows for printing
 - PA6 takes up water fast and prints badly when damp. At 65 % humidity the CFS is not a place to keep it: dry it before printing and feed it from a dry box.
@@ -75,12 +75,7 @@ What follows for the model is in `docs/plans/fasteners-m3.md`.
 
 ## LED strip for the light line (researched 16 Nov 2026)
 
-Looked for on amazon.de by Grok (`web-research`); the product pages were then opened and read in the main session.
-
-- **Header on the board:** JARGB_V2, 5 V, 3 A, 180 LEDs at most, pins +5 V, data, no pin, ground (MSI user guide, page 55).
-- **No bare strip up to 10 mm wide comes with the motherboard plug.** The ready-made PC strips with that plug are 16 to 20 mm wide bars and do not fit the 14 x 14 mm channel.
-- **Strip:** BTF-LIGHTING WS2812 ECO, 1 m, 60 LEDs per metre, black PCB, IP30, 10 mm wide, JST-SM 3-pin on both ends, ASIN B088BRY2SH, 9.49 EUR, in stock on the day. About 270 mm is used: 16 LEDs, at most 0.96 A at full white, so it is run dimmed in the closed channel. The same strip with 30 LEDs per metre is sold only as a 5 m roll (ASIN B088BB8WTZ, 17.99 EUR); its 33 mm pitch behind a 10 mm air gap would show as separate dots (main session's judgement, not tested).
-- **Lead from the board to the strip:** a "5 V 3-pin ARGB to SM 3-pin" cable, for example ASIN B0CQJLQ7ZC (four 30 cm cables, 5.99 EUR) or B0F8C4SB31 (a 30 cm splitter, 6.69 EUR). Not verified: whether the lead's SM end is the gender that mates with the strip's input end, and the wire order. The strip is one-directional (data in at one end). If the plug does not mate, three wires are soldered.
+Revision 18 dropped the light line, so no strip is specified.
 
 ## Printing SUNLU Rapid PETG on the K1 Max (Grok `web-research`, 17 Nov 2026; not re-opened by the main session)
 
