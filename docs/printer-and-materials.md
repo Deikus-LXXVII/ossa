@@ -23,12 +23,12 @@ Given by the owner on 15 Nov 2026. Facts about his equipment, not design decisio
 
 ## Stock and order of printing (owner, 16 Nov 2026)
 
-- **Black ABS:** two spools of 1 kg. The skeleton is about 1.65 kg at 4 walls and 20 % infill, before supports and rejects, so nothing is wasted on trials.
+- **Black ABS:** two spools of 1 kg. The skeleton is about 1.73 kg at 4 walls and 20 % infill (`cad_b6/check_budgets.py`, 18 Nov 2026; 1.65 kg when this was written), before supports and rejects, so nothing is wasted on trials.
 - **Trials in white PLA first.** A part is printed in white PLA and checked on the hardware; ABS follows only when the trial fits.
 - **Black PLA:** about 1.8 kg. Not needed for the case since the organic layer left PLA.
 - **Black PETG:** 4 kg ordered on 16 Nov 2026 (SUNLU Rapid PETG, four 1 kg spools, matte, nozzle 230 to 270 C, bed 70 to 80 C). For the organic layer. It has to be dried and kept dry: the CFS is at about 65 % humidity. Whether the spool fits the CFS is not known; the outside holder takes any spool.
 - **M3 inserts:** 200 ordered on 16 Nov 2026.
-- **If the layer goes to ABS after all, ABS needed in all:** about 1.65 kg for the skeleton and, by the main session's estimate, 1.5 to 2 kg for the organic layer with its supports (1843 cm3 is 1.9 kg solid). With rejects that is 4 to 5 kg against the 2 kg on hand.
+- **If the layer goes to ABS after all, ABS needed in all:** about 1.73 kg for the skeleton and, by the main session's estimate, 1.5 to 2 kg for the organic layer with its supports (1742 cm3 is 1.8 kg solid in ABS). With rejects that is 4 to 5 kg against the 2 kg on hand.
 - **Side fans:** the two 140 mm fans come from the owner's present case.
 - **Hook-and-loop straps:** to be ordered.
 - **Drives:** the owner has neither an HDD nor a SATA SSD. The drive bay is a provision for later; no SATA cable is routed.

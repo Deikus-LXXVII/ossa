@@ -39,7 +39,7 @@ Run both after `frame_v0.py`. Neither needs a view, and they can run side by sid
 ## The checks bite: test_checks.py
 
 ```bash
-.venv/bin/python cad_b6/test_checks.py                    # ~5 min (309 and 316 s idle, 319 to 340 s under load, 403 and 406 s under load in a fresh checkout with no earlier record to order the sections; 6 workers): the sections in worker processes; ends "N/N cases as expected", N being EXPECTED_CASES in test_checks.py (322 now); fewer cases is a failure
+.venv/bin/python cad_b6/test_checks.py                    # ~5 min (309 and 316 s idle, 319 to 340 s under load, 403 and 406 s under load in a fresh checkout with no earlier record to order the sections; 6 workers): the sections in worker processes; ends "N/N cases as expected", N being EXPECTED_CASES in test_checks.py (324 now); fewer cases is a failure
 .venv/bin/python cad_b6/test_checks.py --serial           # ~32 min (1943 s, partly under load; the suite before the sections took 3396 s under load): everything in one process, as before the sections
 .venv/bin/python cad_b6/test_checks.py --diff out/test_checks/serial.json out/test_checks/fast.json      # the two case lists must be IDENTICAL
 .venv/bin/python cad_b6/test_runner.py                    # ~15 s: the runner on a fake suite, both modes: a dropped or emptied section fails, --diff of two short runs fails, a file moved during the run fails; in worker processes a section that raises or a worker that dies fails, sections run longest first, sources and packages are the union over the processes

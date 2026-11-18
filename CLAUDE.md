@@ -5,6 +5,7 @@ A 3D-printed open PC case modelled as CadQuery scripts. Current model: `cad_b6/`
 - Run scripts from the repo root with `.venv/bin/python`.
 - `cad_b6/hardware.py` is the only place hardware dimensions and mounting coordinates live.
 - After any change to `cad_b6/`, run the project `verify` skill before reporting.
+- `REVIEW.md` row 20 asks for `cad_b6/assembly_access.py` after a new screw, a counterbore, or a part moved near a screw's axis.
 - CAD geometry changes go to the `cad-implementer` agent.
 - Research and chores (re-rendering previews, report and doc updates, file housekeeping) go to Grok, as the global rules say. Agreed with the owner on 16 Nov 2026 for every revision: Grok checks the spec's claims against the code before it goes to `cad-implementer`, reviews the finished change, and afterwards re-renders the previews and brings `README.md`, `AGENTS.md` and this file in step. Reference lookups (filament settings, hose and fitting data, hardware dimensions) go to Grok too. Layout and geometry decisions stay in the main session. This folder is trusted for Grok, so its children load `AGENTS.md` and this file at startup; keep the two in step.
 - `cad_b5/` and `history/` are frozen.
