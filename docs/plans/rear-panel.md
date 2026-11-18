@@ -118,6 +118,45 @@ Changes to other scripts:
 
 By the implementer, in this order: `frame_v0.py`; `parts_manifest.py --expect psu_bulkhead`; `organic_frame.py`; the differential check of `main`; `test_organic.py`; `drive_access.py`; `zone_access.py`; `organic_strength.py` (about 15 minutes); `assembly_access.py` and `test_assembly.py`; `test_checks.py` once at the end (it rewrites the suite's record; every `cad_b6/*.py` and the field are in its digest). By the main session again, plus `cables.py`, `strength.py`, `check_budgets.py`, `render_full.py`.
 
+## Result of the first build (18 Nov 2026): the machinery holds, the panel held at the bottom only does not
+
+Built by an Opus child from the specification above. Its report, not yet rerun by the main session:
+
+- **`main` is unchanged:** 0 of 28,245,000 voxels differ from the field of the commit before; its pads, names and grid are equal; its strength figures are the same (6.5 MPa, 2.16 mm).
+- The pieces, the pads with a normal, the four pilots in `psu_bulkhead` (7.8 mm of wall, 5.3 mm of floor, 12.0 and 15.9 mm to the end bolts), the checks and their tests are in: `test_organic.py` 26 to 35 cases, `test_checks.py` 324 to 328, `test_assembly.py` 51.
+- The panel came out 303.6 cm³, 289.5 mm wide. The drive in its seat keeps 13.4 mm; with the panel off it comes out at 28°; the bundles (52, 56 mm) and the hand (44 mm) are as before.
+- **`organic_strength.py` fails the panel: 13.9 MPa (10 allowed) and 8.97 mm (5 allowed).** The stress peaks at (±129, 383, 73), the root of the legs just above the hip pads; the movement is at the top corners. The hand estimate in this plan (about 5 MPa, 2 to 4 mm) was wrong: a push on a top corner loads one side's legs alone, and the estimate had shared it between both.
+
+### Variants tried by the main session (`docs/plans/sketches/rear_panel_iter.py`: only the panel is built and pushed, 15 s a run; the limits are the script's own)
+
+| Variant | Volume | Width | Worst stress | Largest movement |
+|---|---|---|---|---|
+| as built | 303.6 cm³ | 289.5 | 13.9 MPa | 8.97 mm |
+| bars of radius 8.5 | 364.6 | 288.0 | 13.1 | 7.20 |
+| and thicker legs, three braces a side | 374.4 | 289.5 | 11.9 | 6.26 |
+| and the rear flat at Y 392.9 | 386.2 | 289.5 | 10.0 | 4.93 |
+| lower top bar (Z 225) with the thick legs | 327.4 | 289.5 | 10.6 | 4.64 |
+| **two more pads on the posts' rear faces** (the first build's bars and legs) | 314.8 | 321.0 | **5.5** | **0.98** |
+| **the same without the two foot pads** | 301.8 | 321.0 | **6.4** | **0.97** |
+
+A panel held at the bottom only reaches the limits exactly, with a quarter more plastic and no margin: the strap over the bulkhead's top edge can only be 8.5 to 10 mm thick, and it carries the whole moment. Held at the top as well it is as stiff as the rest of the layer (`main`: 6.5 MPa, 2.16 mm).
+
+### Decision of the main session, for the owner to confirm: held at four corners, printed upright
+
+The panel is one piece on four screws, all driven from behind: `panel_hip_R/L` on the bulkhead's end blocks and `panel_top_R/L` on the posts' rear faces. The foot pads go. It is 321 mm wide at its two upper pads, so **it does not lie flat on the 290 mm bed**. It is printed standing as it stands on the case, turned on the bed: 321 mm by 45 mm on the diagonal takes about 259 mm each way, and it is 211 mm tall. The strands run nearly upright, which prints without support; the two bars and the legs need support. Not tried on the printer.
+
+The other ways, not taken: the heavy bottom-held panel at the limits (flat print, springy); two halves (each flat, but each half's bars then end free in the middle, and a 30 N push on a free end of a 131 mm bar of radius 6.5 is 18 MPa by hand, so the halves would need a screwed joint between them).
+
+## Revision 17, second step: specification of the change
+
+Against the first build, which stays as it is apart from this:
+
+1. **Pads.** `hw.ORGANIC_PADS`: the rows `panel_foot_R` and `panel_foot_L` go. Two new rows, piece `rear_panel`, normal (0, 1, 0): `panel_top_R` on `rib_B_right` at (150, 348, 236) and `panel_top_L` on `rib_B_left` at (-150, 348, 236). X 150 is the middle of the rib's thickness (`(X_IN + X_OUT) / 2`), Y 348 is `POST_REAR_Y`; literals in `hardware.py` like the others, held to the part by the pad checks. The ribs already cut the pilots of their own rows (`organic_pilots`); make sure a pad whose normal is not along X is cut right on a mirrored part (the normal's X flips, Y and Z do not). The bulkhead keeps two pilots, each rib B gets one more. Checks 7 and 15 judge them; the antler's tongue bolts stand at (±168, 340, 245) and (±168, 328.7, 256.3) along X in the same post: report the measured walls. If a place fails a check, move the pad along Z on the post's rear face and report; do not relax the check.
+2. **Legs.** A `panel_top` pad gets a knot and one leg `bone(*PANEL_LEG)` to the frame's upper corner on its side, bowed 2 mm along the pad's normal. The hip pads keep their leg to the lower corner and their two braces. `OWN_LEGS` names the three kinds.
+3. **Bed.** A piece fits the bed when, standing as built (Z up) and turned about the vertical by some angle, its extents are at most `frame_v0.MAX_PART` along both horizontal directions and along Z. The check tries every whole degree from 0 to 179 on the solid voxels' centres (extent = span plus one voxel), reports the best angle with its two horizontal extents and the height, and fails when no angle fits. `main` is still reported and not judged. The report line says in words that the panel is printed upright and turned, and that this is not tried on the printer. Test cases: a panel lengthened in Y so that no angle fits fails; today's panel passes at about 45°; the old case (a lump on its end) is rewritten to the same strictness and the report says so.
+4. **Counts that move:** organic pads stay 16 (12 `main`, 4 `rear_panel`: 2 on `psu_bulkhead`, 1 on each rib B); inserts, washers and M3 x 10 screws stay 108, 97 and 20. `parts_manifest.py --expect psu_bulkhead,rib_B_right,rib_B_left`.
+5. **Reruns,** as in section 6 above, with `organic_strength.py` expected to pass both pieces (the sketch gave 6.4 MPa and 0.97 mm for the panel). If it does not, stop and report.
+
 ## Grok's check of the first specification (18 Nov 2026)
 
 `code-analysis` read the first text against the code, built the bulkhead and measured the four pilots. What it changed: the union alone fails the layer's one-piece check, so that check runs per piece; a column on `pads` would break the strength script, so the piece of a pad is a parallel array; "nothing may assume X" needed seven more places than the text named; the new pads had no names and no way to a bone; the legs were ambiguous between automatic stubs and the sketch's tubes; the pinned counts in `test_checks.py` that move (12, 11, 104, 93, 16) were not named; the bed test and the "extent" of a voxel piece were undefined; the screw-head cylinder had typed numbers; "checks 7 and 15 judge the walls" was wrong for check 15; the drive's end was given as Y 375 where the body ends at Y 357.6 (which also took 9 mm off the panel's depth and made the longer grid unnecessary). Confirmed: bitwise equality of `main` is achievable; the four pilot places clear every wall rule; the readers of `d` do not hard-code the grid's shape.
