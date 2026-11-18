@@ -1,0 +1,24 @@
+same grid: True
+
+carrier_checks: 0 failures
+
+pilot_checks: 15 failures
+    ORGANIC_PILOT main has 3 voxels in the insert pilot of the pad front_foot_R
+    ORGANIC_PILOT main has 4 voxels in the insert pilot of the pad sill_end_R
+    ORGANIC_PILOT main has 4 voxels in the insert pilot of the pad base_mid_R
+    ORGANIC_PILOT main has 3 voxels in the insert pilot of the pad rear_foot_R
+    ORGANIC_PILOT main has 4 voxels in the insert pilot of the pad rear_post_R
+    ORGANIC_PILOT main has 2 voxels in the insert pilot of the pad neck_top_R
+
+strand_checks: 3 failures
+    ORGANIC_STRANDS cable gpu12v[5]: 88 points of its centre line are nearer the layer than its radius and 3 mm (least -6.49 mm at X 8.0, Y 20.2, Z 238.1)
+    ORGANIC_STRANDS hose cpu[1]: 3 points of its centre line are nearer the layer than its radius and 4 mm (least 3.92 mm at X -215.9, Y 94.3, Z 245.7)
+    ORGANIC_STRANDS hose gpu[1]: 7 points of its centre line are nearer the layer than its radius and 4 mm (least 3.49 mm at X 188.7, Y 279.8, Z 165.7)
+
+head_distance_checks: 23 failures
+    ORGANIC_HEADS main has 30 voxels within 1 mm of the washer or head of the screw at X 158.0, Y 212.0, Z -5.0 (least -0.50 mm)
+    ORGANIC_HEADS main has 60 voxels within 1 mm of the washer or head of the screw at X -158.0, Y 212.0, Z -5.0 (least -1.50 mm)
+    ORGANIC_HEADS main has 12 voxels within 1 mm of the washer or head of the screw at X 192.0, Y 293.0, Z 214.9 (least -0.73 mm)
+    ORGANIC_HEADS main has 48 voxels within 1 mm of the washer or head of the screw at X 192.0, Y 305.7, Z 202.2 (least -1.50 mm)
+    ORGANIC_HEADS main has 25 voxels within 1 mm of the washer or head of the screw at X -192.0, Y 293.0, Z 214.9 (least -1.00 mm)
+    ORGANIC_HEADS main has 54 voxels within 1 mm of the washer or head of the screw at X -192.0, Y 305.7, Z 202.2 (least -1.00 mm)

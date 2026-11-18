@@ -11,7 +11,6 @@ Out:  <out>/scene.npz   every mesh (vertices, triangles) and every tube's centre
 What is exported, all of it straight from the model, nothing restyled:
   part      every skeleton part of frame_v0.build_frame(), tessellated (ABS, or PA6 for the two hose guides)
   organic   the organic layer: shell_concepts.mesh() of the field, as render_full.py draws it
-  light     the light line: the slit's cutter of frame_v0.sill_geometry()
   hw_box    hardware.build_hardware(): the block-out boxes. Blender does not draw them; it builds its stand-ins from the
             constants in scene.json and checks each stand-in against its box
   hose      hoses.routes(): centre line and radius of the four hoses
@@ -104,7 +103,6 @@ def main():
         add_mesh(p.name, "part", p.material, *tess(p.solid), note=p.note)
     print(f"skeleton: {len(parts)} parts, {time.time() - t0:.0f} s")
 
-    add_mesh("light_slit", "light", "diffuser", *tess(frame_v0.sill_geometry()["cuts"]["slit"]))
     for name, solid in hardware.items():
         if name not in hw.HOSES:
             add_mesh(name, "hw_box", "", *tess(solid))
@@ -129,7 +127,6 @@ def main():
 
     consts = {k: getattr(hw, k) for k in dir(hw) if k.isupper() and jsonable(getattr(hw, k))}
     consts["DRIVE_LAYOUT"] = hw.drive_layout()
-    consts["SILL"] = {k: v for k, v in frame_v0.sill_geometry().items() if jsonable(v)}
     os.makedirs(a.out, exist_ok=True)
     np.savez_compressed(os.path.join(a.out, "scene.npz"), **arrays)
     with open(os.path.join(a.out, "scene.json"), "w") as fh:

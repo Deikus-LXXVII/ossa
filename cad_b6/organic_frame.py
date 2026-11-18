@@ -11,7 +11,7 @@ their outer faces. It carries no component.
 
 Everything is one signed-distance field on one grid, so the layer is one solid:
 - members: bones, film strands, and a stub from each fixing pad to the nearest bone;
-- carved back from the hardware, the hoses, the board's keep-outs, the sill and the skeleton;
+- carved back from the hardware, the hoses, the board's keep-outs and the skeleton;
 - fixing pads: flat discs that sit on a skeleton face, one M3 screw each into a heat-set insert in the
   ABS part. Where they are is hardware.ORGANIC_PADS; frame_v0.py cuts the insert pilot there.
 Checks at the end: every pad sits on its part's face on an M3 pilot of that part, with room for the insert
@@ -25,6 +25,11 @@ and `rear_panel` (a frame with a film over the opening above psu_bulkhead, held 
 A later piece is carved back from the earlier ones by GAP_PIECE. field.npz keeps `d` as the union of the pieces and adds `pieces`, `pad_piece`, `d_<piece>` and `heads`.
 The checks of the pieces read only those arrays (piece_checks: the arrays' layout, each piece one body holding its pads, the pieces GAP_PIECE apart, a piece other than
 `main` fits the bed standing and turned about the vertical, nothing in front of psu_bulkhead's screw heads). cad_b6/organic_manifest.py fingerprints the pieces.
+Revision 18 (docs/plans/front-and-outline.md, parts C, H, J): a straight outline; the sill and its veil gone, a hood (slabs) over the I/O module's carrier and a film of 13 strands
+in front; a gate in the bone `card` over the card's power connector, and the plug's room empty; the cross-threads as thick as their length asks; the layer carved from every cable and
+every hose along its whole centre line and from every skeleton screw's washer and head (skeleton_screws.py, the source assembly_access.py reads too); a pad's rim kept off the
+washers on its face; the pad's pilot cut out of the layer. Four more checks read only the saved arrays (layer_clearance_checks): the carrier slides out, no layer in a pad's pilot,
+no cable or hose in the layer, no layer in a screw's head. field.npz also keeps the probes organic_strength.py pushes (the middle of every film strand and cross-thread).
 Not done here: the split of `main` into printable pieces, and the strength run (organic_strength.py).
 """
 from __future__ import annotations
@@ -42,6 +47,8 @@ import hardware as hw
 import hoses
 import shell_concepts as sc
 import frame_v0                                # after shell_concepts: cadquery has to load before vtk
+import cables                                  # revision 18 (part H.5): the layer is carved from every routed cable (cables.py does not read the layer)
+import skeleton_screws                         # revision 18 (part J): the skeleton's screws' washers and heads, the same source as assembly_access.py's
 
 K = 15.0                                   # blend radius at the joints
 VOX = 1.5                                  # grid step of the one field, mm
@@ -50,18 +57,25 @@ LAYER_RHO = 1.27                           # g/cm3, PETG (ABS, the fallback, is 
 # Strength rules (docs/plans/cables-and-organic.md): nothing thinner than these.
 STRAND_R_MID = (3.0, 3.6)                  # film strand radius at mid-span (was 1.7..2.3)
 STRAND_R_END = (4.5, 6.0)                  # and where it leaves a bone (was 3.4..5.0)
-LINK_R = (3.4, 2.6)                        # cross-thread: at its ends, at mid-span (was 2.8, 1.6)
+LINK_R = (3.4, 2.6)                        # cross-thread: at its ends, at mid-span (was 2.8, 1.6); the least, see LINK_PUSH
+# Revision 18 (docs/plans/front-and-outline.md, part C.7): a cross-thread is as thick as its length asks. Its radius at mid-span is at least (LINK_PUSH * length / (pi * LINK_ALLOW)) ** (1/3),
+# the radius of a round bar held loosely at both ends that a push of LINK_PUSH in its middle stresses to LINK_ALLOW (length: between the link's two end points); a link shorter than
+# 18.41 mm keeps LINK_R. Its radius at the ends is at least LINK_END_MORE more. LINK_PUSH and LINK_ALLOW are organic_strength.PUSH_N and ALLOW (test_organic.py holds them equal);
+# they are not imported from there, which would load the solver with the layer. The front film's longest link (67.3 mm) showed 29.7 MPa with LINK_R when a push landed near its middle.
+LINK_PUSH, LINK_ALLOW = 30.0, 10.0
+LINK_END_MORE = 0.8
 STRAND_SLENDER = 36.0                      # a strand's mid radius is at least its length / this: a 30 N push at mid-span stays near 10 MPa
 
 # Bone radii: (at one joint, mid-span, at the other joint), or one number for a constant radius
 BONE_R = {"lip": (7, 5.5, 7), "card": (6.5, 5, 6.5), "brow": (7, 5, 7), "ring": 6.5, "front": (10, 6, 8), "rear": (7, 5.5, 10),
-          "side": (7, 5, 7), "base": 6.5}
+          "side": (7, 5, 7), "base": 6.5, "front_low": (7, 6, 7)}
 CRUMB_CM3 = 6.0                            # loose pieces smaller than this (one strand cut at both ends is about 4) are carving crumbs and are dropped
 MIN_THICK = 4.5                            # carving leaves slivers; whatever is thinner than this is removed
 
 # Fixings to the skeleton
 PAD_R, PAD_H = 8.0, hw.ORGANIC_PAD_H      # pad disc on a skeleton face; its thickness is what the screw clamps, so it is hardware.py's
 SCREW_R, HEAD_R, HEAD_REACH = 1.75, 3.6, 45.0   # M3 clearance through the pad; head and driver channel above it
+PILOT_CUT_R = hw.M3_PILOT_D / 2 + VOX      # revision 18 (part C.8): below a pad's face the layer is cut from the insert's pilot grown by one voxel
 KNOT_R = 10.0                              # a knot of material round every pad, so the driver channel leaves walls even where a bone lies on the pad
 DRIVER_FREE = 11.0                         # beyond the knot no bone's centre line may come this close to the screw axis (the channel would cut it)
 STUB = (6.5, 5.5, 6.5)                     # stub from pad to bone: radius at pad, mid, bone
@@ -69,6 +83,13 @@ RING_TIE = (6.5, 5.5, 6.5)                 # the left ring's tie to the front sw
 GAP_SKEL = 2.0                             # the layer keeps this far from every skeleton part, except at the pads
 GAP_KEEP = 3.0                             # and from the board's keep-out boxes
 GAP_HW = 4.0                               # and from hardware and hoses
+GAP_CABLE = 3.0                            # revision 18 (part H.5): and from every routed cable's surface
+GAP_HEAD_MIN = 1.0                         # revision 18 (part J.3): no voxel centre of the layer nearer than this to a skeleton screw's washer or head. The layer is carved GAP_SKEL from them; a pad is
+                                           # blended on after the carve and may stand nearer, and PAD_WASHER_GAP keeps its rim this far from a washer on its face
+PAD_WASHER_GAP = 1.0                       # revision 18 (part C.5): a pad's rim keeps this far from the washer of every screw whose head stands on the pad's face
+STRAND_MARK_STEP = 0.7                     # revision 18 (part H.5): the centre lines of the cables and the hoses are marked on the grid at steps of at most this, and one distance transform per clearance
+STRAND_MARK_SLACK = VOX * math.sqrt(3.0) / 2 + STRAND_MARK_STEP / 2      # a mark stands up to half a voxel's diagonal (1.30) from the line and a point of the line up to half a step (0.35) from
+                                           # the nearest mark, so the carve takes the clearance plus this (1.65) from the marks: every solid voxel's centre is then at least the clearance from the true line
 PAD_SEAT = 4.0                             # flat skeleton face a pad needs round its screw (the skeleton's own rule round a screw); the rim may overhang a narrow member
 PAD_HOLE_WALL = 2.1                        # material kept between an insert pilot and a part's own hole
 STUB_CONE_DEG = 35.0                       # a stub does not leave the pad inside this cone about the screw axis (driver access)
@@ -92,34 +113,66 @@ NEAR_FILM_N0 = 50.0                        # right fan: the film from the ring's
 UNDER_FILM = {-1: False, 1: False}         # revision 14b: no film from a ring's bottom to the base. Left: the hand's way up to the board's connectors passes under the fan (zone_access.py);
                                            # right: the card's hoses run under the fan
 TOP_FILM_L_U0 = 186.0                      # left fan, film from the ring's top to the side bone: first thread past the CPU hoses (hose b at u 170 + 6.2 + GAP_HW + a thread's radius)
-SILL = frame_v0.sill_geometry()            # the skeleton's front sill: section (Y, Z), the light slit's cutter
-SILL_RIDGE = SILL["pts"][2]                # (Y, Z) of its upper edge, above the light line
-SILL_GAP = 2.5                             # the organic layer keeps this far from the sill
-BROW = [(-158, 8, 150), (0, 6, 157), (158, 8, 150)]        # bone across the front, well below the card
+# Revision 18 (docs/plans/front-and-outline.md, part C.1): the bones that draw the silhouette (the front posts, the rear sweeps, the base rails, the brow) are straight legs with tight
+# knees (the owner, 18 Nov 2026: "make the outlines of the organic design straighter: not the webs themselves, the parts that form the silhouette"; the reference is
+# docs/plans/sketches/straight_sketch.py). Where a bone turns, a control point stands KNEE from the knee along each leg; the number of control points of each bone is as before,
+# because the films slice them.
+KNEE = 25.0
+BROW_Y, BROW_Z = 13.0, 152.0
+BROW = [(-160, BROW_Y, BROW_Z), (0, BROW_Y, BROW_Z), (160, BROW_Y, BROW_Z)]        # bone across the front, straight, well below the card
 LIP_BONE = [bp(LIP_U, FACE_N, -190), bp(LIP_U - 1, FACE_N + 1, -60), bp(LIP_U - 1, FACE_N + 1, 60),
             bp(LIP_U, FACE_N, 190)]
-CARD_BONE = [bp(CARD_BONE_U, CARD_BONE_N, -SWEEP_X), bp(CARD_BONE_U + 1, CARD_BONE_N + 1, 0),
-             bp(CARD_BONE_U, CARD_BONE_N, SWEEP_X)]
 RING_X = {1: sum(hw.FAN_SIDE_X["fan_side_right"]) / 2, -1: sum(hw.FAN_SIDE_X["fan_side_left"]) / 2}    # both rings in their fan's mid-plane
-REAR_BEND_X = 176.5                        # the layer's own: the rear sweep's bend above the rear post, X, clear of the post's driver path (|X| 174..203 round Y 374, Z 50)
 REAR_FROM_N = -20.0                        # revision 14b: the rear sweep leaves the ring's far side here, below the CPU hoses' run to the 420's ports (n 42 and up on the left)
-REAR_MID = (296.0, -36.0, 222.0)           # the layer's own (u, n, |X|): between the ring and the 420's lower edge (n -16), inside the 420's end
-REAR_UNDER = (332.0, -38.0, 196.0)         # the layer's own (u, n, |X|): under the 420's core, before the sweep turns down the back
-BASE = {s: [(160 * s, 40, -4), (163 * s, 110, -5), (161 * s, 196, -4), (166 * s, 290, -5), (166 * s, 356, -4)]
-        for s in (1, -1)}                  # revision 14b, second pass: whole on both sides again, at its height and radius of before the first pass (the first pass opened and lowered it
-                                           # for a hand's route under the board that ended below io_zone, which no hand holding a plug uses)
+BASE_ENDS = ((160, 40, -4), (166, 356, -4))                 # revision 18: the base rail one straight line between these (|X|, Y, Z), its inner points at BASE_T along it (revision 14b, second
+BASE_T = (0.22, 0.49, 0.79)                                 # pass: whole on both sides, at its height and radius of before the first pass)
+
+
+def _base(s):
+    a = np.array((BASE_ENDS[0][0] * s, *BASE_ENDS[0][1:]), dtype=float)
+    b = np.array((BASE_ENDS[1][0] * s, *BASE_ENDS[1][1:]), dtype=float)
+    return [tuple(float(c) for c in a)] + [tuple(float(c) for c in a + (b - a) * t) for t in BASE_T] + [tuple(float(c) for c in b)]
+
+
+BASE = {s: _base(s) for s in (1, -1)}
+FRONT_FOOT = (158, 14, 4)                  # revision 18: the front post's foot, (|X|, Y, Z); 8 mm further forward than before (Y 22), where the post's straight line keeps off the driver's path to a pad
+REAR_KNEE = (176.0, 366.0, 224.0)          # revision 18: (|X|, Y, Z) where the rear sweep turns down the back, under the antler (Z 232) and behind the post (Y 348)
+REAR_LOW = (169, 372, 44)                  # the rear sweep's lower end of its back leg, by the rear post's pad, and its foot
+REAR_FOOT = (166, 368, -6)
+
+# Revision 18 (part C.3): the front, as in docs/plans/sketches/front_sketch.py. The sill and its light line are gone; the I/O module in its carrier stands on beam_front under a hood that is
+# one with the layer, and a film of 13 nearly straight strands hangs between the bone front_low and the brow.
+FRONT_LOW_Y, FRONT_LOW_Z = 22.0, 60.0      # the bone front_low, straight from post to post over the carrier (its top Z 48.9), and the hood's roof
+FRONT_LOW_X = 160.0
+FRONT_FILM_X = 150.0                       # the film is hung between X -150 and 150
+FRONT_FILM = dict(n=13, seed=23, sag=(0.0, 1.0, 0.0), sag_mm=2.0, links=6, r_a=6.0, r_b=6.0)
+HOOD_OUT = 10.0                            # the hood's cheeks stand this far outside the carrier's ends (frame_v0.CARRIER_X): X -92 and 117
+HOOD_X = (frame_v0.CARRIER_X[0] - HOOD_OUT, frame_v0.CARRIER_X[1] + HOOD_OUT)
+ROOF_Z = FRONT_LOW_Z - 1.0                 # the roof: a slab along X between the cheeks, radius ROOF_R flattened ROOF_SQUASH times along Z (15 mm thick, 52 mm deep)
+ROOF_R, ROOF_SQUASH = 26.0, 3.5
+CHEEK_R, CHEEK_SQUASH = 22.0, 3.0          # a cheek: a slab down from the roof, flattened along X (14.7 mm thick); its centre line's Z, down to the beam's top
+CHEEK_Z = (56.0, 42.0, 28.0)
+HOOD_BLEND = 10.0                          # the three slabs blended at this
+CARRIER_WAY = (-20.0, 0.0)                 # part C.4: the way the carrier slides out, its exact box extended forward to this Y and down to this Z, is carved by GAP_SKEL
+
+# Revision 18 (part H): the card's power cable comes back down beside its connector and runs under the film (cables.py), so the layer opens over the connector. The bone `card` stops either side
+# of the socket (card_L, card_R), its gate's ends computed from the socket's X, its tolerance along v (hw.GPU_PWR_SOCKET_TOL), room for the plug (CARD_GATE_PLUG), CARD_GATE_SPARE and the bone's end
+# radius. A free end is a ball of radius CARD_END_BALL. The lip stays whole. The film on the right starts where the loop's far leg has passed (cables.GPU12V_LOOP_V): the leg's X, the cable's radius,
+# FILM_UNDER_AIR of air, the film's r_a and FILM_UNDER_SPARE. The plug's room (PLUG_ZONE, board space) is carved by GAP_KEEP and is one of the EMPTY_BOXES.
+GPU_SOCKET_X = hw.GPU_PWR_SOCKET["v"] + hw.ORIGIN[0]
+CARD_GATE_PLUG, CARD_GATE_SPARE, CARD_END_BALL = 10.0, 5.0, 8.0
+_GATE_HALF = hw.GPU_PWR_SOCKET_TOL["v"] + CARD_GATE_PLUG + CARD_GATE_SPARE + BONE_R["card"][0]
+CARD_GATE_X = (GPU_SOCKET_X - _GATE_HALF, GPU_SOCKET_X + _GATE_HALF)          # X -25.5 and 41.5
+FILM_UNDER_AIR, FILM_UNDER_SPARE, CARD_FILM_R = 3.0, 3.0, 6.0
+FILM_UNDER_X0 = cables.GPU12V_LOOP_V + hw.ORIGIN[0] + hw.CABLES["gpu12v"][1] + FILM_UNDER_AIR + CARD_FILM_R + FILM_UNDER_SPARE      # X 89.5
+_MOUTH_N = hw.GPU_BS[5] - hw.GPU_PWR_SOCKET["recess"]
+PLUG_ZONE_HALF = (30.0, 14.0)              # the plug's room along v and u either side of the socket (the sketch's: the socket's tolerance, 12 along v and 3 along u, and the plug with a hand round it)
+PLUG_ZONE_ABOVE = 10.0                     # and along n beyond the plug and its straight
+PLUG_ZONE = (hw.GPU_PWR_SOCKET["v"] - PLUG_ZONE_HALF[0], hw.GPU_PWR_SOCKET["v"] + PLUG_ZONE_HALF[0], hw.GPU_PWR_SOCKET["u"] - PLUG_ZONE_HALF[1], hw.GPU_PWR_SOCKET["u"] + PLUG_ZONE_HALF[1],
+             _MOUTH_N, _MOUTH_N + hw.GPU12V_PLUG + hw.GPU12V_STRAIGHT + PLUG_ZONE_ABOVE)          # v 100..160, u 105..133, n 137..195
+CARD_L = [bp(CARD_BONE_U, CARD_BONE_N, -SWEEP_X), bp(CARD_BONE_U + 1, CARD_BONE_N + 1, -100), bp(CARD_BONE_U + 1, CARD_BONE_N + 1, CARD_GATE_X[0])]     # revision 18 (part H.2): the bone
+CARD_R = [bp(CARD_BONE_U + 1, CARD_BONE_N + 1, CARD_GATE_X[1]), bp(CARD_BONE_U + 1, CARD_BONE_N + 1, 100), bp(CARD_BONE_U, CARD_BONE_N, SWEEP_X)]      # over the card in two, a gate between
 RING_TIE_L3_BASE_Y = 100.0                 # revision 14b, second pass: the left ring's lower front corner is strutted to the base bone here, just behind the front foot's pad (Y 60)
-
-
-def sill_sdf(G):
-    """Signed distance to the front sill's prism (pocket and channel ignored); never more than the true distance outside."""
-    X, Y, Z = G
-    d = np.abs(X) - frame_v0.SILL_HALF_X
-    pts = list(SILL["pts"])
-    for (y0, z0), (y1, z1) in zip(pts, pts[1:] + pts[:1]):
-        ny, nz = -(z1 - z0), y1 - y0                       # outward normal: the section runs clockwise in (Y, Z)
-        d = np.maximum(d, ((Y - y0) * ny + (Z - z0) * nz) / math.hypot(ny, nz))
-    return d
 
 
 RING_R = BONE_R["ring"]
@@ -130,7 +183,7 @@ RING_MIN_DEPTH = RING_R - VOX              # a whole ring: every point of its ce
 OUT_PRISM_U1 = 100.0                       # revision 14b: nothing of the layer in front of the card's outputs up to this u (the ring's near side passes above it, its surface at u 101.5)
 OUT_PRISM_BS = (hw.x_to_v(-hw.ENVELOPE_FAN_X), hw.GPU_OUT_ZONE_BS[0], hw.GPU_OUT_ZONE_BS[2], OUT_PRISM_U1, *hw.GPU_OUT_ZONE_BS[4:])    # gpu_out_zone continued out to the fan's outer face
 OUT_PRISM_GAP = 1.0                        # the carve keeps this far from the prism
-EMPTY_BOXES = {"io_zone": hw.IO_ZONE_BS, "gpu_out_zone": hw.GPU_OUT_ZONE_BS, "out_prism": OUT_PRISM_BS}     # board-space boxes the layer has no voxel in
+EMPTY_BOXES = {"io_zone": hw.IO_ZONE_BS, "gpu_out_zone": hw.GPU_OUT_ZONE_BS, "out_prism": OUT_PRISM_BS, "plug_zone": PLUG_ZONE}     # board-space boxes the layer has no voxel in
 
 
 def ring_un():
@@ -158,17 +211,34 @@ def ring(s):
     return [bp(u, n, RING_X[s]) for u, n in ring_un()]
 
 
+def toward(a, b, mm):
+    """The point mm from a towards b."""
+    a, b = np.array(a, dtype=float), np.array(b, dtype=float)
+    return tuple(float(c) for c in a + (b - a) / np.linalg.norm(b - a) * mm)
+
+
+def at_z(a, b, z):
+    """The point of the line through a and b at height z."""
+    a, b = np.array(a, dtype=float), np.array(b, dtype=float)
+    return tuple(float(c) for c in a + (b - a) * (z - a[2]) / (b[2] - a[2]))
+
+
 def front_sweep(s):
-    """From the front foot up past the card's edge to the corner of the 360's lip.
-    On the left the CPU hoses turn down the flank exactly between the card's edge and that corner, so the sweep stops at the card's edge."""
-    pts = [(158 * s, 22, 4), (164 * s, 10, 100), (166 * s, 9, 152), bp(CARD_BONE_U, CARD_BONE_N, SWEEP_X * s)]
+    """Revision 18: a straight post from the front foot to the end of the card's bone (a point at the brow's height on it, and a knee's neighbour KNEE before the end); on the right one more
+    straight leg to the corner of the 360's lip. On the left the CPU hoses turn down the flank exactly between the card's edge and that corner, so the sweep stops at the card's edge."""
+    foot = (FRONT_FOOT[0] * s, *FRONT_FOOT[1:])
+    card = bp(CARD_BONE_U, CARD_BONE_N, SWEEP_X * s)
+    pts = [foot, at_z(foot, card, BROW_Z), toward(card, foot, KNEE), card]
     return pts + [bp(LIP_U, FACE_N, 190 * s)] if s > 0 else pts
 
 
 def rear_sweep(s):
-    """From the fan ring's far side, below the CPU hoses' run to the 420's ports, under the 420 and down the back to the rear foot. The same on both sides."""
-    return [bp(hw.FAN_SIDE_U[1] + RING_OFF, REAR_FROM_N, RING_X[s]), bp(*REAR_MID[:2], REAR_MID[2] * s), bp(*REAR_UNDER[:2], REAR_UNDER[2] * s),
-            (REAR_BEND_X * s, 362, 150), (169 * s, 372, 44), (166 * s, 368, -6)]      # down the rear post close enough to lie on its pad
+    """Revision 18: two straight legs, from the fan ring's far side (below the CPU hoses' run to the 420's ports) to a knee under the antler, and from there down the back to the rear post's
+    pad, then the short way to the rear foot. The same on both sides."""
+    start = bp(hw.FAN_SIDE_U[1] + RING_OFF, REAR_FROM_N, RING_X[s])
+    knee = (REAR_KNEE[0] * s, *REAR_KNEE[1:])
+    low = (REAR_LOW[0] * s, *REAR_LOW[1:])
+    return [start, toward(knee, start, KNEE), knee, toward(knee, low, KNEE), low, (REAR_FOOT[0] * s, *REAR_FOOT[1:])]
 
 
 def side_bone(s):
@@ -198,7 +268,6 @@ def bone_members():
         lines[name] = sc.spline(ctrl, step=6.0)
 
     add("lip", LIP_BONE, bone(*BONE_R["lip"]))
-    add("card", CARD_BONE, bone(*BONE_R["card"]))
     add("brow", BROW, bone(*BONE_R["brow"]))
     for s, tag in ((1, "R"), (-1, "L")):
         add("ring_" + tag, ring(s), BONE_R["ring"])
@@ -229,14 +298,46 @@ def bone_members():
     line = sc.spline(BASE[-1], step=2.0)
     end3 = line[int(np.argmin(np.abs(line[:, 1] - RING_TIE_L3_BASE_Y)))]
     add("ring_tie_L3", [tuple(low), tuple((low + end3) / 2), tuple(end3)], bone(*RING_TIE))
+    # Revision 18 (part C.3): the front. The bone front_low over the carrier, and the hood: a roof along X and two cheeks down to the beam's top, slabs (flattened tubes) blended at
+    # HOOD_BLEND. The carve keeps it GAP_SKEL off the carrier and the way it slides out to the front, GAP_HW off the module (carve_layer).
+    add("front_low", [(-FRONT_LOW_X, FRONT_LOW_Y, FRONT_LOW_Z), (0.0, FRONT_LOW_Y, FRONT_LOW_Z), (FRONT_LOW_X, FRONT_LOW_Y, FRONT_LOW_Z)], bone(*BONE_R["front_low"]))
+    out.append(("slab", [(HOOD_X[0], FRONT_LOW_Y, ROOF_Z), (0.0, FRONT_LOW_Y, ROOF_Z), (HOOD_X[1], FRONT_LOW_Y, ROOF_Z)], ROOF_R, HOOD_BLEND, ("z", ROOF_SQUASH)))
+    for x in HOOD_X:
+        out.append(("slab", [(x, FRONT_LOW_Y, z) for z in CHEEK_Z], CHEEK_R, HOOD_BLEND, ("x", CHEEK_SQUASH)))
+    # Revision 18 (part H.2): the bone `card` has a gate over the card's power connector: card_L and card_R, each with a ball on its free end.
+    add("card_L", CARD_L, bone(*BONE_R["card"]))
+    add("card_R", CARD_R, bone(*BONE_R["card"]))
+    for p in (CARD_L[-1], CARD_R[0]):
+        out.append(("ball", p, CARD_END_BALL, 8.0))
     return out, lines
 
 
+class Film(list):
+    """A film's members (a list, as before), with what organic_strength.py and the report read of it (revision 18, parts C.7 and I.1): `probes`, one (kind, the middle of the centre line,
+    length) per strand and per cross-thread, kind "strand" or "link"; `links`, one (length, radius at mid-span by LINK_R, radius at mid-span by the rule) per cross-thread."""
+    def __init__(self, members=(), probes=(), links=()):
+        super().__init__(members)
+        self.probes, self.links = list(probes), list(links)
+
+
+def centre_mid(ctrl):
+    """The point at the middle of a member's centre line (sc.spline through its control points), by length."""
+    pts = sc.spline(ctrl, step=0.5)
+    cum = np.concatenate([[0.0], np.cumsum(np.linalg.norm(np.diff(pts, axis=0), axis=1))])
+    return np.array([np.interp(cum[-1] / 2, cum, pts[:, k]) for k in range(3)])
+
+
+def link_radii(length):
+    """(at the ends, at mid-span) of a cross-thread `length` long between its end points (part C.7)."""
+    r_mid = max(LINK_R[1], (LINK_PUSH * length / (math.pi * LINK_ALLOW)) ** (1.0 / 3.0))
+    return max(LINK_R[0], r_mid + LINK_END_MORE), r_mid
+
+
 def film_members(a_ctrl, b_ctrl, n, seed, r_a=8.0, r_b=8.0, sag=(0.0, 0.0, -1.0), sag_mm=10.0, links=3):
-    """A film of n strands between bone A and bone B, like a viscous liquid being stretched."""
+    """A film of n strands between bone A and bone B, like a viscous liquid being stretched. Returns a Film."""
     rng = np.random.default_rng(seed)
     A, Bc = sc.spline(a_ctrl, step=4.0), sc.spline(b_ctrl, step=4.0)
-    out = [("tube", a_ctrl, r_a, sc.SMOOTH), ("tube", b_ctrl, r_b, sc.SMOOTH)]
+    out = Film([("tube", a_ctrl, r_a, sc.SMOOTH), ("tube", b_ctrl, r_b, sc.SMOOTH)])
     ta = np.clip(np.linspace(0.04, 0.96, n) + rng.normal(0, 0.035, n), 0.02, 0.98)
     tb = np.clip(ta + rng.normal(0, 0.11, n), 0.02, 0.98)
     sag = np.array(sag, dtype=float)
@@ -251,31 +352,40 @@ def film_members(a_ctrl, b_ctrl, n, seed, r_a=8.0, r_b=8.0, sag=(0.0, 0.0, -1.0)
         r_mid = max(r_mid, float(np.linalg.norm(p1 - p0)) / STRAND_SLENDER)
         r_end0, r_end1 = max(r_end0, r_mid + 1.5), max(r_end1, r_mid + 1.5)
         out.append(("tube", [p0, mid, p1], bone(r_end0, r_mid, r_end1), 10.0))
+        out.probes.append(("strand", centre_mid([p0, mid, p1]), float(np.linalg.norm(p1 - p0))))
     for _ in range(links):                               # a few cross-threads between neighbours
         i = int(rng.integers(0, n - 1))
         f0, f1 = rng.uniform(0.25, 0.75), rng.uniform(0.25, 0.75)
         q0 = A[int(ta[i] * (len(A) - 1))] * (1 - f0) + Bc[int(tb[i] * (len(Bc) - 1))] * f0
         q1 = A[int(ta[i + 1] * (len(A) - 1))] * (1 - f1) + Bc[int(tb[i + 1] * (len(Bc) - 1))] * f1
-        out.append(("tube", [q0, (q0 + q1) / 2 + sag * 3.0, q1], bone(LINK_R[0], LINK_R[1], LINK_R[0]), 7.0))
+        ctrl = [q0, (q0 + q1) / 2 + sag * 3.0, q1]
+        length = float(np.linalg.norm(q1 - q0))
+        r_end, r_mid = link_radii(length)                # part C.7: as thick as its length asks, never under LINK_R
+        out.append(("tube", ctrl, bone(r_end, r_mid, r_end), 7.0))
+        out.probes.append(("link", centre_mid(ctrl), length))
+        out.links.append((length, LINK_R[1], r_mid))
     return out
 
 
 def film_list():
     out = []
-    lip_l = [bp(LIP_U, FACE_N, -190), bp(LIP_U - 1, FACE_N + 1, -60), bp(LIP_U - 1, FACE_N + 1, 28)]
-    lip_r = [bp(LIP_U - 1, FACE_N + 1, 44), bp(LIP_U - 1, FACE_N + 1, 110), bp(LIP_U, FACE_N, 190)]
     # The gap between the card's outer edge and the 360's lower edge, at the level the fans set.
     # On the left the CPU hoses (450 mm) run below that surface, at n 131 and 140: the threads pass over them, as on the right.
     # (With the 500 mm hoses the run lay in the surface and the threads dipped 20 mm underneath it.)
+    # Revision 18 (part H.3): the left film ends at the gate's left end (8 strands, 3 links as before); the right one starts past the card cable's loop (FILM_UNDER_X0) and runs to the corner
+    # (6 strands, 3 links). Between them the layer is open over the connector and the loop. The control points are cable_gate_sketch.py's.
     cu, cn = CARD_BONE_U, CARD_BONE_N
-    out.append(film_members([bp(cu, cn, -SWEEP_X), bp(cu + 1, cn + 1, -60), bp(cu + 1, cn + 1, 28)], lip_l,
-                            8, seed=3, r_a=6.0, r_b=6.0, sag=(0.0, 0.707, -0.707), sag_mm=4, links=3))
-    out.append(film_members([bp(cu + 1, cn + 1, 44), bp(cu + 1, cn + 1, 100), bp(cu, cn, SWEEP_X)], lip_r,
-                            9, seed=8, r_a=6.0, r_b=6.0, sag=(0.0, 0.707, -0.707), sag_mm=4, links=4))
-    # a sparse veil across the open front, from the sill's upper edge (behind the light line) up to the brow, well below the card
-    ry, rz = SILL_RIDGE
-    out.append(film_members([(-135, ry + 1, rz + 5), (0, ry + 1, rz + 6), (135, ry + 1, rz + 5)], BROW, 7, seed=41,
-                            r_a=5.0, r_b=6.0, sag=(0.0, 1.0, 0.0), sag_mm=5, links=2))
+    lip_l = [bp(LIP_U, FACE_N, -190), bp(LIP_U - 1, FACE_N + 1, -100), bp(LIP_U - 1, FACE_N + 1, CARD_GATE_X[0])]
+    out.append(film_members(CARD_L, lip_l, 8, seed=3, r_a=CARD_FILM_R, r_b=CARD_FILM_R, sag=(0.0, 0.707, -0.707), sag_mm=4, links=3))
+    x0 = FILM_UNDER_X0
+    out.append(film_members([bp(cu + 1, cn + 1, x0), bp(cu + 1, cn + 1, (x0 + SWEEP_X) / 2), bp(cu, cn, SWEEP_X)],
+                            [bp(LIP_U - 1, FACE_N + 1, x0), bp(LIP_U - 1, FACE_N + 1, (x0 + 190.0) / 2), bp(LIP_U, FACE_N, 190)],
+                            6, seed=8, r_a=CARD_FILM_R, r_b=CARD_FILM_R, sag=(0.0, 0.707, -0.707), sag_mm=4, links=3))
+    # Revision 18 (part C.3): in place of the veil that stood on the sill, a film of nearly straight strands from front_low up to the brow, over X -150..150
+    fl = FRONT_FILM
+    out.append(film_members([(-FRONT_FILM_X, FRONT_LOW_Y, FRONT_LOW_Z), (0.0, FRONT_LOW_Y, FRONT_LOW_Z), (FRONT_FILM_X, FRONT_LOW_Y, FRONT_LOW_Z)],
+                            [(-FRONT_FILM_X, BROW_Y, BROW_Z), (0.0, BROW_Y, BROW_Z), (FRONT_FILM_X, BROW_Y, BROW_Z)],
+                            fl["n"], seed=fl["seed"], r_a=fl["r_a"], r_b=fl["r_b"], sag=fl["sag"], sag_mm=fl["sag_mm"], links=fl["links"]))
     for s in (-1, 1):
         (u0, u1), (n0, n1) = hw.FAN_SIDE_U, hw.FAN_SIDE_N
         x = RING_X[s]
@@ -345,7 +455,7 @@ def panel_frame():
     add("panel_low", low, PANEL_R)
     add("panel_top", top, PANEL_R)
     film = film_members(low, top, PANEL_FILM["n"], seed=PANEL_FILM["seed"], r_a=PANEL_R, r_b=PANEL_R, sag=PANEL_FILM["sag"], sag_mm=PANEL_FILM["sag_mm"], links=PANEL_FILM["links"])
-    return out, lines, [film[2:]]               # the film's own two bars are panel_low and panel_top, already drawn above (drawn twice, a bar would swell by a quarter of the blend)
+    return out, lines, [Film(film[2:], film.probes, film.links)]      # the film's own two bars are panel_low and panel_top, already drawn above (drawn twice, a bar would swell by a quarter of the blend)
 
 
 def panel_legs(a):
@@ -379,7 +489,7 @@ def panel_legs(a):
 # place_anchors fails if a pad of the table does not. (The right rib's upper front arm cannot take one: it is 2 mm from the card. Tried and
 # dropped: the visor arms, whose outward face is a 10 mm edge, and the neck's lower half, which hoses, the 420 and the rib close in.)
 # ---------------------------------------------------------------------------
-BONE_OF = {"front_foot": None, "sill_end": "front", "base_mid": "base", "rear_foot": "rear", "rear_post": "rear", "neck_top": "side"}
+BONE_OF = {"front_foot": None, "front_post": "front", "base_mid": "base", "rear_foot": "rear", "rear_post": "rear", "neck_top": "side"}
 PAD_PILOT_TOL = 0.01                       # mm: a pad's screw axis and its pilot's axis coincide within this
 PAD_FACE_TOL = 0.05                        # mm: a pad's centre is on its part's face within this
 PAD_FACE_PROBE = 3.0                       # mm: where the face is read, off the pilot's axis
@@ -436,10 +546,31 @@ def is_pilot_of(h, q, n):
             and np.linalg.norm(np.array(h.point(frame_v0.OVERSHOOT)) - np.array(q, dtype=float)) < PAD_PILOT_TOL)
 
 
-def pad_fits(part, q, n):
-    """None if a pad at q on the part's face with outward normal n fits, else the reason. The pad's own pilot is not a hole too close to it; every other hole is."""
+FACE_PLANE_TOL = 0.5                       # mm: a screw's seat lies on a pad's face plane within this (washer_gaps)
+
+
+def washer_gaps(q, n, heads):
+    """[(gap, row)] for every screw of `heads` (skeleton_screws.head_rows: seat, axis, radius, height) whose head stands on the face of a pad at q with outward normal n (its axis along n,
+    its seat on the face's plane): the gap between the pad's rim and the washer (or the head where there is none), from the distance between the two axes (revision 18, part C.5)."""
+    q, n = np.asarray(q, dtype=float), np.asarray(n, dtype=float)
+    out = []
+    for row in np.asarray(heads, dtype=float).reshape(-1, 8):
+        seat, e, r = row[:3], row[3:6], row[6]
+        v = seat - q
+        if e @ n < 1.0 - 1e-6 or abs(v @ n) > FACE_PLANE_TOL:
+            continue
+        out.append((float(np.linalg.norm(v - (v @ n) * n)) - PAD_R - r, row))
+    return out
+
+
+def pad_fits(part, q, n, heads=()):
+    """None if a pad at q on the part's face with outward normal n fits, else the reason. The pad's own pilot is not a hole too close to it; every other hole is. Revision 18 (part C.5): the
+    pad's rim keeps PAD_WASHER_GAP from the washer of every screw of `heads` (skeleton_screws.head_rows) whose head stands on the pad's face."""
     import cadquery as cq
     q, n = np.asarray(q, dtype=float), np.asarray(n, dtype=float)
+    for gap, row in washer_gaps(q, n, heads):
+        if gap < PAD_WASHER_GAP - 1e-9:
+            return (f"its rim is {gap:.2f} mm from the washer of the screw at ({row[0]:.1f}, {row[1]:.1f}, {row[2]:.1f}), needs {PAD_WASHER_GAP:g}")
     e1, e2 = pad_frame(n)
     depth = hw.M3_PILOT_DEPTH
     for h in (0.5, depth):
@@ -512,9 +643,10 @@ def pad_pilot_failures(anchors, parts):
     return out
 
 
-def place_anchors(parts, lines, hware, pads=None, driver_lines=None):
+def place_anchors(parts, lines, hware, heads, pads=None, driver_lines=None):
     """The pads of hardware.ORGANIC_PADS (or `pads`, rows of the same form), each checked to fit its part, with the bone point its stub ties to. Fails if one does not fit.
-    A pad whose kind is in OWN_LEGS gets no automatic stub (tie None): its piece declares its legs. driver_lines: the centre lines the driver's path is tested against (default `lines`)."""
+    A pad whose kind is in OWN_LEGS gets no automatic stub (tie None): its piece declares its legs. driver_lines: the centre lines the driver's path is tested against (default `lines`).
+    heads: the skeleton's screws (skeleton_screws.head_rows), whose washers a pad's rim keeps off (pad_fits)."""
     pads = hw.ORGANIC_PADS if pads is None else pads
     by_name = {p.name: p for p in parts}
     out = []
@@ -523,7 +655,7 @@ def place_anchors(parts, lines, hware, pads=None, driver_lines=None):
         kind = name[:-2]
         part = by_name[pname]
         q, nrm = np.array(q, dtype=float), np.array(nrm, dtype=float)
-        why = pad_fits(part, q, nrm) or pad_clear(part, q, nrm, parts, hware) or driver_blocked(q, nrm, lines if driver_lines is None else driver_lines)
+        why = pad_fits(part, q, nrm, heads) or pad_clear(part, q, nrm, parts, hware) or driver_blocked(q, nrm, lines if driver_lines is None else driver_lines)
         assert why is None, f"pad {name} on {part.name} at {tuple(q)}: {why}"
         if kind in OWN_LEGS:
             out.append(dict(name=name, part=part.name, q=q, n=nrm, bone="+".join(OWN_LEGS[kind]), tie=None, stub_len=float("nan")))
@@ -572,6 +704,10 @@ class Field:
         return sl, G
 
     def add(self, member):
+        """A member: ("tube", control points, radius or profile, blend), ("ball", centre, radius, blend), or ("slab", control points, radius, blend, (axis, factor)).
+        A slab (revision 18, part C.2) is a tube flattened along one world axis by the factor (shell_concepts.tube's squash): its thickness along that axis is 2 * radius / factor.
+        Its value is not a true distance along the flattened axis: tube() scales the offset by the factor before it subtracts the radius, so the blend and every later reading of the
+        field see it stretched. Nothing may read a clearance off the field beside a slab: the layer's clearances are measured on its solid voxels (strand_checks, head_checks)."""
         kind = member[0]
         if kind == "tube":
             _, ctrl, prof, k = member
@@ -580,6 +716,12 @@ class Field:
             pad = rmax + k + 2 * self.vox
             sl, G = self.block(pts.min(axis=0) - pad, pts.max(axis=0) + pad)
             self.d[sl] = sc.smin(self.d[sl], sc.tube(G, ctrl, prof), k)
+        elif kind == "slab":
+            _, ctrl, r, k, squash = member
+            pts = np.array(ctrl, dtype=float)
+            pad = r + k + 2 * self.vox
+            sl, G = self.block(pts.min(axis=0) - pad, pts.max(axis=0) + pad)
+            self.d[sl] = sc.smin(self.d[sl], sc.tube(G, ctrl, r, squash=squash), k)
         else:
             _, p, r, k = member
             pad = r + k + 2 * self.vox
@@ -612,6 +754,51 @@ class Field:
         h = vx * n[0] + vy * n[1] + vz * n[2]
         rad = np.sqrt(np.maximum(vx * vx + vy * vy + vz * vz - h * h, 0.0))
         return sl, np.maximum(np.maximum(rad - r, h0 - h), h - h1)
+
+
+def cylinder_distance(X, Y, Z, q, e, r, h1):
+    """Euclidean signed distance from grid points to the capped cylinder of radius r on the axis from q to q + h1 e (e a unit vector)."""
+    vx, vy, vz = X - q[0], Y - q[1], Z - q[2]
+    h = vx * e[0] + vy * e[1] + vz * e[2]
+    rad = np.sqrt(np.maximum(vx * vx + vy * vy + vz * vz - h * h, 0.0))
+    dr, dh = rad - r, np.maximum(-h, h - h1)
+    return np.minimum(np.maximum(dr, dh), 0.0) + np.sqrt(np.maximum(dr, 0.0) ** 2 + np.maximum(dh, 0.0) ** 2)
+
+
+def strand_lines():
+    """[(name, centre line, radius, clearance)] of every strand of every route of cables.build_routes() (clearance GAP_CABLE) and every hose of hoses.routes() (GAP_HW), the points as the
+    routes give them (revision 18, parts H.5 and H.6)."""
+    out = [(f"cable {name}[{k}]", np.asarray(p, dtype=float), float(r), GAP_CABLE) for name, rt in cables.build_routes().items() for k, (p, r) in enumerate(rt.strands)]
+    out += [(f"hose {name}[{k}]", np.asarray(h["pts"], dtype=float), float(spec["r"]), GAP_HW) for name, (pair, spec) in hoses.routes().items() for k, h in enumerate(pair)]
+    return out
+
+
+def densify(pts, step):
+    """The polyline pts with points added so that no two neighbours are more than `step` apart."""
+    pts = np.asarray(pts, dtype=float)
+    out = [pts[:1]]
+    for a, b in zip(pts[:-1], pts[1:]):
+        k = max(int(math.ceil(np.linalg.norm(b - a) / step)), 1)
+        out.append(a + (b - a) * (np.arange(1, k + 1)[:, None] / k))
+    return np.concatenate(out)
+
+
+def strand_distance(F, lines):
+    """{radius + clearance: distance from every grid point to the nearest mark} (part H.5): each centre line marked on the grid at steps of STRAND_MARK_STEP at most, one distance
+    transform for each radius plus clearance, shared by the pieces."""
+    groups = {}
+    for _name, pts, r, gap in lines:
+        groups.setdefault(round(r + gap, 3), []).append(densify(pts, STRAND_MARK_STEP))
+    out = {}
+    origin = np.array([F.xs[0], F.ys[0], F.zs[0]], dtype=float)
+    for clear, polys in groups.items():
+        occ = np.zeros(F.d.shape, dtype=bool)
+        for pts in polys:
+            idx = np.round((pts - origin) / F.vox).astype(int)
+            ok = np.all((idx >= 0) & (idx < np.array(F.d.shape)), axis=1)
+            occ[tuple(idx[ok].T)] = True
+        out[clear] = ndimage.distance_transform_edt(~occ, sampling=F.vox).astype(np.float32)
+    return out
 
 
 def skeleton_distance(F, parts):
@@ -652,8 +839,8 @@ def skeleton_distance(F, parts):
 
 
 def carve_layer(F, parts, skel):
-    """Carve a piece back from everything that is not the layer, in the order build() carved the layer before revision 17. skel: {} on the first call, which fills it with the
-    skeleton's distance field (the same grid serves every piece)."""
+    """Carve a piece back from everything that is not the layer, in the order build() carved the layer before revision 17. skel: {"heads": the skeleton's screws (skeleton_screws.head_rows),
+    "lines": strand_lines()} on the first call, which adds the skeleton's distance field and the strands' (the same grid serves every piece)."""
     for b in (hw.RAD360_BS, hw.RAD420_ENV_BS, hw.BOARD_BS):
         F.carve_bs_box(b, GAP_HW)
     F.carve_bs_box(hw.GPU_BS, HOT_GAP)
@@ -663,19 +850,33 @@ def carve_layer(F, parts, skel):
     for b in (hw.DIMMS_BS, hw.IO_ZONE_BS, hw.GPU_OUT_ZONE_BS, hw.ATX24_BS, hw.EPS_BS):
         F.carve_bs_box(b, GAP_KEEP)
     F.carve_bs_box(OUT_PRISM_BS, OUT_PRISM_GAP)                                   # nothing in front of the card's outputs out to the fan's outer face
-    for name, (pair, spec) in hoses.routes().items():
-        for h in pair:
-            F.carve_polyline(h["pts"][::4], spec["r"] + GAP_HW + 1.0)
-    bb = (-frame_v0.SILL_HALF_X, frame_v0.SILL_HALF_X, min(y for y, _ in SILL["pts"]), max(y for y, _ in SILL["pts"]),
-          min(z for _, z in SILL["pts"]), max(z for _, z in SILL["pts"]))
-    sl, G = F.block((bb[0] - 6, bb[2] - 6, bb[4] - 6), (bb[1] + 6, bb[3] + 6, bb[5] + 6))
-    F.d[sl] = np.maximum(F.d[sl], SILL_GAP - sill_sdf(G))
-    if not skel:
+    F.carve_bs_box(PLUG_ZONE, GAP_KEEP)                                           # revision 18 (part H.4): the room of the card's power plug and its straight
+    # revision 18 (part H.5): every cable and every hose along its whole centre line (it was every fourth point of a hose, and no cable)
+    if "strands" not in skel:
+        skel["strands"] = strand_distance(F, skel["lines"])
+    for clear, dist in skel["strands"].items():
+        np.maximum(F.d, (clear + STRAND_MARK_SLACK) - dist, out=F.d)
+    if "d" not in skel:
         skel["d"], skel["cm3"] = skeleton_distance(F, parts)
     np.maximum(F.d, GAP_SKEL - skel["d"], out=F.d)
+    # revision 18 (part C.4): the way the carrier slides out to the front (its exact box, extended forward and down) by GAP_SKEL, and the module by GAP_HW
+    b = carrier_box(parts)
+    F.carve_world_box((b[0], b[1], CARRIER_WAY[0], b[3], CARRIER_WAY[1], b[5]), GAP_SKEL)
+    F.carve_world_box(hw.FRONT_IO_W, GAP_HW)
+    # revision 18 (part J.2): every screw's washer and head (a cylinder of the washer's radius, the head's where there is none, over their height) by GAP_SKEL, as a distance
+    for row in skel["heads"]:
+        q, e, r, h = row[:3], row[3:6], row[6], row[7]
+        ends = np.array([q, q + h * e])
+        sl, (X, Y, Z) = F.block(ends.min(axis=0) - r - GAP_SKEL - 2, ends.max(axis=0) + r + GAP_SKEL + 2)
+        F.d[sl] = np.maximum(F.d[sl], GAP_SKEL - cylinder_distance(X, Y, Z, q, e, r, h))
     np.maximum(F.d, -(F.zs + 15.0)[None, None, :], out=F.d)                  # desk
     np.maximum(F.d, -F.ys[None, :, None], out=F.d)                           # front plane
     np.maximum(F.d, (np.abs(F.xs) - hw.ENVELOPE_FAN_X)[:, None, None], out=F.d)  # revision 14b: the fans' outer faces (it was the radiators' span, which cut the rings off)
+
+
+def carrier_box(parts):
+    """The exact box of front_io_carrier (x0, x1, y0, y1, z0, z1)."""
+    return tuple(float(c) for c in frame_v0.exact_box(next(p for p in parts if p.name == "front_io_carrier").solid))
 
 
 def carve_panel(F, hware):
@@ -705,6 +906,9 @@ def finish_piece(F, anchors):
     for a in anchors:
         sl, cyl = F.cylinder(a["q"], a["n"], SCREW_R, -1.0, PAD_H + 0.5)
         F.d[sl] = np.maximum(F.d[sl], -cyl)
+        # revision 18 (part C.8): below the pad's face the insert's pilot, one voxel wider, down to its depth: the pad's blend may not stand in the pilot's mouth. A cut of the layer only
+        sl, cyl = F.cylinder(a["q"], a["n"], PILOT_CUT_R, -hw.M3_PILOT_DEPTH, 0.0)
+        F.d[sl] = np.maximum(F.d[sl], -cyl)
         sl, cyl = F.cylinder(a["q"], a["n"], HEAD_R, PAD_H, PAD_H + HEAD_REACH)
         F.d[sl] = np.maximum(F.d[sl], -cyl)
     lab, n = ndimage.label(F.d < 0)
@@ -721,14 +925,26 @@ def build(parts, hware, vox=VOX):
     if "rear_panel" in PIECES:
         frames["rear_panel"] = panel_frame()
     all_lines = {k: v for _m, lines, _f in frames.values() for k, v in lines.items()}
-    skel, fields, anchors, info = {}, {}, [], dict(members=0, crumbs=0, crumb_cm3=0.0, thin_cm3=0.0, lines=all_lines, per_piece={})
+    t0 = time.time()
+    solids, sfails = skeleton_screws.thread_solids(parts, hware)
+    screws, _organic, _ph, f2 = skeleton_screws.screws_of(parts, hware, solids)
+    assert not sfails + f2, "the skeleton's screws: " + "; ".join(sfails + f2)
+    heads = skeleton_screws.head_rows(screws)
+    t1 = time.time()
+    skel = dict(heads=heads, lines=strand_lines())
+    t2 = time.time()
+    fields, anchors = {}, []
+    info = dict(members=0, crumbs=0, crumb_cm3=0.0, thin_cm3=0.0, lines=all_lines, per_piece={}, heads=heads, strand_lines=skel["lines"], probes=[], links={},
+                seconds=dict(screws=t1 - t0, routes=t2 - t1))
     for piece in PIECES:
         bones_m, lines, films = frames[piece]
         pads = {k: v for k, v in hw.ORGANIC_PADS.items() if v[3] == piece}
-        own = place_anchors(parts, lines, hware, pads, driver_lines=all_lines)
+        own = place_anchors(parts, lines, hware, heads, pads, driver_lines=all_lines)
         members = list(bones_m)
         for fm in films:
             members += fm
+            info["probes"] += [(piece, kind, pt, length) for kind, pt, length in getattr(fm, "probes", ())]
+            info["links"].setdefault(piece, []).extend(getattr(fm, "links", ()))
         for a in own:
             members.append(("ball", tuple(a["q"] + a["n"] * (KNOT_R - 4.0)), KNOT_R, 8.0))
             if a["tie"] is not None:
@@ -738,7 +954,9 @@ def build(parts, hware, vox=VOX):
         F = Field(vox)
         for m in members:
             F.add(m)
+        t3 = time.time()
         carve_layer(F, parts, skel)
+        info["seconds"]["carve_" + piece] = time.time() - t3
         if piece == "rear_panel":
             carve_panel(F, hware)
         for prev in fields.values():                                            # a later piece keeps GAP_PIECE from the earlier ones
@@ -1094,14 +1312,174 @@ def piece_checks(z):
     return out, fails, joined
 
 
-def saved_arrays(F, anchors, fields, parts):
+def saved_arrays(F, anchors, fields, parts, info=None):
     """The dict organic_frame.py saves as out/organic/field.npz: d (the union of the pieces, what every reader takes as the layer), the grid, the pads ((n, 6): centre and normal)
     and their names, the pieces' names, the piece of each pad, one field per piece (d_<piece>) and the screw heads of HEAD_PART (screw_heads)."""
     z = dict(d=F.d, xs=F.xs, ys=F.ys, zs=F.zs, pads=np.array([np.concatenate([a["q"], a["n"]]) for a in anchors]), names=np.array([a["name"] for a in anchors]),
              pieces=np.array(list(fields)), pad_piece=np.array([hw.ORGANIC_PADS[a["name"]][3] for a in anchors]), heads=screw_heads(parts))
     for piece, f in fields.items():
         z["d_" + piece] = f.d
+    if info is not None:                                                          # revision 18: what the new checks and organic_strength.py's probes read
+        z["carrier_box"] = np.array(carrier_box(parts), dtype=float)              # part C.6
+        z["screws"] = np.asarray(info["heads"], dtype=float).reshape(-1, 8)       # part J.3: seat, axis out of the head, radius, height of each skeleton screw
+        z.update(strand_arrays(info["strand_lines"]))                             # part H.6
+        pr = info["probes"]                                                       # part I.1
+        z["probes"] = np.array([p[2] for p in pr], dtype=float).reshape(-1, 3)
+        z["probe_kind"] = np.array([p[1] for p in pr], dtype=str)
+        z["probe_len"] = np.array([p[3] for p in pr], dtype=float)
+        z["probe_piece"] = np.array([p[0] for p in pr], dtype=str)
     return z
+
+
+def strand_arrays(lines):
+    """The strands as arrays for field.npz: strand_pts (all centre lines' points one after another), strand_off (where each starts, and the end), strand_r, strand_gap, strand_name."""
+    off = np.cumsum([0] + [len(p) for _n, p, _r, _g in lines])
+    return dict(strand_pts=np.concatenate([p for _n, p, _r, _g in lines]).astype(float), strand_off=off.astype(np.int64),
+                strand_r=np.array([r for _n, _p, r, _g in lines], dtype=float), strand_gap=np.array([g for _n, _p, _r, g in lines], dtype=float),
+                strand_name=np.array([n for n, _p, _r, _g in lines], dtype=str))
+
+
+def strands_of(z):
+    """[(name, centre line, radius, clearance)] from field.npz's strand arrays."""
+    off = z["strand_off"]
+    return [(str(z["strand_name"][i]), z["strand_pts"][off[i]:off[i + 1]], float(z["strand_r"][i]), float(z["strand_gap"][i])) for i in range(len(off) - 1)]
+
+
+# ---------------------------------------------------------------------------
+# Revision 18: checks that read the saved arrays only, so that test_organic.py can damage a copy and expect them to fail
+# ---------------------------------------------------------------------------
+def solid_points(z):
+    """(k, 3) world centres of the solid voxels of any piece."""
+    solid = np.zeros(z["d"].shape, dtype=bool)
+    for d in piece_fields(z).values():
+        solid |= d < 0
+    idx = np.argwhere(solid)
+    return np.stack([np.asarray(z["xs"], dtype=float)[idx[:, 0]], np.asarray(z["ys"], dtype=float)[idx[:, 1]], np.asarray(z["zs"], dtype=float)[idx[:, 2]]], axis=1)
+
+
+def carrier_checks(z):
+    """Part C.6, "the carrier comes out": no solid voxel centre of any piece in the carrier's box (carrier_box) moved forward along -Y by its own depth, the box and every position on the
+    way, that is the box from its front less its depth to its rear."""
+    b = np.asarray(z["carrier_box"], dtype=float)
+    way = (b[0], b[1], b[2] - (b[3] - b[2]), b[3], b[4], b[5])
+    xs, ys, zs = (np.asarray(z[k], dtype=float) for k in ("xs", "ys", "zs"))
+    m = ((xs >= way[0]) & (xs <= way[1]))[:, None, None] & ((ys >= way[2]) & (ys <= way[3]))[None, :, None] & ((zs >= way[4]) & (zs <= way[5]))[None, None, :]
+    out, fails = [], []
+    if not m.any():
+        return out, ["ORGANIC_CARRIER the carrier's way out has no grid point: nothing is checked"]
+    hits = {piece: int((d[m] < 0).sum()) for piece, d in piece_fields(z).items()}
+    out.append(f"Путь каретки вперёд (её коробка X {b[0]:g}..{b[1]:g}, Z {b[4]:g}..{b[5]:g}, сдвинутая по -Y на свою глубину {b[3] - b[2]:.1f}: Y {way[2]:.1f}..{way[3]:.1f}): "
+               f"точек сетки {int(m.sum())}, вокселей слоя " + ", ".join(f"{k} {v}" for k, v in hits.items()))
+    for piece, k in hits.items():
+        if k:
+            fails.append(f"ORGANIC_CARRIER {piece} has {k} voxels in the way the carrier slides out to the front (Y {way[2]:.1f}..{way[3]:.1f})")
+    return out, fails
+
+
+def pilot_checks(z):
+    """Part C.8: no solid voxel centre of any piece inside a pad's insert pilot (radius hw.M3_PILOT_D / 2 from the pad's centre down to hw.M3_PILOT_DEPTH along minus its normal)."""
+    out, fails = [], []
+    pads = np.asarray(z["pads"], dtype=float).reshape(-1, 6)
+    names = [str(n) for n in z["names"]]
+    if not len(pads):
+        return out, ["ORGANIC_PILOT no pad saved with the field: nothing is checked"]
+    fields = piece_fields(z)
+    total = 0
+    for name, row in zip(names, pads):
+        sl, m = cylinder_mask(z["xs"], z["ys"], z["zs"], row[:3], -row[3:], hw.M3_PILOT_D / 2, 0.0, hw.M3_PILOT_DEPTH)
+        if not m.any():
+            fails.append(f"ORGANIC_PILOT the pilot of the pad {name} has no grid point: nothing is checked there")
+            continue
+        for piece, d in fields.items():
+            k = int((d[sl][m] < 0).sum())
+            total += k
+            if k:
+                fails.append(f"ORGANIC_PILOT {piece} has {k} voxels in the insert pilot of the pad {name}")
+    out.append(f"Слой в пилотах вставок площадок ({len(pads)} пилотов, Ø{hw.M3_PILOT_D:g} x {hw.M3_PILOT_DEPTH:g} мм): вокселей {total}")
+    return out, fails
+
+
+def strand_checks(z, top=5):
+    """Part H.6, "no cable or hose in the layer": for every strand and every hose of the saved strands, sampled every millimetre, the distance from the point to the nearest solid voxel's
+    centre of any piece (exact, by a k-d tree of the centres: the field's value is stretched beside a slab), less the strand's radius, is at least its clearance (GAP_CABLE, GAP_HW). It is
+    measured to voxel centres, as the layer's other distances are; the printed surface can stand up to half a voxel nearer. Returns (lines with the `top` closest, failures)."""
+    from scipy.spatial import cKDTree
+    pts = solid_points(z)
+    out, fails = [], []
+    lines = strands_of(z)
+    if not lines:
+        return out, ["ORGANIC_STRANDS no cable or hose saved with the field: nothing is checked"]
+    if not len(pts):
+        return out, ["ORGANIC_STRANDS the layer has no solid voxel: nothing is checked"]
+    tree = cKDTree(pts)
+    rows = []
+    for name, line, r, gap in lines:
+        q = densify(line, 1.0)
+        dist, j = tree.query(q)
+        k = int(np.argmin(dist))
+        rows.append((float(dist[k]) - r - gap, float(dist[k]) - r, gap, name, q[k]))
+        bad = dist - r < gap - 1e-6
+        if bad.any():
+            fails.append(f"ORGANIC_STRANDS {name}: {int(bad.sum())} points of its centre line are nearer the layer than its radius and {gap:g} mm (least {float(dist[k]) - r:.2f} mm "
+                         f"at X {q[k][0]:.1f}, Y {q[k][1]:.1f}, Z {q[k][2]:.1f})")
+    rows.sort(key=lambda t: t[0])
+    cab = min((t for t in rows if t[3].startswith("cable")), key=lambda t: t[1], default=None)
+    hose = min((t for t in rows if t[3].startswith("hose")), key=lambda t: t[1], default=None)
+    out.append(f"Кабели и шланги от слоя (от поверхности до центра ближайшего вокселя любого куска; поверхность печати может стоять до полвокселя ближе): {len(lines)} линий; "
+               + (f"ближе всех кабель {cab[3]} {cab[1]:.2f} мм (нужно {cab[2]:g})" if cab else "кабелей нет") + "; "
+               + (f"шланг {hose[3]} {hose[1]:.2f} мм (нужно {hose[2]:g})" if hose else "шлангов нет") + f"; {top} ближайших к своему пределу:")
+    for _m, dd, gap, name, q in rows[:top]:
+        out.append(f"  {name:18} {dd:6.2f} мм (нужно {gap:g}) у X {q[0]:6.1f}, Y {q[1]:6.1f}, Z {q[2]:6.1f}")
+    return out, fails
+
+
+HEAD_WINDOW = 10.0                                             # mm: head_distance_checks measures the distance from a head to the layer up to this (farther is reported as "farther than")
+
+
+def head_distance_checks(z):
+    """Part J.3, "no layer in a screw's head": no solid voxel centre of any piece within GAP_HEAD_MIN of a skeleton screw's washer or head (the cylinder of z["screws"]: seat, axis out of
+    the head, radius, height), the distance exact. Returns (lines, failures)."""
+    out, fails = [], []
+    rows = np.asarray(z.get("screws", np.zeros((0, 8))), dtype=float).reshape(-1, 8)
+    if not len(rows):
+        return out, ["ORGANIC_HEADS no screw saved with the field: nothing is checked"]
+    xs, ys, zs = (np.asarray(z[k], dtype=float) for k in ("xs", "ys", "zs"))
+    fields = piece_fields(z)
+    least, at, bad = float("inf"), None, 0
+    for row in rows:
+        q, e, r, h = row[:3], row[3:6], row[6], row[7]
+        ends = np.array([q, q + h * e])
+        lo, hi = ends.min(axis=0) - r - HEAD_WINDOW, ends.max(axis=0) + r + HEAD_WINDOW
+        sl = tuple(slice(int(np.searchsorted(g, a)), int(np.searchsorted(g, b_, side="right"))) for g, a, b_ in zip((xs, ys, zs), lo, hi))
+        X, Y, Z = np.meshgrid(xs[sl[0]], ys[sl[1]], zs[sl[2]], indexing="ij")
+        dist = cylinder_distance(X, Y, Z, q, e, r, h)
+        for piece, d in fields.items():
+            sol = d[sl] < 0
+            if not sol.any():
+                continue
+            k = int(np.argmin(np.where(sol, dist, np.inf)))
+            dmin = float(dist.ravel()[k])
+            if dmin < least:
+                least, at = dmin, (piece, q)
+            n = int((sol & (dist < GAP_HEAD_MIN)).sum())
+            if n:
+                bad += 1
+                fails.append(f"ORGANIC_HEADS {piece} has {n} voxels within {GAP_HEAD_MIN:g} mm of the washer or head of the screw at X {q[0]:.1f}, Y {q[1]:.1f}, Z {q[2]:.1f} "
+                             f"(least {dmin:.2f} mm)")
+    out.append(f"Слой от шайб и головок винтов каркаса ({len(rows)} винтов, цилиндр шайбы или головки на их высоту): " +
+               (f"наименьшее расстояние до центра вокселя {least:.2f} мм ({at[0]} у винта X {at[1][0]:.1f}, Y {at[1][1]:.1f}, Z {at[1][2]:.1f}); нужно {GAP_HEAD_MIN:g}"
+                if at else f"ни одного вокселя ближе {HEAD_WINDOW:g} мм") + f"; винтов со слоем ближе {GAP_HEAD_MIN:g} мм: {bad}")
+    return out, fails
+
+
+def layer_clearance_checks(z):
+    """Revision 18's checks of the saved arrays: the carrier comes out (C.6), no layer in a pad's pilot (C.8), no cable or hose in the layer (H.6), no layer in a screw's head (J.3)."""
+    out, fails = [], []
+    for f in (carrier_checks, pilot_checks, strand_checks, head_distance_checks):
+        o, fl = f(z)
+        out += o
+        fails += fl
+    return out, fails
 
 
 def check(F, anchors, parts, hware, lines, z):
@@ -1111,8 +1489,11 @@ def check(F, anchors, parts, hware, lines, z):
     p_lines, p_fails, joined = piece_checks(z)
     out += p_lines
     fails += p_fails
+    c_lines, c_fails = layer_clearance_checks(z)
+    out += [""] + c_lines
+    fails += c_fails
     out.append("")
-    out.append(f"{'крепление':14} {'деталь каркаса':18} {'центр площадки X, Y, Z':>26} {'до оси пилота':>14} {'кость':>9} {'стойка, мм':>11} {'до железа':>22} {'до шлангов':>11}")
+    out.append(f"{'крепление':14} {'деталь каркаса':18} {'центр площадки X, Y, Z':>26} {'до оси пилота':>14} {'кость':>9} {'стойка, мм':>11} {'до железа':>22} {'до шлангов':>11} {'до шайбы':>9}")
     fails += pad_pilot_failures(anchors, parts)
     by_part = {p.name: p for p in parts}
     hoses_h = {k: v for k, v in hware.items() if k in hw.HOSES}
@@ -1124,8 +1505,11 @@ def check(F, anchors, parts, hware, lines, z):
         hose = min((pad.distance(s_) for s_ in hoses_h.values()))
         ok = joined.get(a["name"], False)
         off = min((float(np.linalg.norm(np.array(h.point(frame_v0.OVERSHOOT)) - q)) for h in by_part[a["part"]].holes if h.kind == "M3" and h.pilot), default=float("nan"))
+        wg = min((g for g, _r in washer_gaps(q, nrm, z["screws"])), default=None)
         out.append(f"{a['name']:14} {a['part']:18} {q[0]:8.1f} {q[1]:8.1f} {q[2]:8.1f} {off:11.2f} мм {a['bone']:>9} {a['stub_len']:11.0f} "
-                   f"{near[0]:8.1f} мм {near[1]:>10} {hose:8.1f} мм" + ("" if ok else "   НЕ СОЕДИНЕНО С ТЕЛОМ"))
+                   f"{near[0]:8.1f} мм {near[1]:>10} {hose:8.1f} мм " + (f"{wg:6.2f} мм" if wg is not None else "     нет") + ("" if ok else "   НЕ СОЕДИНЕНО С ТЕЛОМ"))
+        if wg is not None and wg < PAD_WASHER_GAP - 1e-9:
+            fails.append(f"{a['name']}: край площадки в {wg:.2f} мм от шайбы винта на её грани (нужно {PAD_WASHER_GAP:g})")
         hot = HOT_GAP if near[1] in ("gpu", "psu") else GAP_HW
         if near[0] < hot:
             fails.append(f"{a['name']}: площадка в {near[0]:.1f} мм от {near[1]} (нужно {hot:g})")
@@ -1146,6 +1530,16 @@ def check(F, anchors, parts, hware, lines, z):
     out.append("")
     f_lines, f_fails = field_checks(F.d, F.xs, F.ys, F.zs)
     return out + f_lines, fails + f_fails
+
+
+def link_report(info):
+    """Report lines of part C.7: per piece, the cross-threads' radius at mid-span by LINK_R and by the rule."""
+    out = [f"Поперечные нити (ревизия 18, C.7): радиус в середине не меньше (LINK_PUSH {LINK_PUSH:g} Н x длина / (pi x LINK_ALLOW {LINK_ALLOW:g} МПа))^(1/3) и не меньше {LINK_R[1]:g}; "
+           f"у концов на {LINK_END_MORE:g} больше и не меньше {LINK_R[0]:g}:"]
+    for piece, links in info["links"].items():
+        thick = [t for t in links if t[2] > t[1] + 1e-9]
+        out.append(f"  {piece}: нитей {len(links)}, толще прежнего {len(thick)}; " + ", ".join(f"{L:.1f} мм {a:g} -> {b:.2f}" for L, a, b in sorted(links, key=lambda t: -t[0])))
+    return out
 
 
 SIDE_DIFFERENCES = (
@@ -1195,9 +1589,9 @@ def main():
     parts = [p for p in parts]
     hware = hw.build_hardware()
     F, anchors, fields, info = build(parts, hware)
-    z = saved_arrays(F, anchors, fields, parts)
+    z = saved_arrays(F, anchors, fields, parts, info)
     lines, fails = check(F, anchors, parts, hware, info['lines'], z)
-    lines += [""] + flank_report(F, parts, hware) + [""] + list(SIDE_DIFFERENCES)
+    lines += [""] + link_report(info) + [""] + flank_report(F, parts, hware) + [""] + list(SIDE_DIFFERENCES)
     b = np.argwhere(F.d < 0)
     lo, hi = b.min(axis=0), b.max(axis=0)
     head = [f"ОРГАНИЧЕСКИЙ СЛОЙ (PETG, запасной вариант ABS), одно поле с шагом {F.vox:g} мм, элементов {info['members']}, время {time.time() - t0:.0f} с",
@@ -1208,6 +1602,9 @@ def main():
             f"(места из hw.ORGANIC_PADS; пилот M3 под каждую вырезан в каркасе, ось винта лежит на оси пилота). Зазоры слоя: каркас {GAP_SKEL:g}, запретные зоны платы {GAP_KEEP:g}, железо и шланги {GAP_HW:g}, "
             f"видеокарта и БП {HOT_GAP:g} мм."]
     head.append(f"Крошки после вырезания зазоров (отдельные куски меньше {CRUMB_CM3:g} см³) удалены: {info['crumbs']} шт., {info['crumb_cm3']:.1f} см³. Перемычки тоньше {MIN_THICK:g} мм удалены: {info['thin_cm3']:.1f} см³.")
+    head.append("Ревизия 18: слой вырезан от каждого кабеля (зазор " + f"{GAP_CABLE:g}) и шланга ({GAP_HW:g}) по всей оси, от шайбы и головки каждого винта каркаса ({GAP_SKEL:g}), от пути каретки вперёд ({GAP_SKEL:g}) "
+                f"и модуля ({GAP_HW:g}), от места штекера карты ({GAP_KEEP:g}); проб для organic_strength.py {len(info['probes'])}. Время: винты каркаса {info['seconds']['screws']:.0f} с, трассы кабелей "
+                f"{info['seconds']['routes']:.0f} с, вырезание " + ", ".join(f"{k[6:]} {v:.0f} с" for k, v in info["seconds"].items() if k.startswith("carve_")) + ".")
     head.append(f"Куски слоя (ревизия 17), в порядке постройки, каждый со своим полем; поздний держит {GAP_PIECE:g} мм от ранних: " + "; ".join(
         f"{k}: элементов {v['members']}, крошек {v['crumbs']} ({v['crumb_cm3']:.1f} см³), перемычек {v['thin_cm3']:.1f} см³" for k, v in info["per_piece"].items()))
     text = "\n".join(head + [""] + lines + [""] + (["ПРОВЕРКИ НЕ ПРОЙДЕНЫ:"] + ["  - " + f for f in fails] if fails else ["Все проверки пройдены."]))
@@ -1222,8 +1619,7 @@ def main():
         shell = sc.mesh(F.xs, F.ys, F.zs, F.d)
     finally:
         sc.VOX = vox
-    extras = [(SILL["cuts"]["slit"], (1.0, 0.86, 0.35), 1.0)]           # the light line; the sill itself is a skeleton part
-    sc.render("organic", shell, hware, parts, hoses.routes(), extras)
+    sc.render("organic", shell, hware, parts, hoses.routes(), [])
     if fails:
         sys.exit(1)
 

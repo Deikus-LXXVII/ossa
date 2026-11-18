@@ -75,9 +75,9 @@ DOWN = np.array([0.0, 0.0, -1.0])
 
 def structural_parts():
     parts, _ = frame_v0.build_frame()
-    # revision 14a: front_io_carrier hangs from the sill's end blocks on four screws with 0.3 mm of play all round and touches nothing: as a body in the bonded mesh it would be free (no support,
-    # a singular system), and it carries no load of the skeleton (the module's weight is not in the model's loads)
-    return [p for p in parts if not p.name.startswith("hose_guide") and p.name != "front_io_carrier"]
+    # revision 14a: front_io_carrier hung from the sill's end blocks and touched nothing, so it was left out (a free body in the bonded mesh). Revision 18: it stands on beam_front's top face
+    # and is screwed to it, so it is a body of the mesh like every part it touches
+    return [p for p in parts if not p.name.startswith("hose_guide")]
 
 
 # ---------------------------------------------------------------------------

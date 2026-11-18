@@ -11,6 +11,10 @@ N_POINTS pushes on it, the same limits. The report gives each piece's worst stre
 Those runs are the judgment. Beside them the load model of before revision 17 is run as well and its headline printed, labelled and not judged (REVIEW.md row 11):
 the whole field `d` at once, held at every pad, N_POINTS pushes over its whole surface.
 The layer's own weight is judged with the pushes, per piece, against the same two limits (it was reported only until revision 17's second step).
+Revision 18 (docs/plans/front-and-outline.md, part I): the judgment stops depending on its sample. organic_frame.py saves the middle of every film strand and cross-thread of both pieces
+(`probes`, `probe_kind`, `probe_len`, `probe_piece` in field.npz); each piece is pushed at its own probes as well, at the nearest surface node that is not held within PROBE_REACH of the
+point (the 30 mm from a pad belongs to the choice of the N_POINTS places and does not apply), inward and down, judged like the pushes. A probe with no surface within PROBE_REACH is listed as
+carved away and judged by nobody. The earlier model's run does not push them.
 
 Method (linear static finite elements on the voxels of the field):
 - every voxel inside the layer is one 8-node cube of solid PETG, taken with the ABS figures of strength.py (the fallback material); all cubes are identical, so one element matrix serves all;
@@ -42,6 +46,7 @@ PUSH_N = 30.0                               # a firm push with a hand
 MOVE_MAX = 5.0                              # mm: no push of PUSH_N may move the layer more than this (revision 14b, second pass)
 FINGER_R = 6.0
 N_POINTS = 160
+PROBE_REACH = 8.0                           # mm: a probe is pushed at the nearest surface node not held within this of its point, else it is carved away there (revision 18, part I.2)
 PAD_FIX_H = 2.0                             # nodes this far above a skeleton face, inside the pad, are held
 PAD_R = 8.0
 G = 9810.0                                  # mm/s2
@@ -114,18 +119,18 @@ def von_mises(sig):
     return np.sqrt(0.5 * ((s[:, 0] - s[:, 1]) ** 2 + (s[:, 1] - s[:, 2]) ** 2 + (s[:, 2] - s[:, 0]) ** 2) + 3 * (s[:, 3] ** 2 + s[:, 4] ** 2 + s[:, 5] ** 2))
 
 
-def push_failures(pushes):
+def push_failures(pushes, what="pushes"):
     """Failures of the pushes (label, point, movement mm, stress MPa, where): a stress above ALLOW or a movement above MOVE_MAX. The script exits 1 on any (it only reported
-    them until the re-check of revision 14b's second pass)."""
+    them until the re-check of revision 14b's second pass). what: how the lines name them ("probe pushes" for the probes of revision 18)."""
     out = []
     over = [r_ for r_ in pushes if r_[3] > ALLOW]
     if over:
         w = max(over, key=lambda r_: r_[3])
-        out.append(f"ORGANIC_STRENGTH {len(over)} of {len(pushes)} pushes are over the allowable {ALLOW:g} MPa (worst {w[3]:.1f} MPa, push at X {w[1][0]:.0f}, Y {w[1][1]:.0f}, Z {w[1][2]:.0f})")
+        out.append(f"ORGANIC_STRENGTH {len(over)} of {len(pushes)} {what} are over the allowable {ALLOW:g} MPa (worst {w[3]:.1f} MPa, push at X {w[1][0]:.0f}, Y {w[1][1]:.0f}, Z {w[1][2]:.0f})")
     far = [r_ for r_ in pushes if r_[2] > MOVE_MAX]
     if far:
         w = max(far, key=lambda r_: r_[2])
-        out.append(f"ORGANIC_STRENGTH {len(far)} of {len(pushes)} pushes move the layer more than {MOVE_MAX:g} mm (worst {w[2]:.2f} mm, push at X {w[1][0]:.0f}, Y {w[1][1]:.0f}, Z {w[1][2]:.0f})")
+        out.append(f"ORGANIC_STRENGTH {len(far)} of {len(pushes)} {what} move the layer more than {MOVE_MAX:g} mm (worst {w[2]:.2f} mm, push at X {w[1][0]:.0f}, Y {w[1][1]:.0f}, Z {w[1][2]:.0f})")
     return out
 
 
@@ -204,10 +209,20 @@ def voxel_mesh(step, piece):
     return h, pads, names, conn, P[used], held[used], dropped
 
 
-def run_piece(piece, step):
+def piece_probes(piece):
+    """[(kind, point, length)] of the probes organic_frame.py saved for `piece` (none for the earlier model, None, or a field saved before revision 18)."""
+    f = np.load(FIELD)
+    if piece is None or "probes" not in f.files:
+        return []
+    return [(str(k), np.asarray(p, dtype=float), float(L)) for p, k, L, pc in zip(f["probes"], f["probe_kind"], f["probe_len"], f["probe_piece"]) if str(pc) == piece]
+
+
+def run_piece(piece, step, n_points=N_POINTS):
     """The whole run on one piece (None: the earlier model, the whole field d held at every pad). Returns (report lines, failures, arrays for strength.npz, headline numbers).
-    The failures are load_failures' (the own weight and the pushes); the caller judges them, or not for the earlier model."""
+    The failures are load_failures' (the own weight and the pushes) and the probes' (push_failures); the caller judges them, or not for the earlier model. n_points: the places spread
+    over the surface (N_POINTS; test_organic.py's small field takes fewer)."""
     t0 = time.time()
+    probes = piece_probes(piece)
     h, pads, names, conn, X, held, dropped = voxel_mesh(step, piece)
     ne, nn = len(conn), len(X)
     title = f"КУСОК {piece}" if piece is not None else f"РАНЬШЕ (модель до ревизии 17, для сведения, не судится): {WHOLE}, поле d целиком"
@@ -243,7 +258,7 @@ def run_piece(piece, step):
     surf = surf[far]
     picks = [int(surf[np.argmax(X[surf, 2])])]
     dist = np.linalg.norm(X[surf] - X[picks[0]], axis=1)
-    for _ in range(N_POINTS - 1):
+    for _ in range(n_points - 1):
         j = int(np.argmax(dist))
         picks.append(int(surf[j]))
         dist = np.minimum(dist, np.linalg.norm(X[surf] - X[surf[j]], axis=1))
@@ -263,9 +278,31 @@ def run_piece(piece, step):
             vals = np.tile(PUSH_N * direction / len(patch), len(patch))
             cases.append(sparse.csc_matrix((vals, (rows, np.zeros(len(rows), dtype=np.int64))), shape=(3 * nn, 1)))
             meta.append((label, p, direction))
+    n_spread = len(meta)
+    # revision 18 (part I.2): a push at the middle of every film strand and cross-thread of the piece, at the nearest surface node not held within PROBE_REACH
+    all_surf = np.where((count < 8) & (held < 0))[0]
+    stree = cKDTree(X[all_surf]) if len(all_surf) else None
+    probe_meta, carved = [], []
+    for k, (kind, q, length) in enumerate(probes):
+        dist, j = stree.query(q) if stree is not None else (np.inf, -1)
+        if dist > PROBE_REACH:
+            carved.append((kind, q, length))
+            continue
+        p = int(all_surf[j])
+        probe_meta.append((kind, q, length, p))
+        near = tree.query_ball_point(X[p], 12.0)
+        outward = X[p] - X[near].mean(axis=0)
+        outward = outward / max(np.linalg.norm(outward), 1e-9)
+        patch = [q_ for q_ in tree.query_ball_point(X[p], FINGER_R) if held[q_] < 0]
+        for label, direction in (("внутрь", -outward), ("вниз", np.array([0.0, 0.0, -1.0]))):
+            rows = (3 * np.array(patch)[:, None] + np.arange(3)).ravel()
+            vals = np.tile(PUSH_N * direction / len(patch), len(patch))
+            cases.append(sparse.csc_matrix((vals, (rows, np.zeros(len(rows), dtype=np.int64))), shape=(3 * nn, 1)))
+            meta.append((label, p, direction))
     Bm = sparse.hstack(cases, format="csc")
     Bf = Bm[free]
-    out.append(f"Сборка {time.time() - t0:.0f} с; случаев нагрузки {Bm.shape[1]}: вес и {len(picks)} точек x 2 направления по {PUSH_N:g} Н на пятно радиусом {FINGER_R:g} мм")
+    out.append(f"Сборка {time.time() - t0:.0f} с; случаев нагрузки {Bm.shape[1]}: вес и {len(picks)} точек x 2 направления по {PUSH_N:g} Н на пятно радиусом {FINGER_R:g} мм"
+               + (f", и {len(probe_meta)} проб в серединах нитей x 2" if probes else ""))
     t1 = time.time()
     solve, solver, block = factorize(K_free)
     block = block or Bm.shape[1]
@@ -297,6 +334,8 @@ def run_piece(piece, step):
         res.append((label, None if p is None else X[p], float(mag.max()), float(vm.max()), cen[e]))
     out.append(f"Решение {t_solve:.0f} с ({solver}), неизвестных {len(free)}")
     out.append("")
+    probe_res = res[n_spread:]                                                 # the probes' load cases, in probe_meta's order, two each
+    res = res[:n_spread]
     lab_, _, sag, s, where = res[0]
     out.append(f"Собственный вес: наибольшее смещение {sag:.3f} мм, напряжение {s:.2f} МПа у X {where[0]:.0f}, Y {where[1]:.0f}, Z {where[2]:.0f} "
                + (f"(судится по тем же пределам, {ALLOW:g} МПа и {MOVE_MAX:g} мм)" if piece != WHOLE else "(эта модель не судится)"))
@@ -319,8 +358,30 @@ def run_piece(piece, step):
     out.append("Наибольшая сила на каждом креплении по всем случаям, Н (и от собственного веса):")
     for a, name in enumerate(names):
         out.append(f"  {name:14} {reactions[a, 1:].max():6.1f}   ({reactions[a, 0]:.2f})")
-    out.append("")
-    fails = [f"{piece}: " + f_ for f_ in load_failures(res)]
+    probe_rows = []                                                            # (kind, length, point pushed, movement, stress, where, direction) per load case
+    for i, (kind, q, length, p) in enumerate(probe_meta):
+        for c in (2 * i, 2 * i + 1):
+            label, pt, m, s_, where = probe_res[c]
+            probe_rows.append((kind, length, pt, m, s_, where, label))
+    probe_fails = push_failures([(r_[6], r_[2], r_[3], r_[4], r_[5]) for r_ in probe_rows], "probe pushes")
+    if probes:
+        out.append(f"Пробы (ревизия 18): середины нитей плёнок и поперечных нитей куска, {len(probes)}; продавлено {len(probe_meta)}, вырезано там (нет поверхности ближе {PROBE_REACH:g} мм) "
+                   f"{len(carved)}" + (": " + "; ".join(f"{k} {L:.0f} мм у X {q[0]:.0f}, Y {q[1]:.0f}, Z {q[2]:.0f}" for k, q, L in carved) if carved else ""))
+        if probe_rows:
+            ws = max(probe_rows, key=lambda r_: r_[4])
+            wm = max(probe_rows, key=lambda r_: r_[3])
+            out.append(f"  наибольшее напряжение {ws[4]:.1f} МПа ({ws[0]} {ws[1]:.0f} мм, давим {ws[6]} в X {ws[2][0]:.0f}, Y {ws[2][1]:.0f}, Z {ws[2][2]:.0f} -> X {ws[5][0]:.0f}, "
+                       f"Y {ws[5][1]:.0f}, Z {ws[5][2]:.0f}); наибольшее смещение {wm[3]:.2f} мм ({wm[0]} {wm[1]:.0f} мм, давим {wm[6]} в X {wm[2][0]:.0f}, Y {wm[2][1]:.0f}, Z {wm[2][2]:.0f})")
+            over = [r_ for r_ in probe_rows if r_[4] > ALLOW or r_[3] > MOVE_MAX]
+            out.append(f"  выше предела ({ALLOW:g} МПа или {MOVE_MAX:g} мм): {len(over)} из {len(probe_rows)} случаев" + (":" if over else ""))
+            for r_ in over:
+                out.append(f"    {r_[4]:6.1f} МПа, {r_[3]:5.2f} мм: {r_[0]} {r_[1]:.0f} мм, давим {r_[6]} в X {r_[2][0]:.0f}, Y {r_[2][1]:.0f}, Z {r_[2][2]:.0f}")
+        out.append("")
+    fails = [f"{piece}: " + f_ for f_ in load_failures(res) + probe_fails]
+    if piece != WHOLE and not probe_meta:                                      # revision 18's review: a piece whose film members were not pushed has not been checked
+        why = "no probe is saved with the field for this piece" if not probes else f"all {len(probes)} probes are carved away"
+        fails.append(f"{piece}: ORGANIC_STRENGTH no probe was pushed ({why}): the middles of the film members are not checked")
+        out.append(f"Пробы (ревизия 18): ни одна не продавлена ({'в поле нет проб этого куска' if not probes else 'все вырезаны'}).")
     if piece == WHOLE:
         out.append(f"Модель до ревизии 17 (не судится): за пределами {len(fails)} строк" + (":" if fails else "."))
     else:
@@ -331,15 +392,23 @@ def run_piece(piece, step):
                   stress=np.array([r_[3] for r_ in pushes]), where=np.array([r_[4] for r_ in pushes]), reactions=reactions, names=np.array(names))
     ws = max(pushes, key=lambda r_: r_[3])
     arrays["weight"] = np.array([res[0][2], res[0][3], *res[0][4]])            # own weight: movement mm, stress MPa, where (X, Y, Z)
+    if probes:                                                                  # revision 18: one row per probe load case, and the probes carved away
+        arrays.update(probe_points=np.array([r_[2] for r_ in probe_rows], dtype=float).reshape(-1, 3), probe_kind=np.array([r_[0] for r_ in probe_rows], dtype=str),
+                      probe_len=np.array([r_[1] for r_ in probe_rows], dtype=float), probe_move=np.array([r_[3] for r_ in probe_rows], dtype=float),
+                      probe_stress=np.array([r_[4] for r_ in probe_rows], dtype=float), probe_carved=np.array([q for _k, q, _L in carved], dtype=float).reshape(-1, 3))
     head = dict(stress=ws[3], stress_push=ws[1], stress_at=ws[4], move=worst[2], move_push=worst[1], seconds=time.time() - t0,
-                weight_move=res[0][2], weight_stress=res[0][3], weight_at=res[0][4], elements=ne, pads=len(pads))
+                weight_move=res[0][2], weight_stress=res[0][3], weight_at=res[0][4], elements=ne, pads=len(pads),
+                probes=len(probes), probes_pushed=len(probe_meta), probes_carved=len(carved),
+                probe_stress=max((r_[4] for r_ in probe_rows), default=None), probe_move=max((r_[3] for r_ in probe_rows), default=None))
     return out, fails, arrays, head
 
 
 def headline(v):
+    probes = (f"; пробы: продавлено {v['probes_pushed']} из {v['probes']}, вырезано {v['probes_carved']}"
+              + (f", наибольшее {v['probe_stress']:.1f} МПа и {v['probe_move']:.2f} мм" if v["probe_stress"] is not None else "")) if v.get("probes") else ""
     return (f"наибольшее напряжение {v['stress']:.1f} МПа (давим в X {v['stress_push'][0]:.0f}, Y {v['stress_push'][1]:.0f}, Z {v['stress_push'][2]:.0f} -> "
             f"X {v['stress_at'][0]:.0f}, Y {v['stress_at'][1]:.0f}, Z {v['stress_at'][2]:.0f}), наибольшее смещение {v['move']:.2f} мм (давим в X {v['move_push'][0]:.0f}, "
-            f"Y {v['move_push'][1]:.0f}, Z {v['move_push'][2]:.0f}); собственный вес {v['weight_stress']:.2f} МПа, {v['weight_move']:.3f} мм; {v['seconds']:.0f} с")
+            f"Y {v['move_push'][1]:.0f}, Z {v['move_push'][2]:.0f}); собственный вес {v['weight_stress']:.2f} МПа, {v['weight_move']:.3f} мм{probes}; {v['seconds']:.0f} с")
 
 
 def main():

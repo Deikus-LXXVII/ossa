@@ -9,7 +9,7 @@ cylinders. No lofts, no splines.
 Revision 8 rounds the skeleton's corners: plates on their 2D outline (cad_b6/rounding.py), box members along their long edges,
 joints with a 3D fillet. build_frame(rounded=False) is the skeleton as it was before, the reference for check 12 and for the contact areas.
 Revision 8a lets a rounding take contact area (a contact keeps 97 % of its unrounded area and 4 mm of flat contact round every screw).
-Revision 9 adds front_sill (the front sill for the I/O module and the light line, hardware front_io and light_strip are PLACEHOLDERS) and a
+Revision 9 added front_sill (the front sill for the I/O module and the light line; both went in revision 18, the hardware front_io is a PLACEHOLDER) and a
 material per part: ABS for the skeleton, PA6 for the two hose guides.
 Revision 12 puts every screw between printed parts on M3: an M3 socket head cap screw of the owner's kits into an M3 heat-set insert, a washer under the head
 (hardware.py has the stock, the pilot and the clearances; screw_fit picks the length; checks 15 and 16 measure it). The PSU's and the 360's own 6-32 screws stay,
@@ -59,7 +59,7 @@ ABS_DENSITY = 1.04      # g/cm^3
 PA6_DENSITY = 1.14      # g/cm^3, unfilled PA6 (1.13..1.15)
 DENSITY = {"ABS": ABS_DENSITY, "PA6": PA6_DENSITY}
 # material of every part in this file (revision 9): load-bearing parts are ABS, the two hose guides that snap over the hose are PA6.
-# The organic layer (organic_frame.py; PETG, ABS as the fallback) and the light diffuser (translucent PLA) are not in this file.
+# The organic layer (organic_frame.py; PETG, ABS as the fallback) is not in this file.
 MATERIALS = ("ABS", "PA6")
 WALL_T = 1.6            # 4 perimeters x 0.4 mm
 INFILL = 0.20
@@ -902,83 +902,26 @@ def all_corners(a0, a1, skip=None):
     return [(hi_i, hi_j, a0, a1, skip.get((hi_i, hi_j))) for hi_i in (False, True) for hi_j in (False, True)]
 
 
-BEAM_FRONT_Y, BEAM_FRONT_Z = (0.0, 40.0), (-10.0, 10.0)      # beam_front's section (the sill stands on its top face)
-SILL_STACK = BEAM_FRONT_Z[1] - BEAM_FRONT_Z[0]                  # what a sill screw clamps: beam_front's height
-
-# Front sill (revision 9): a bar across X -SILL_HALF_X..SILL_HALF_X on beam_front, its face a plane parallel to the board (45 deg), with a pocket
-# for hw front_io, a channel for hw light_strip and a slit from the channel to the face. Wall thicknesses are the part's own numbers; where the
-# module and the strip are is hardware.py's (placeholders until the module is measured).
-SILL_HALF_X = 140.0
-SILL_FACE_WALL = 5.0          # material between the module (and the channel) and the face, normal to it: the skin the port cut-outs will go through
-SILL_TOP_WALL = 10.0          # behind the channel along the face, so the ridge can take a 6 mm rounding and keep SILL_RING_WALL
-# Revision 14a: the module sits in a carrier (front_io_carrier), the carrier sits in the sill's pocket. The pocket follows the carrier's OUTSIDE (CARRIER_X, CARRIER_Y1, CARRIER_Z below), which is a set of
-# numbers of its own, not the module's: a later change of hw.FRONT_IO_W changes the carrier's inside and nothing in the sill, until the module grows past the carrier's walls (check 20).
-SILL_POCKET_PLAY = 0.3        # the pocket is the carrier's outside plus this on the ends, the rear and the top (it is open at the front and at the bottom)
-SILL_Y_REAR = 47.4            # the sill's rear plane: where it always was (the module's rear 42 + 0.4 + a wall of 5); the pocket's rear moved forward of it, so the rear wall is thinner now
-SILL_CHANNEL_PLAY = 0.3       # the channel is the strip's box plus this on every side, and runs through both ends of the sill
-SILL_RING_WALL = 3.0          # a rounding keeps this much material round the channel
-SILL_BOLTS = [(-105.0, 10.0), (-105.0, 30.0), (118.0, 10.0), (118.0, 30.0)]      # (X, Y): M3 from below, clearance through beam_front, pilot in the sill
+BEAM_FRONT_Y, BEAM_FRONT_Z = (0.0, 40.0), (-10.0, 10.0)      # beam_front's section (the I/O module's carrier and the module stand on its top face)
 CARRIER_PROBE_DEPTH = 3.0     # check 5: the axis point of a module screw lies this far into the carrier's end wall
-# The carrier (front_io_carrier, ABS): an inverted U round the module, two end blocks and a top plate, no back wall (the module's cables leave through the sill's window), open at the front and at the bottom.
+# The carrier (front_io_carrier, ABS): an inverted U round the module, two end blocks and a top plate, no back wall (the module's cables leave its rear face), open at the front and at the bottom.
+# Revision 18 (docs/plans/front-and-outline.md, part A): the front sill and the light line are gone. The carrier stands on beam_front's top face and is screwed to it from below, so the module
+# slides out to the front from under the organic layer's hood without taking the layer off.
 # Its inside follows hw.FRONT_IO_W (plus CARRIER_PLAY on the ends and CARRIER_TOP_PLAY on top); its outside is fixed:
 CARRIER_X = (-82.0, 107.0)     # ends: the module's X -70 / 95 plus 0.4 of play plus an end block of 11.6 each
-CARRIER_Y1 = 44.2             # rear plane: 0.3 short of the pocket's rear, 2.5 behind the module's rear (the module may be that much deeper before the sill has to change)
-CARRIER_Z = (BEAM_FRONT_Z[1] + SILL_POCKET_PLAY, 48.9)     # 0.3 above beam_front (the module rests on the beam, the carrier hangs from the sill); the top is 0.3 under the pocket's roof, which stops 2 mm short of the light channel (Z 49.2)
+CARRIER_Y1 = 44.2             # rear plane: 2.2 behind the module's rear
+CARRIER_Z = (BEAM_FRONT_Z[1], 48.9)     # on beam_front's top face (revision 18; it hung 0.3 above it from the sill until then); the top is where it was under the sill's pocket roof
 CARRIER_PLAY = 0.4            # module to the carrier's end blocks (the module's own screws cross it)
 CARRIER_TOP_PLAY = 0.2        # module to the carrier's top plate
-CARRIER_TOP_MIN = 2.5         # the top plate's least thickness (check 20): the plan asks for 3, the room under the light channel gives 2.7 (see the report)
-CARRIER_SCREW_FLOOR = 4.0     # material under the washer of a carrier screw, from the counterbore's floor to the end block's outer face
-CARRIER_CB_D = M3_CB_D                                     # the counterbore: the washer on its floor, 0.4 of play round it
-CARRIER_CB_BELOW = M3_CB_DEPTH                             # the head and the washer stand this far under the end block's inner face at least (the rule of every M3 counterbore)
-CARRIER_END_MIN = max(CARRIER_SCREW_FLOOR + CARRIER_CB_BELOW, hw.M3_PILOT_DEPTH + hw.M3_MIN_WALL)      # the end block's least thickness (check 20): the carrier's own screw head and the module's pilot
-CARRIER_SCREWS_YZ = ((8.0, 28.0), (34.0, 28.0))           # the carrier's own screws, along X into the sill's end blocks, on each end: (Y, Z). Fixed (they are the sill's interface), 13 mm either side of the module's screw
-CARRIER_STACK = CARRIER_SCREW_FLOOR + SILL_POCKET_PLAY    # what a carrier screw clamps: the floor under its washer and the pocket's play, to the pilot's mouth in the sill
-# Cable window (skeleton pass 1): one opening through the rear wall for the module's front cables (USB 3, USB-C, power switch, audio). Revision 14a review: the window is the sill's own, world
-# X SILL_WINDOW_X and Z SILL_WINDOW_Z, and no longer offsets from hw.FRONT_IO_W (a module grown inside its allowance moved it, and so changed the sill). It lies inside the rear face of the placeholder
-# module (X -70..95, Z 10..46, where it was), so inside the rear face of every module the carrier admits, which can only be larger (3.3 mm more at each end, 0.2 up, 2.5 back): a cable that leaves the
-# module's rear face in front of the window passes it. Check 20 fails a module whose rear face does not cover the window. The light line's lead needs no window of its own: the channel is open
-# through both ends of the sill (see the notes).
-SILL_WINDOW_X = (40.0, 90.0)  # world X: 50 wide, its right end 17 inside the carrier's right end (the end block, the carrier's play and 5 mm of the module's rear face)
-SILL_WINDOW_Z = (14.0, 46.0)  # world Z: 3.7 above the carrier's underside (the rear wall keeps this strip under it) to the placeholder module's top, 3.2 under the pocket's roof
-SILL_WINDOW_R = ROUND_CONCAVE  # its four corners are inside corners of the wall: the concave radius
-SILL_WALL_MIN = 2.0           # check 22: the rear wall behind the pocket, from the pocket's floor to its roof and over its length (apart from the window)
-SILL_WALL_STEP = (10.0, 2.0)  # check 22: the wall is measured every this many mm along X and along Z
-
-
-def sill_geometry():
-    """Everything about the sill that follows from the carrier's outside, the sill's own numbers and hardware.py's strip (not the module: revision 14a review): the section (Y, Z) polygon, the cutters,
-    the ring."""
-    z0 = BEAM_FRONT_Z[1]
-    ls = hw.LIGHT_STRIP_BS
-    y_rear = SILL_Y_REAR
-    roof = CARRIER_Z[1] + SILL_POCKET_PLAY
-    pocket_rear = CARRIER_Y1 + SILL_POCKET_PLAY
-    n_pocket = hw.bs_of(0.0, hw.ENVELOPE_Y0, roof)[2]       # the pocket's top front edge, along the board's normal
-    n_face = max(n_pocket, ls[5] + SILL_CHANNEL_PLAY) + SILL_FACE_WALL
-    u_top = ls[3] + SILL_CHANNEL_PLAY + SILL_TOP_WALL
-    u_front = n_face + (hw.ENVELOPE_Y0 - hw.ORIGIN[1]) / hw.C               # the face reaches the front plane Y = ENVELOPE_Y0 here
-    n_rear = u_top - (y_rear - hw.ORIGIN[1]) / hw.C                          # the back slope (u = u_top) reaches the rear plane here
-    pts = [(hw.ENVELOPE_Y0, z0), hw.bp_yz(u_front, n_face), hw.bp_yz(u_top, n_face), hw.bp_yz(u_top, n_rear), (y_rear, z0)]
-    v0, v1 = hw.x_to_v(-SILL_HALF_X - 1.0), hw.x_to_v(SILL_HALF_X + 1.0)
-    u_c = (ls[2] + ls[3]) / 2
-    window_xz = SILL_WINDOW_X + SILL_WINDOW_Z
-    window = hw.wbox(window_xz[0], window_xz[1], pocket_rear - 1.0, y_rear + 1.0, window_xz[2], window_xz[3])
-    window = window.fillet(SILL_WINDOW_R, [e for e in window.Edges() if abs(e.startPoint().x - e.endPoint().x) < 1e-6 and abs(e.startPoint().z - e.endPoint().z) < 1e-6])
-    cuts = dict(
-        pocket=hw.wbox(CARRIER_X[0] - SILL_POCKET_PLAY, CARRIER_X[1] + SILL_POCKET_PLAY, hw.ENVELOPE_Y0 - 1.0, pocket_rear, z0 - 1.0, roof),
-        channel=hw.bs_box(v0, v1, ls[2] - SILL_CHANNEL_PLAY, ls[3] + SILL_CHANNEL_PLAY, ls[4] - SILL_CHANNEL_PLAY, ls[5] + SILL_CHANNEL_PLAY),
-        slit=hw.bs_box(ls[0], ls[1], u_c - hw.LIGHT_LINE_W / 2, u_c + hw.LIGHT_LINE_W / 2, ls[5] - 1.0, n_face + 1.0),
-        window=window)
-    ring = hw.bs_box(v0, v1, ls[2] - SILL_CHANNEL_PLAY - SILL_RING_WALL, ls[3] + SILL_CHANNEL_PLAY + SILL_RING_WALL,
-                     ls[4] - SILL_CHANNEL_PLAY - SILL_RING_WALL, ls[5] + SILL_CHANNEL_PLAY + SILL_RING_WALL)
-    return dict(z0=z0, pts=pts, cuts=cuts, ring=ring, n_face=n_face, u_top=u_top, y_rear=y_rear, window_xz=window_xz, roof=roof, pocket_rear=pocket_rear)
-
-
-SILL_REAR_WALL = SILL_Y_REAR - (CARRIER_Y1 + SILL_POCKET_PLAY)      # the wall behind the pocket, 2.9 mm (it was 5 behind the module, and would be 2.1 behind a carrier with a back wall)
-# Revision 14a review: the sill's rear bottom edge (Y SILL_Y_REAR, Z on beam_front) stays sharp over the sill's whole length. Its 6 mm rounding cut through the pocket's rear plane, 2.9 mm in front of it:
-# no wall under Z 10.9, under 2 mm up to Z 12.8, the full 2.9 only above Z 16. A radius that keeps SILL_WALL_MIN would be at most 0.9 mm, under ROUND_MIN; check 22 measures the wall.
-SILL_REAR_EDGE_SHARP = (f"the rear wall behind the pocket is {SILL_REAR_WALL:.1f} mm thick (the pocket keeps 2.5 mm of room behind the module): a {ROUND_CONVEX:g} mm rounding of this edge cuts through the "
-                        f"pocket's rear plane and leaves no wall under Z 10.9, and a radius that keeps {SILL_WALL_MIN:g} mm (0.9 at most) is under {ROUND_MIN:g}")
+CARRIER_TOP_MIN = 2.5         # the top plate's least thickness (check 20): the plan of revision 14a asked for 3, the room under the light channel gave 2.7 and the plate stays so
+CARRIER_END_MIN = hw.M3_PILOT_DEPTH + hw.M3_MIN_WALL      # the end block's least thickness (check 20): the module's pilot (the carrier's own counterbores went with the sill, revision 18)
+# The carrier's own screws (revision 18): M3 from below with a washer, through clearance holes in beam_front, into inserts in the underside of the end blocks, two a block, (X, Y). The X leaves
+# the pilot 1.9 mm of wall to the block's outer end (CARRIER_X) and 1.9 mm to its inside once the module has grown by the whole 3.3 mm check 20 allows it at that end (the block's middle, X -76.2 and
+# 101.2, left 0.25 mm there); the Y are the sill's bolts' (10 and 30). They are fixed numbers, not offsets from hw.FRONT_IO_W: they are beam_front's interface, so a module grown inside the
+# carrier's allowance does not move the beam's holes; check_bolts holds each pilot inside its block with the insert's wall.
+CARRIER_SCREWS_XY = ((-77.85, 10.0), (-77.85, 30.0), (102.85, 10.0), (102.85, 30.0))
+CARRIER_STACK = BEAM_FRONT_Z[1] - BEAM_FRONT_Z[0]         # what a carrier screw clamps: beam_front's height (the sill's bolts clamped the same, SILL_STACK until revision 18)
+CARRIER_REAR_ROOM = 15.0      # check 20: no part of the skeleton stands in the box this deep behind the module's rear face, over the module's X and Z, so the module's leads can leave it
 
 
 def organic_pilots(name, mirrored=False):
@@ -1108,39 +1051,13 @@ def tie_pilots(host):
 
 
 def carrier_screw_points():
-    """The carrier's screws, one per (end, CARRIER_SCREWS_YZ): (sign of X of the end, pocket wall point where the sill's pilot opens, point on the carrier's outer face), world (X, Y, Z); the screw
-    goes from the carrier's inside, outwards along (sign, 0, 0), through the end block and the pocket's play into the sill."""
-    out = []
-    for sgn, x_out in ((-1.0, CARRIER_X[0]), (1.0, CARRIER_X[1])):
-        for (y, z) in CARRIER_SCREWS_YZ:
-            out.append((sgn, (x_out + sgn * SILL_POCKET_PLAY, y, z), (x_out, y, z)))
-    return out
+    """The carrier's screws (revision 18): (X, Y) of each, the pilot's mouth on the carrier's underside (Z CARRIER_Z[0], beam_front's top face) and the screw's axis along +Z."""
+    return [tuple(xy) for xy in CARRIER_SCREWS_XY]
 
 
-def carrier_sill_pilots():
-    """The sill's four pilots for the carrier's screws, in the pocket's end walls, along X into the end blocks."""
-    return [h for sgn, wall, _face in carrier_screw_points() for h in joint_pilots(wall, (sgn, 0.0, 0.0), CARRIER_STACK, "front_io_carrier")]
-
-
-def sill_holes():
-    g = sill_geometry()
-    holes = []
-    for (x, y) in SILL_BOLTS:                                                             # from beam_front's top face up into the sill
-        holes += joint_pilots((x, y, g["z0"]), (0, 0, 1), SILL_STACK, "front_sill -> beam_front")
-    holes += carrier_sill_pilots()                                                        # the carrier's four screws, along X into the end blocks (revision 14a; the module's own pilots are in the carrier now)
-    holes += organic_pilots("front_sill")                                                 # the organic layer's two pads, on the end faces
-    return holes
-
-
-def build_front_sill():
-    g = sill_geometry()
-    holes = sill_holes()
-    cuts = list(g["cuts"].values())
-    prism = Poly(g["pts"]).solid(-SILL_HALF_X, SILL_HALF_X)
-    rings = hole_rings(holes)
-    rings.append(g["ring"])
-    s = rounded_like(prism, (1, 0, 0), "front_sill", sides=(1,), own=("front_sill",), rings=rings, post_cuts=cuts, keep=(((-SILL_HALF_X, g["y_rear"], g["z0"]), SILL_REAR_EDGE_SHARP),))
-    return drill(s, holes, cuts)
+def carrier_pilots():
+    """The carrier's four M3 insert pilots, from its underside up into the end blocks; the screw clamps beam_front (CARRIER_STACK) from below with a washer."""
+    return [h for (x, y) in carrier_screw_points() for h in joint_pilots((x, y, CARRIER_Z[0]), (0.0, 0.0, 1.0), CARRIER_STACK, "front_io_carrier")]
 
 
 def carrier_inside():
@@ -1151,8 +1068,8 @@ def carrier_inside():
 
 def build_front_io_carrier():
     """The carrier of the front I/O module (revision 14a): an inverted U, X CARRIER_X, Y ENVELOPE_Y0..CARRIER_Y1, Z CARRIER_Z, with the module's box (plus its plays) cut out, open at the front, the rear and
-    the bottom. Two insert pilots for the module's own screws (hw.FRONT_IO_SCREWS, in the end blocks from the inside) and four clearance holes for the carrier's own screws (CARRIER_SCREWS_YZ), each
-    with a counterbore from the inside for the washer and the head that leaves CARRIER_SCREW_FLOOR under the washer, whatever the end block's thickness. Not rounded: it is not an outline of a plate."""
+    the bottom. Two insert pilots for the module's own screws (hw.FRONT_IO_SCREWS, in the end blocks from the inside) and, since revision 18, four insert pilots for the carrier's own screws
+    (CARRIER_SCREWS_XY), from the underside up into the end blocks: the carrier stands on beam_front and is screwed to it from below. Not rounded: it is not an outline of a plate."""
     x_in0, x_in1, z_in = carrier_inside()
     blank = hw.wbox(CARRIER_X[0], CARRIER_X[1], hw.ENVELOPE_Y0, CARRIER_Y1, CARRIER_Z[0], CARRIER_Z[1])
     blank = blank.cut(hw.wbox(x_in0, x_in1, hw.ENVELOPE_Y0 - 1.0, CARRIER_Y1 + 1.0, CARRIER_Z[0] - 1.0, z_in)).clean()
@@ -1160,23 +1077,19 @@ def build_front_io_carrier():
     for (pt, d) in hw.FRONT_IO_SCREWS:                                                    # the module's screws, along X into the end blocks (the module's own; no stack known)
         org = tuple(c + k * CARRIER_PLAY for c, k in zip(pt, d))
         holes.append(pilot(org, d, hw.FRONT_IO_SCREW_KIND, item="front_io"))
-    for sgn, _wall, face in carrier_screw_points():
-        x_floor = face[0] - sgn * CARRIER_SCREW_FLOOR                                     # the counterbore's floor: CARRIER_SCREW_FLOOR in from the outer face
-        x_inner = x_in0 if sgn < 0 else x_in1
-        holes.append(m3_counterbore((x_inner, face[1], face[2]), (sgn, 0.0, 0.0), abs(x_inner - x_floor), "front_io_carrier"))
-        holes.append(clear_hole("M3c", (x_floor, face[1], face[2]), (sgn, 0.0, 0.0), CARRIER_SCREW_FLOOR + OVERSHOOT))
+    holes += carrier_pilots()                                                             # the carrier's own screws, from below through beam_front (revision 18)
     return drill(blank, holes)
 
 
 def build_beam_front():
-    """The tie between the two front feet. Revision 9: the front sill and the module stand on its top face, so the top edges stay sharp (a
-    contact face, as on the skids), and four M3 clearance holes from below carry the sill's bolts."""
+    """The tie between the two front feet. Revision 9: the module stands on its top face, so the top edges stay sharp (a contact face, as on the skids). Revision 18: the module's carrier
+    stands there too, and four M3 clearance holes from below carry the carrier's screws (they carried the front sill's bolts until then)."""
     holes = end_pilot_holes("beam_front")
     z_lo, z_hi = BEAM_FRONT_Z
-    holes += [clear_hole("M3c", (x, y, z_lo - OVERSHOOT), (0, 0, 1), z_hi - z_lo + 2 * OVERSHOOT) for (x, y) in SILL_BOLTS]
+    holes += [clear_hole("M3c", (x, y, z_lo - OVERSHOOT), (0, 0, 1), z_hi - z_lo + 2 * OVERSHOOT) for (x, y) in carrier_screw_points()]
     lo, hi = (-X_IN, BEAM_FRONT_Y[0], z_lo), (X_IN, BEAM_FRONT_Y[1], z_hi)
     s = hw.wbox(lo[0], hi[0], lo[1], hi[1], lo[2], hi[2])
-    top = "the top face carries the front sill and the I/O module: rounding its edges would take contact area"
+    top = "the top face carries the I/O module and its carrier: rounding its edges would take contact area"
     s = round_box(s, (lo, hi), 0, "beam_front", all_corners(lo[0] + COLLAR, hi[0] - COLLAR, {(False, True): top, (True, True): top}),
                   rings=hole_rings(holes))
     return drill(s, holes)
@@ -1827,11 +1740,9 @@ def _build_frame():
     add("rib_B_right", build_rib_b(1), "right rib, rear post: runner, post, nose, tail post")
     add_mirror("rib_B_left", build_rib_b(-1), "left rib, rear post")
 
-    add("beam_front", build_beam_front(), "front beam, ties the front feet; carries the front sill (4 x M3 from below)")
-    add("front_sill", build_front_sill(),
-        "front sill X +-140: 45 deg face parallel to the board, pocket for the I/O module's carrier (the carrier's outside, not the module's PLACEHOLDER box), channel and slit for the light line, 4 x M3 into beam_front, 4 x M3 inserts for the carrier")
+    add("beam_front", build_beam_front(), "front beam, ties the front feet; carries the I/O module's carrier (4 x M3 from below)")
     add("front_io_carrier", build_front_io_carrier(),
-        f"carrier of the front I/O module (PLACEHOLDER box): an inverted U, end blocks and a top plate {CARRIER_Z[1] - carrier_inside()[2]:.1f} mm, no back wall; 2 x M3 for the module (PLACEHOLDER), 4 x M3 into the sill's end blocks")
+        f"carrier of the front I/O module (PLACEHOLDER box): an inverted U on beam_front, end blocks and a top plate {CARRIER_Z[1] - carrier_inside()[2]:.1f} mm, no back wall; 2 x M3 for the module (PLACEHOLDER), 4 x M3 inserts in the underside for the screws from below through beam_front")
     bracket = build_fan_bracket()      # revision 13: one design, built where the right one stands, mirrored for the left
     add("fan_bracket_right", bracket,
         f"right side fan bracket: plate {BRACKET_T:g} mm on the fan's inner face (corners A, B, C, spine, bar, root block), leg to rib_A_right's outer face, 2 x M3")
@@ -1888,8 +1799,8 @@ def _build_frame():
                  f"corners {', '.join(BRACKET_CORNERS[holder])} of 4 (needs >= {FAN_MIN_SCREWS}): screws from the fan's outer face through the {FAN_STACK:g} mm fan into the plate")
     fastener("front_io", "front_io_carrier", hw.FRONT_IO_SCREW_KIND + " insert", len(hw.FRONT_IO_SCREWS),
              "PLACEHOLDER: 2 along X into the carrier's end blocks (revision 14a: they were in the sill's pocket); the module's screws are not known until it is measured")
-    fastener("front_io_carrier", "front_io_carrier -> front_sill", m3(CARRIER_STACK), 2 * len(CARRIER_SCREWS_YZ),
-             f"2 per end block along X: from the carrier's inside, head and washer in a Ø{CARRIER_CB_D:g} counterbore, {CARRIER_SCREW_FLOOR:g} mm of block under the washer and {SILL_POCKET_PLAY:g} mm of play, into an insert in the sill's end block; a screwdriver reaches them along X with the module out")
+    fastener("front_io_carrier", "front_io_carrier -> beam_front", m3(CARRIER_STACK), len(CARRIER_SCREWS_XY),
+             f"2 per end block along Z (revision 18): from below with a washer, through a clearance hole in beam_front ({CARRIER_STACK:g} mm), into an insert in the end block's underside; heads under the beam")
     fastener("gpu", "gpu_post (left)", m3(GPU_POST_STACK), 2,
              "2 M3 through beam_mid into the post")
     fastener("gpu_rest", "gpu_rest -> rib_A_right (right)", m3(REST_STACK), len(REST_SCREW_DU_LIST),
@@ -1910,8 +1821,6 @@ def _build_frame():
              f"1 along X from the left fan's outer face through the {FAN_STACK:g} mm fan into an insert in the comb (the M3 x 16 into the neck is gone)")
     fastener("hose_guide_gpu", "hose_guide_gpu -> rib_A_right", m3(GUIDE_T), 1, "1 along X into the right rib's outer face")
     fastener("gpu_post", "gpu_post -> beam_mid", m3(GPU_POST_STACK), 2, "along n")
-    fastener("front_sill", "front_sill -> beam_front", m3(SILL_STACK), len(SILL_BOLTS),
-             "2 per end block along Z: clearance through beam_front from below, pilot in the sill's bottom face; heads under the beam")
     fastener("tie_pilot", "/".join(dict.fromkeys(t["host"] for t in TIE_POINTS)), "M3 insert", len(TIE_POINTS),
              "the cable tie points (TIE_POINTS): one pilot each, into the part's face along the face's inward normal (along n into an underside, along X into a rib's inner face, along Z into the skid's top); rows: " + ", ".join(
                  f"{r} {sum(1 for t in TIE_POINTS if t['row'] == r)}" for r in dict.fromkeys(t["row"] for t in TIE_POINTS)))
@@ -1938,6 +1847,65 @@ def _build_frame():
 # ---------------------------------------------------------------------------
 # Bolt geometry checks (positions inside outlines)
 # ---------------------------------------------------------------------------
+def seg_seg_distance(a0, a1, b0, b1):
+    """Least distance between the segments a0-a1 and b0-b1 (3D points)."""
+    a0, a1, b0, b1 = (np.asarray(v, dtype=float) for v in (a0, a1, b0, b1))
+    u, v, w = a1 - a0, b1 - b0, a0 - b0
+    A, B, C, D, E = u @ u, u @ v, v @ v, u @ w, v @ w
+    den = A * C - B * B
+    cands = []
+    if den > 1e-12:
+        sa = min(max((B * E - C * D) / den, 0.0), 1.0)
+        cands.append(sa)
+    cands += [0.0, 1.0]
+    best = float("inf")
+    for sa in cands:                                       # for each candidate on a, the nearest point on b, then back to a
+        tb = min(max(((a0 + sa * u - b0) @ v) / C, 0.0), 1.0) if C > 0 else 0.0
+        sa2 = min(max(((b0 + tb * v - a0) @ u) / A, 0.0), 1.0) if A > 0 else 0.0
+        best = min(best, float(np.linalg.norm(a0 + sa2 * u - b0 - tb * v)), float(np.linalg.norm(a0 + sa * u - b0 - tb * v)))
+    for tb in (0.0, 1.0):
+        sa = min(max(((b0 + tb * v - a0) @ u) / A, 0.0), 1.0) if A > 0 else 0.0
+        best = min(best, float(np.linalg.norm(a0 + sa * u - b0 - tb * v)))
+    return best
+
+
+def hole_axis(h):
+    """The two ends of a hole's axis inside the part: from its mouth (OVERSHOOT in from its start) to its far end."""
+    return h.point(OVERSHOOT), h.point(h.length)
+
+
+def carrier_bolt_rows():
+    """check_bolts' rows for the carrier's own screws (revision 18): dict(label, ok, detail, block_wall, pilot_gap, beam_ok) per screw. The pilot lies inside its end block's footprint (X, Y)
+    with the insert's wall (the block runs from the carrier's outer end to its inside, which follows the module); the wall between it and the module's own pilot in the same block is at
+    least the insert's wall (segment to segment, less both radii); its clearance hole lies inside beam_front's section with the clearance's wall and keeps that wall to every end pilot of the beam."""
+    m3p = hw.INSERTS["M3"]
+    pr = m3p[0] / 2 + m3p[2]
+    cr = hw.M3_CLEAR_D / 2
+    x_in0, x_in1, _z_in = carrier_inside()
+    blocks = {-1.0: (CARRIER_X[0], x_in0), 1.0: (x_in1, CARRIER_X[1])}
+    module_pilots = []
+    for (pt, d) in hw.FRONT_IO_SCREWS:
+        org = tuple(c + k * CARRIER_PLAY for c, k in zip(pt, d))
+        module_pilots.append(pilot(org, d, hw.FRONT_IO_SCREW_KIND, item="front_io"))
+    beam_pilots = [h for h in end_pilot_holes("beam_front") if h.pilot]
+    rows = []
+    for (x, y) in carrier_screw_points():
+        sgn = 1.0 if x > 0 else -1.0
+        x0, x1 = blocks[sgn]
+        block_wall = min(x - x0, x1 - x, y - hw.ENVELOPE_Y0, CARRIER_Y1 - y) - m3p[0] / 2
+        own = [h for h in carrier_pilots() if h.pilot and abs(h.start[0] - x) < 1e-6 and abs(h.start[1] - y) < 1e-6][0]
+        gaps = [seg_seg_distance(*hole_axis(own), *hole_axis(mp)) - own.r - mp.r for mp in module_pilots]
+        pilot_gap = min(gaps)
+        in_beam = BEAM_FRONT_Y[0] + cr + hw.M3_MIN_WALL <= y <= BEAM_FRONT_Y[1] - cr - hw.M3_MIN_WALL and abs(x) <= X_IN - cr - hw.M3_MIN_WALL
+        clear = clear_hole("M3c", (x, y, BEAM_FRONT_Z[0]), (0, 0, 1), BEAM_FRONT_Z[1] - BEAM_FRONT_Z[0])
+        beam_gap = min(seg_seg_distance(*hole_axis(clear), *hole_axis(bp)) - cr - bp.r for bp in beam_pilots) if beam_pilots else float("inf")
+        ok = block_wall >= m3p[2] - 1e-6 and pilot_gap >= m3p[2] - 1e-6 and in_beam and beam_gap >= hw.M3_MIN_WALL - 1e-6
+        rows.append(dict(label=f"carrier screw (X {x:.1f}, Y {y:.1f}) from below: pilot inside its end block (wall {block_wall:.2f} mm, needs {m3p[2]:g}), {pilot_gap:.2f} mm of wall to the module's pilot "
+                               f"(needs {m3p[2]:g}), clearance hole inside beam_front and {beam_gap:.1f} mm from its end pilots", ok=ok, detail="",
+                         block_wall=block_wall, pilot_gap=pilot_gap, beam_ok=in_beam, beam_gap=beam_gap))
+    return rows
+
+
 def check_bolts(neck_prims):
     BOLT_CHECKS.clear()
     shapes = {"A": SHAPE_A, "B": SHAPE_B}
@@ -1975,29 +1943,16 @@ def check_bolts(neck_prims):
     for pt in TONGUE_BOLTS:
         ok = inside([TONGUE_OUTLINE], pt, cr + hw.M3_MIN_WALL) and inside(SHAPE_B, pt, pr)
         BOLT_CHECKS.append((f"tongue bolt ({pt[0]:.1f},{pt[1]:.1f}) in antler tongue + rib_B", ok, ""))
-    # front sill (revision 9): the four bolts inside beam_front's top face and inside the sill's section, clear of the pocket; the module's two screws inside the wall
-    g = sill_geometry()
-    sill_section = [Poly(g["pts"])]
-    pr3 = hw.M3_PILOT_D / 2 + hw.M3_MIN_WALL
-    io = hw.FRONT_IO_W
-    for (x, y) in SILL_BOLTS:
-        in_beam = BEAM_FRONT_Y[0] + cr + hw.M3_MIN_WALL <= y <= BEAM_FRONT_Y[1] - cr - hw.M3_MIN_WALL and abs(x) <= X_IN - cr - hw.M3_MIN_WALL
-        in_sill = inside(sill_section, (y, g["z0"] + pr3 + 0.1), pr3)        # the pilot opens in the bottom face, so only the sides count
-        in_block = (-SILL_HALF_X + pr3 <= x <= CARRIER_X[0] - SILL_POCKET_PLAY - pr3) or (CARRIER_X[1] + SILL_POCKET_PLAY + pr3 <= x <= SILL_HALF_X - pr3)
-        BOLT_CHECKS.append((f"sill bolt (X {x:.1f}, Y {y:.1f}) inside beam_front's top face, the sill's section and an end block", in_beam and in_sill and in_block, ""))
-    # the carrier (revision 14a): the module's two screws and the carrier's own four inside the end blocks' faces (Y ENVELOPE_Y0..CARRIER_Y1, Z CARRIER_Z) with the wall their insert or counterbore needs, and the carrier's
-    # own screws' pilots inside the sill's section; the module's screws and the carrier's counterbores are the carrier's inside business and clear each other by the insert's wall
+    # the carrier (revision 14a): the module's two screws inside the end blocks' faces (Y ENVELOPE_Y0..CARRIER_Y1, Z CARRIER_Z) with the wall their insert needs
     pr_io = hw.INSERTS[hw.FRONT_IO_SCREW_KIND][0] / 2 + hw.INSERTS[hw.FRONT_IO_SCREW_KIND][2]
     face = Rect(hw.ENVELOPE_Y0, CARRIER_Y1, CARRIER_Z[0], CARRIER_Z[1])
     for (pt, d) in hw.FRONT_IO_SCREWS:
         ok = inside([face], (pt[1], pt[2]), pr_io)
         BOLT_CHECKS.append((f"I/O module screw (Y {pt[1]:.1f}, Z {pt[2]:.1f}) inside the carrier's end block with the {hw.FRONT_IO_SCREW_KIND} wall (PLACEHOLDER)", ok, ""))
-    for sgn, wall, _face in carrier_screw_points():
-        y, z = wall[1], wall[2]
-        in_carrier = inside([face], (y, z), CARRIER_CB_D / 2 + hw.M3_MIN_WALL)
-        in_sill_ = inside(sill_section, (y, z), pr_io)
-        clear_io = min(math.dist((y, z), (pt[1], pt[2])) for pt, _d in hw.FRONT_IO_SCREWS) >= CARRIER_CB_D / 2 + pr_io
-        BOLT_CHECKS.append((f"carrier screw (X {wall[0]:.1f}, Y {y:.1f}, Z {z:.1f}) inside the carrier's end block (counterbore + wall), inside the sill's section, clear of the module's screws", in_carrier and in_sill_ and clear_io, ""))
+    # the carrier's own screws (revision 18): each pilot inside its end block (X, Y) with the insert's wall, its wall to the module's own pilot, and its clearance hole inside beam_front
+    # clear of the beam's end pilots
+    for row in carrier_bolt_rows():
+        BOLT_CHECKS.append((row["label"], row["ok"], row["detail"]))
     # beam end bolts also inside the member's own section (pilot + insert wall)
     for name, row in BEAM_ROW.items():
         lo, hi = BEAM_SPAN[name]
@@ -2414,7 +2369,7 @@ def check_pilot_walls(parts, failures, memo=None):
 # ---------------------------------------------------------------------------
 DRIVE_SCREWS = sum(len(fc["holes"]) for fc in hw.drive_layout()["faces"].values())          # per bay: 6 on the 3.5 inch drive + 4 on the 2.5 inch drive
 EXPECTED_MOUNTS = {"board": 9, "rad420": 2 * len(antler_holes_xn(1)), "rad360": 4, "psu": 4, "gpu_post": 2, "gpu_rest": 1, "gpu_rest_screw": len(REST_SCREW_DU_LIST), "front_io": len(hw.FRONT_IO_SCREWS),
-                   "front_io_carrier": 2 * len(CARRIER_SCREWS_YZ), "hose_guide_cpu": 1, "organic": len(hw.ORGANIC_PADS),
+                   "front_io_carrier": len(CARRIER_SCREWS_XY), "hose_guide_cpu": 1, "organic": len(hw.ORGANIC_PADS),
                    "tie_pilot": len(TIE_POINTS), "tie_bridge": len(TIE_POINTS), **{k: DRIVE_SCREWS for k in hw.DRIVES}}
 ORGANIC_PROBE_DEPTH = 3.0      # check 5: the axis point of a pad's pilot lies this far in from the face
 MIN_MOUNTS = {"fan_side_left": FAN_MIN_SCREWS, "fan_side_right": FAN_MIN_SCREWS}     # at least this many of the four corner holes
@@ -2438,7 +2393,7 @@ def mount_points():
             out.append(("rad360", holder, hw.bp(hw.x_to_v(x), u, hw.RAD360_INNER_N - HW_SCREW_FLOOR / 2), hw.UNC6_CLEAR_D / 2, None))      # in the floor under the counterbore
     for (x, z) in hw.PSU_HOLES:
         out.append(("psu", "psu_bulkhead", (x, hw.PSU_REAR_Y + HW_SCREW_FLOOR / 2, z), hw.UNC6_CLEAR_D / 2, None))      # in the floor under the counterbore
-    for (pt, d) in hw.FRONT_IO_SCREWS:      # the module's screws: the axis point inside the carrier's end wall (revision 14a: it was the sill's), which must be an empty bore of the insert's radius
+    for (pt, d) in hw.FRONT_IO_SCREWS:      # the module's screws: the axis point inside the carrier's end wall (revision 14a), which must be an empty bore of the insert's radius
         probe = tuple(c + k * (CARRIER_PLAY + CARRIER_PROBE_DEPTH) for c, k in zip(pt, d))
         out.append(("front_io", "front_io_carrier", probe, hw.INSERTS[hw.FRONT_IO_SCREW_KIND][0] / 2, None))
     ax = guide_cpu_geometry()["axis"]      # the CPU hose guide's screw: the axis point inside the pilot, from the fan's face (the fan's own corner D has no hole in the bracket)
@@ -2463,15 +2418,15 @@ def mount_points():
 
 def joint_mounts():
     """The screws between two printed parts that check 5 reads from BOTH solids, like gpu_post's: (item, [(part, axis point, radius of the empty bore expected there)]). gpu_rest's two (the insert's pilot
-    in the part, 3 mm in from the seat; the clearance hole through the diagonal, half way) and the carrier's four (the insert's pilot in the sill's end block, 3 mm in from the pocket's wall; the clearance
-    hole in the end block, in the middle of the floor under the counterbore)."""
+    in the part, 3 mm in from the seat; the clearance hole through the diagonal, half way) and the carrier's four (revision 18: the insert's pilot in the carrier's end block, 3 mm up from its underside;
+    the clearance hole through beam_front, half way)."""
     out = []
     for seat, floor in rest_screw_points():
         out.append(("gpu_rest_screw", [("gpu_rest", tuple(c + ORGANIC_PROBE_DEPTH * k for c, k in zip(seat, hw.N_DIR)), hw.M3_PILOT_D / 2),
                                        ("rib_A_right", tuple((a + b) / 2 for a, b in zip(seat, floor)), hw.M3_CLEAR_D / 2)]))
-    for sgn, wall, face in carrier_screw_points():
-        out.append(("front_io_carrier", [("front_sill", (wall[0] + sgn * ORGANIC_PROBE_DEPTH, wall[1], wall[2]), hw.M3_PILOT_D / 2),
-                                         ("front_io_carrier", (face[0] - sgn * CARRIER_SCREW_FLOOR / 2, face[1], face[2]), hw.M3_CLEAR_D / 2)]))
+    for (x, y) in carrier_screw_points():
+        out.append(("front_io_carrier", [("front_io_carrier", (x, y, CARRIER_Z[0] + ORGANIC_PROBE_DEPTH), hw.M3_PILOT_D / 2),
+                                         ("beam_front", (x, y, sum(BEAM_FRONT_Z) / 2), hw.M3_CLEAR_D / 2)]))
     return out
 
 
@@ -2576,6 +2531,7 @@ INTENDED_CONTACTS = {
     ("gpu_rest", "rib_A_right"),                                             # part x part: the rest's foot on the diagonal's upper face (screwed there; listed with the planned contacts, though the report's part x part list has no tag)
     ("hose_guide_cpu", "fan_side_left"),                                     # revision 14a: the comb on the left fan's inner face, screwed through the fan at corner D
     ("beam_front", "front_io"),                                              # revision 9: the module's underside (Z 10, placeholder) is beam_front's top face
+    ("beam_front", "front_io_carrier"),                                      # part x part, revision 18: the carrier stands on beam_front's top face and is screwed to it from below
     ("visor_arm_right", "rad360"), ("visor_arm_left", "rad360"),
     ("antler_right", "rad420"), ("antler_left", "rad420"),
     *((f"drive_sled_{bay}", f"drive_{bay}") for bay in hw.DRIVE_SIDES),            # the bosses' tops carry the drives' boards
@@ -2811,10 +2767,11 @@ def probe_line(start, d, length):
 
 def check_carrier(parts, hardware, failures):
     """Check 20 (revision 14a). The module's box must sit in the carrier with the walls the carrier needs, measured on the carrier's undrilled solid: the end blocks at the module's own screws (along X, from the
-    carrier's outer face to its inside) at least CARRIER_END_MIN thick (the module's pilot and the carrier's own counterbore), the top plate above the module (along Z, in the middle of the module) at least
-    CARRIER_TOP_MIN thick. When the module grows past that the carrier is rebuilt with its inside bigger and its walls thinner; this is what stops it, short of the sill (the sill follows the carrier's outside,
-    which does not move). Also the module's rear against the sill's pocket (the room behind it). Returns dict(end=[left, right], top, rear, grow=dict(left, right, top, rear)): the walls and how far the module may
-    grow in each direction before this check, or the sill, has to change."""
+    carrier's outer face to its inside) at least CARRIER_END_MIN thick (the module's pilot), the top plate above the module (along Z, in the middle of the module) at least CARRIER_TOP_MIN thick. When the module
+    grows past that the carrier is rebuilt with its inside bigger and its walls thinner; this is what stops it. Revision 18: the sill and its pocket are gone; in their place no part of the skeleton may stand in
+    the room behind the module (the box CARRIER_REAR_ROOM deep behind its rear face, over its X and Z), so its leads can leave it. The box moves with the module's rear face. Returns dict(end=[left, right], top,
+    rear=(the part nearest the room, its distance), grow=dict(left, right, top, rear, front, bottom)): the walls and how far the module may grow in each direction before this check fails; rear is how far
+    the room can move back along +Y before it meets a part."""
     byname = {p.name: p for p in parts}
     car, io = byname.get("front_io_carrier"), hardware.get("front_io")
     if car is None or io is None:
@@ -2837,60 +2794,36 @@ def check_carrier(parts, hardware, failures):
         out["top"] = top
         if top < CARRIER_TOP_MIN - 1e-6:
             failures.append(f"CHECK20 the top plate of front_io_carrier is {top:.2f} mm thick over the module, needs {CARRIER_TOP_MIN:g} (the module's top Z {b[5]:g} is too high for it)")
+        room = hw.wbox(b[0], b[1], b[3], b[3] + CARRIER_REAR_ROOM, b[4], b[5])
+        far = hw.ENVELOPE_Y0 + 1000.0
+        lane = hw.wbox(b[0], b[1], b[3], far, b[4], b[5])                              # the room's way back along +Y, to find how far it may move
+        nearest, behind = (None, float("inf")), (None, float("inf"))
+        for p in parts:
+            v = inter_vol(p.solid, room) if bbox_gap(bbox_of(p.solid), bbox_of(room)) <= 1e-6 else 0.0      # the room is built from the module's box at every call: nothing to remember it by
+            if v >= VOL_EPS:
+                failures.append(f"CHECK20 {p.name} stands in the room behind the module's rear face ({v:.1f} mm3 in X {b[0]:g}..{b[1]:g}, Y {b[3]:g}..{b[3] + CARRIER_REAR_ROOM:g}, Z {b[4]:g}..{b[5]:g}): its leads cannot leave it")
+            if bbox_gap(bbox_of(p.solid), bbox_of(room)) < 30.0:
+                d = solid_distance(p.solid, room)
+                if d < nearest[1]:
+                    nearest = (p.name, d)
+            if bbox_gap(bbox_of(p.solid), bbox_of(lane)) <= 1e-6:
+                cut = p.solid.intersect(lane)
+                if cut.Volume() >= VOL_EPS:
+                    y0 = exact_box(cut)[2] - (b[3] + CARRIER_REAR_ROOM)
+                    if y0 < behind[1]:
+                        behind = (p.name, y0)
     except BooleanFailure as e:
         failures.append(f"CHECK20 front_io_carrier: BOOLEAN FAILED: {e}")
         return out
-    pocket_rear = CARRIER_Y1 + SILL_POCKET_PLAY
-    out["rear"] = pocket_rear - b[3]
-    if out["rear"] < -1e-6:
-        failures.append(f"CHECK20 the module's rear Y {b[3]:g} is behind the sill's pocket (Y {pocket_rear:g})")
-    wx0, wx1, wz0, wz1 = SILL_WINDOW_X + SILL_WINDOW_Z           # the module's cables leave its rear face: the sill's window must lie behind that face (revision 14a review)
-    if not (b[0] <= wx0 + 1e-6 and wx1 <= b[1] + 1e-6 and b[4] <= wz0 + 1e-6 and wz1 <= b[5] + 1e-6):
-        failures.append(f"CHECK20 the sill's cable window X {wx0:g}..{wx1:g}, Z {wz0:g}..{wz1:g} is not behind the module's rear face (X {b[0]:g}..{b[1]:g}, Z {b[4]:g}..{b[5]:g})")
+    for name, (x, z) in hw.FRONT_IO_LEAD_XZ.items():          # the USB leads leave the module's rear face (the successor of the sill's window, which had to lie behind that face)
+        r = hw.CABLES[name][1]
+        if not (b[0] + r <= x + 1e-6 and x <= b[1] - r + 1e-6 and b[4] + r <= z + 1e-6 and z <= b[5] - r + 1e-6):
+            failures.append(f"CHECK20 the {name} lead's start (X {x:g}, Z {z:g}, radius {r:g}) is not on the module's rear face (X {b[0]:g}..{b[1]:g}, Z {b[4]:g}..{b[5]:g})")
+    out["rear"] = nearest
+    out["behind"] = behind
     out["grow"] = dict(left=out["end"][0] - CARRIER_END_MIN if out["end"] else None, right=out["end"][1] - CARRIER_END_MIN if len(out["end"]) > 1 else None,
-                       top=out["top"] - CARRIER_TOP_MIN, rear=out["rear"], front=b[2] - hw.ENVELOPE_Y0, bottom=b[4] - BEAM_FRONT_Z[1])
+                       top=out["top"] - CARRIER_TOP_MIN, rear=max(behind[1], 0.0), front=b[2] - hw.ENVELOPE_Y0, bottom=b[4] - BEAM_FRONT_Z[1])
     return out
-
-
-def check_sill_rear_wall(parts, failures, memo=None):
-    """Check 22 (revision 14a review). The sill's rear wall behind the pocket, measured on the solid along +Y from the pocket's rear plane: every SILL_WALL_STEP along X over the pocket's length and along Z
-    from the pocket's floor (beam_front's top) to its roof, apart from the cable window (a probe whose line runs through the window's cutter is skipped). The first run of material behind the pocket must
-    be at least SILL_WALL_MIN. Returns dict(min=(wall, X, Z), n=probes). The probing (about 8 s) is remembered in `memo` under the sill's solid and every number of the pocket and the window it reads."""
-    sill = next((p for p in parts if p.name == "front_sill"), None)
-    if sill is None:
-        failures.append("CHECK22 front_sill is missing")
-        return {}
-    g = sill_geometry()
-    worst, n = memo_call(memo, (sill.solid,), "sill_wall", sill_wall_probes, sill.solid, g,
-                         extra=(CARRIER_X, SILL_POCKET_PLAY, g["z0"], g["roof"], g["pocket_rear"], g["y_rear"], g["window_xz"], SILL_WINDOW_R, SILL_WALL_STEP) + span_numbers())
-    if n == 0:
-        failures.append("CHECK22 no probe of the sill's rear wall")
-        return {}
-    if worst[0] < SILL_WALL_MIN - 1e-3:
-        failures.append(f"CHECK22 the sill's rear wall behind the pocket is {worst[0]:.2f} mm thick at X {worst[1]:.1f}, Z {worst[2]:.1f}, needs {SILL_WALL_MIN:g}")
-    return dict(min=worst, n=n)
-
-
-def sill_wall_probes(solid, g):
-    """(thinnest wall (mm, X, Z) or None, number of probes) of check 22 on the sill's solid, for the pocket and window of sill_geometry() `g`."""
-    x0, x1 = CARRIER_X[0] - SILL_POCKET_PLAY, CARRIER_X[1] + SILL_POCKET_PLAY
-    z0, z1 = g["z0"], g["roof"]
-    window, y_mid = g["cuts"]["window"], (g["pocket_rear"] + g["y_rear"]) / 2
-    eps = 0.1                                                        # the probes stay this far inside the pocket's ends, floor and roof
-    nx, nz = int(math.ceil((x1 - x0) / SILL_WALL_STEP[0])), int(math.ceil((z1 - z0) / SILL_WALL_STEP[1]))
-    xs = [x0 + eps + (x1 - x0 - 2 * eps) * i / nx for i in range(nx + 1)]
-    zs = [z0 + eps + (z1 - z0 - 2 * eps) * k / nz for k in range(nz + 1)]
-    worst, n = None, 0
-    for x in xs:
-        for z in zs:
-            if window.isInside(Vector(x, y_mid, z), 0.05):
-                continue                                             # the window itself (its rounded corners included)
-            spans = material_spans(solid, probe_line((x, g["pocket_rear"] - 1.0, z), (0.0, 1.0, 0.0), g["y_rear"] - g["pocket_rear"] + 3.0))
-            wall = spans[0][1] - spans[0][0] + 2 * SPAN_MARGIN if spans else 0.0         # the first run of material behind the pocket
-            n += 1
-            if worst is None or wall < worst[0]:
-                worst = (wall, x, z)
-    return worst, n
 
 
 SHADOW_RES = 0.1                  # mm per pixel of the guide's shadow in the fan's circle (check 21)
@@ -3685,7 +3618,7 @@ CB_FACE_FLAT = 0.05        # mm: the rim points agree this well, or the counterb
 
 
 def check_m3_counterbores(parts, failures, memo=None):
-    """Check 16, second half (revision 14a review). Every M3 counterbore (Hole kind "M3cb": the carrier's and the card rest's, recorded with the part's holes) measured on the solid along its axis:
+    """Check 16, second half (revision 14a review). Every M3 counterbore (Hole kind "M3cb": the card rest's, recorded with the part's holes; the carrier's went with the sill in revision 18) measured on the solid along its axis:
     the face round it (CB_RIM_POINTS probes 0.5 mm outside its edge, which must agree within CB_FACE_FLAT), its floor (a probe between the screw's clearance bore and the counterbore's wall) and the
     unbroken material under the floor. The depth from the face to the floor holds the head and the washer with M3_CB_SINK to spare (at least M3_CB_DEPTH). Returns [(part, item, position, depth, floor)].
     The probing (about 4 s for all of them) is remembered in `memo` under the part's solid and the hole."""
@@ -3727,7 +3660,7 @@ def m3_counterbore_probes(solid, h):
 
 
 # Check 23 (revision 16): the stack an M3 counterbore's screw clamps, by the hole's item; its length is screw_fit of it
-M3CB_STACK = {"gpu_rest": REST_STACK, "front_io_carrier": CARRIER_STACK}
+M3CB_STACK = {"gpu_rest": REST_STACK}
 
 
 HEAD_WAY_TOL = 1e-6      # mm: check 23 compares two distances that are equal by construction where a face is tangent to the head's way
@@ -3973,11 +3906,10 @@ def run_checks(hardware, parts, memo=None):
     # 21. the CPU hose guide, on the left fan's corner D, may shade only so much of the fan's circle beyond the hoses' own shadow
     res["guide_shadow"] = check_guide_shadow(parts, failures)
 
-    # 20. the front I/O module sits in its carrier with the walls the carrier needs; the room behind it in the sill's pocket; the sill's cable window behind its rear face
+    # 20. the front I/O module sits in its carrier with the walls the carrier needs; no part in the room behind its rear face (revision 18)
     res["carrier"] = check_carrier(parts, hardware, failures)
 
-    # 22. the sill's rear wall behind the pocket keeps SILL_WALL_MIN from the pocket's floor to its roof and over its length
-    res["sill_wall"] = check_sill_rear_wall(parts, failures, memo)
+    # 22. retired in revision 18 with the front sill (it measured the sill's rear wall behind the pocket); its number is not reused
 
     # 14. the 420's bracket plates stay out of the fans' openings and keep the wall round every fan screw
     res["plates420"] = check_420_plates(parts, failures, memo)
@@ -4175,8 +4107,6 @@ def explode_offsets(parts):
             o = np.array([side * 70, 0, 0])
         elif n == "beam_front":
             o = np.array([0, -40, 0])
-        elif n == "front_sill":
-            o = np.array([0, -40, 45])
         elif n.startswith("beam_"):
             o = np.array([0, 0, -45]) + np.array([0, 0, 0])
         elif n.startswith("skid"):
@@ -4197,7 +4127,7 @@ RU_REASONS = [
     (r"it would take (\S+) mm2 from the (\S+) mm2 contact with (\S+): (\S+) mm2 of the (\S+) % allowance is left after what the corners still to come need at the smallest radius",
      r"скругление сняло бы \1 мм² с контакта \3 (\2 мм²); от допуска \5 % осталось \4 мм² за вычетом нужного остальным углам"),
     (r"it would leave less than (\S+) mm of flat contact around the screw at (.*)", r"скругление оставило бы меньше \1 мм плоского контакта вокруг винта в \2"),
-    (r"the top face carries the front sill and the I/O module: rounding its edges would take contact area", "верхняя грань несёт порог и модуль: скругление её рёбер отняло бы площадь контакта (14 % при 3 мм)"),
+    (r"the top face carries the I/O module and its carrier: rounding its edges would take contact area", "верхняя грань несёт модуль и его каретку: скругление её рёбер отняло бы площадь контакта"),
     (r"it would cut into a hole's wall", "скругление врезалось бы в стенку отверстия"),
     (r"the rounding would cut into a hole's wall", "скругление врезалось бы в стенку отверстия"),
     (r"the added material would close in on a hole", "добавленный материал закрыл бы подход к отверстию (головка винта)"),
@@ -4314,12 +4244,12 @@ def format_report(hardware, parts, res, memo=None):
           f"  | {vol:7.1f} см³  {m100:6.1f} г / {m20:6.1f} г")
         w(f"      {p.note}")
     w(f"  ИТОГО {len(parts)} деталей: {tvol:.0f} см³   100 % {t100:.0f} г   4 стенки/20 % ~ {t20:.0f} г")
-    w("Масса по материалам (слой оболочки из PETG и диффузор света - не в этом файле):")
+    w("Масса по материалам (слой оболочки из PETG - не в этом файле):")
     for m in MATERIALS:
         n, v, m100, m20 = per_material[m]
         w(f"  {m:4s} {n:2d} деталей: {v:7.1f} см³   100 % {m100:7.1f} г   4 стенки/20 % ~ {m20:7.1f} г")
     w("  ABS: каркас, всё несущее. PA6 (нейлон yxpolyer, не наполненный, чёрный): две направляющие шлангов (горловина защёлкивается на шланге). "
-      "PETG: органическая оболочка (organic_frame.py, запасной вариант ABS); диффузор светлой линии из прозрачного PLA. Оболочка не несёт нагрузки и держится "
+      "PETG: органическая оболочка (organic_frame.py, запасной вариант ABS). Светлой линии и её диффузора с ревизии 18 нет. Оболочка не несёт нагрузки и держится "
       "не ближе 10 мм к видеокарте и БП, 4 мм к радиаторам и вентиляторам (в этом файле таких деталей нет).")
     w("")
     w("Крепёж железа (держатель, количество)")
@@ -4423,7 +4353,7 @@ def format_report(hardware, parts, res, memo=None):
     w(f"  5. держатели и крепёж, считаются по телам (отверстие на оси в держателе): board {m['board']}, rad420 {m['rad420']}, "
       f"rad360 {m['rad360']}, psu {m['psu']}, side fans {m['fan_side_left']} (L) + {m['fan_side_right']} (R) of 4 corners, "
       f"gpu post {m['gpu_post']} + rest (контакт {m['gpu_rest']}, винты {m['gpu_rest_screw']}, ревизия 14a), front_io {m['front_io']} (PLACEHOLDER-винты модуля в front_io_carrier), "
-      f"винты каретки front_io_carrier в вставки порога {m['front_io_carrier']}, направляющая CPU на углу D левого вентилятора {m['hose_guide_cpu']}, "
+      f"винты каретки front_io_carrier снизу через beam_front {m['front_io_carrier']}, направляющая CPU на углу D левого вентилятора {m['hose_guide_cpu']}, "
       f"органическая оболочка {m['organic']} пилотов M3 под площадки (hw.ORGANIC_PADS), кабельные точки {m['tie_pilot']} пилотов M3 в деталях + {m['tie_bridge']} отверстий в мостиках (TIE_POINTS)   "
       + ("PASS" if not any(f.startswith('CHECK5') for f in res['failures']) else "FAIL"))
     lz = min(z for _, z in res["low"])
@@ -4447,7 +4377,7 @@ def format_report(hardware, parts, res, memo=None):
       f"min Y {ev['parts'][2]:.1f} ({ev['parts'][3]}); шланги (keep-out R 8.0/7.8) max |X| {ev['hoses'][0]:.1f} ({ev['hoses'][1]}), "
       f"min Y {ev['hoses'][2]:.1f} ({ev['hoses'][3]}); верх: не выше грани n = {hw.ENVELOPE_N:g} (верхняя грань 420), максимум n "
       f"{ev['top'][2]:.2f} ({ev['top'][3]}); верх каркаса Z = {ev['top'][0]:.1f} ({ev['top'][1]}), верх 420 Z = {ev['top'][4]:.1f}; "
-      f"железо спереди (front_io, light_strip, PLACEHOLDER) max |X| {ev['front'][0]:.1f} ({ev['front'][1]}), min Y {ev['front'][2]:.1f} ({ev['front'][3]})   "
+      f"железо спереди (front_io, PLACEHOLDER) max |X| {ev['front'][0]:.1f} ({ev['front'][1]}), min Y {ev['front'][2]:.1f} ({ev['front'][3]})   "
       + ("PASS" if not any(f.startswith('CHECK8') for f in res['failures']) else "FAIL"))
     hg = res["hose_gaps"]
     w(f"  9. детали (кроме направляющих) >= {HOSE_CLEAR:g} мм от шлангов: минимум {hg[0][2]:.2f} мм ({hg[0][0]} x {hg[0][1]}), "
@@ -4519,17 +4449,15 @@ def format_report(hardware, parts, res, memo=None):
     w(f"  19. (доп., ревизия 14a) упор карты gpu_rest держит весь вес карты {CARD_KG:g} кг на контактной грани и удар {KNOCK_N:g} Н вдоль X в кончик пальца: наихудшее сечение {st['gpu_rest']['worst']:.2f} МПа, запас {st['gpu_rest']['margin']:.2f} "
       f"(нужно не меньше {STRENGTH_MARGIN_MIN:g}); растяжение винта до {st['gpu_rest']['tension']:.0f} Н   "
       + ("PASS" if not any(f.startswith('CHECK19') for f in res['failures']) else "FAIL"))
-    w(f"  20. (доп., ревизия 14a) модуль front_io в каретке: торцевые блоки {cw['end'][0]:.2f} и {cw['end'][1]:.2f} мм (нужно не меньше {CARRIER_END_MIN:g}), верхняя плита {cw['top']:.2f} мм (нужно не меньше {CARRIER_TOP_MIN:g}), "
-      f"зазор за модулем до задней стенки кармана порога {cw['rear']:.2f} мм; модуль может вырасти до того, как придётся менять каретку или порог: влево {cw['grow']['left']:.2f}, вправо {cw['grow']['right']:.2f}, вверх {cw['grow']['top']:.2f}, "
+    w(f"  20. (доп., ревизия 14a) модуль front_io в каретке: торцевые блоки {cw['end'][0]:.2f} и {cw['end'][1]:.2f} мм (нужно не меньше {CARRIER_END_MIN:g}), верхняя плита {cw['top']:.2f} мм (нужно не меньше {CARRIER_TOP_MIN:g}); "
+      f"ревизия 18: в коробке {CARRIER_REAR_ROOM:g} мм за задней гранью модуля (по его X и Z) нет деталей каркаса, ближе всех {cw['rear'][0]} ({cw['rear'][1]:.2f} мм), сзади по +Y первая {cw['behind'][0]} в {cw['behind'][1]:.2f} мм за коробкой; "
+      f"модуль может вырасти до того, как придётся менять каретку: влево {cw['grow']['left']:.2f}, вправо {cw['grow']['right']:.2f}, вверх {cw['grow']['top']:.2f}, "
       f"назад {cw['grow']['rear']:.2f}, вперёд {cw['grow']['front']:.2f}, вниз {cw['grow']['bottom']:.2f} мм   "
       + ("PASS" if not any(f.startswith('CHECK20') for f in res['failures']) else "FAIL"))
     w(f"  21. (доп., ревизия 14a) направляющая CPU на левом вентиляторе затеняет в круге Ø{hw.FAN_APERTURE_D:g} за вычетом тени самих шлангов: "
       + ", ".join(f"{a} {v:.0f} мм² (предел {GUIDE_SHADOW_MAX:g}, {100 * v / (math.pi * (hw.FAN_APERTURE_D / 2) ** 2):.1f} % круга)" for a, v in gs) + "   "
       + ("PASS" if not any(f.startswith('CHECK21') for f in res['failures']) else "FAIL"))
-    sw = res["sill_wall"]
-    w(f"  22. (доп., ревизия 14a, после ревью) задняя стенка порога за карманом: {sw.get('n', 0)} проб вдоль Y через каждые {SILL_WALL_STEP[0]:g} мм по X и {SILL_WALL_STEP[1]:g} мм по Z от пола кармана до потолка, мимо окна; "
-      + (f"наименьшая {sw['min'][0]:.2f} мм (X {sw['min'][1]:.1f}, Z {sw['min'][2]:.1f}), нужно не меньше {SILL_WALL_MIN:g}   " if sw else "нет данных   ")
-      + ("PASS" if not any(f.startswith('CHECK22') for f in res['failures']) else "FAIL"))
+    w("  22. (доп., ревизия 14a, после ревью) задняя стенка порога за карманом: снята в ревизии 18 вместе с порогом front_sill; номер не занимается   RETIRED")
     hwy = res["head_way"]
     w(f"  23. (доп., ревизия 16) винт можно подвести к его зенковке: у {len(hwy)} зенковок (6-32 {sum(1 for r in hwy if r[1] == '6-32cb')}, M3 {sum(1 for r in hwy if r[1] == 'M3cb')}) ось винта от устья наружу "
       f"на длину винт + головка проходит от своей детали не ближе половины Ø головки + {hw.TOOL_PLAY:g} (6-32 {(hw.UNC6_HEAD_D + hw.TOOL_PLAY) / 2:g}, M3 с шайбой {(max(hw.M3_HEAD_D, hw.M3_WASHER_D) + hw.TOOL_PLAY) / 2:g}); "
@@ -4593,52 +4521,24 @@ def format_report(hardware, parts, res, memo=None):
         loc = "" if e.kind in ("layer", "junction") and e.pt == (0.0, 0.0, 0.0) else f"X {e.pt[0]:.1f} Y {e.pt[1]:.1f} Z {e.pt[2]:.1f}"
         w(f"      {e.part:34s} {e.kind:8s} {loc:30s} {ru_reason(e.reason)}")
     w("")
-    g = sill_geometry()
-    sl = next((p for p in parts if p.name == "front_sill"), None)
-    if sl is not None:
-        w("Передний порог front_sill и светлая линия (ревизия 9; всё железо тут PLACEHOLDER до обмера модуля)")
-        b = bbox_of(sl.solid)
-        w(f"  Сечение (Y, Z): " + " -> ".join(f"({y:.1f}, {z:.1f})" for y, z in g["pts"]) + f"; лицо - плоскость n = {g['n_face']:.2f} (параллельна плате, 45°), "
-          f"задний гребень u = {g['u_top']:.1f}. Габарит X {b[0]:.0f}..{b[1]:.0f}, Y {b[2]:.1f}..{b[3]:.1f}, Z {b[4]:.1f}..{b[5]:.1f}: одна деталь "
-          f"{b[1] - b[0]:.0f} мм <= {MAX_PART:.0f}, делить пополам не нужно.")
-        io = hw.FRONT_IO_W
-        w(f"  Карман (ревизия 14a): снаружи каретки front_io_carrier (X {CARRIER_X[0]:g}..{CARRIER_X[1]:g}, Y {hw.ENVELOPE_Y0:g}..{CARRIER_Y1:g}, Z {CARRIER_Z[0]:g}..{CARRIER_Z[1]:g}) плюс {SILL_POCKET_PLAY:g} мм с боков, сзади и сверху: "
-          f"X {exact_box(g['cuts']['pocket'])[0]:g}..{exact_box(g['cuts']['pocket'])[1]:g}, Y до {g['pocket_rear']:g}, потолок Z {g['roof']:g} (до канала светлой линии {solid_distance(g['cuts']['pocket'], g['cuts']['channel']):.2f} мм); открыт спереди и снизу. "
-          f"Бокс модуля front_io X {io[0]:g}..{io[1]:g}, Y {io[2]:g}..{io[3]:g}, Z {io[4]:g}..{io[5]:g} (PLACEHOLDER) лежит в каретке, не в пороге: зазор до него за модулем {g['pocket_rear'] - io[3]:.2f} мм, "
-          f"задняя стенка порога {SILL_REAR_WALL:.2f} мм (была 5; плоскость Y {g['y_rear']:g} не двигалась). Пилотов модуля в пороге больше нет; 4 пилота M3 под винты каретки в торцевых стенках кармана. Отверстий под порты нет.")
-        ls = hw.LIGHT_STRIP_BS
-        w(f"  Канал светлой линии: бокс light_strip (X {hw.LIGHT_STRIP_X[0]:g}..{hw.LIGHT_STRIP_X[1]:g}, {hw.LIGHT_STRIP_SECTION[0]:g} x {hw.LIGHT_STRIP_SECTION[1]:g} мм по u, n, "
-          f"u {ls[2]:g}..{ls[3]:g}, n {ls[4]:.2f}..{ls[5]:.2f}) плюс {SILL_CHANNEL_PLAY:g} мм, насквозь через оба торца порога (дышит); щель {hw.LIGHT_LINE_W:g} мм от канала к лицу "
-          f"(диффузор {hw.LIGHT_DIFFUSER_T:g} мм из прозрачного PLA сядет в неё; посадочного места под диффузор пока нет). Ленка до {hw.LIGHT_STRIP_W_MAX:g} мм стоит на ABS, "
-          f"от светодиодов до диффузора не меньше {hw.LIGHT_LED_TO_DIFFUSER_MIN:g} мм (в канале глубиной {hw.LIGHT_STRIP_SECTION[1]:g} мм это держится только при диффузоре в щели стенки, не в канале).")
-        w(f"  Крепление к beam_front: {len(SILL_BOLTS)} x M3 x {screw_fit(SILL_STACK)[0]} снизу (проходные Ø{hw.M3_CLEAR_D:g} в beam_front, вставки M3 в нижней грани порога, шайба под головкой), по 2 в каждом концевом блоке: "
-          + ", ".join(f"(X {x:g}, Y {y:g})" for x, y in SILL_BOLTS) + ".")
-        wx0, wx1, wz0, wz1 = g["window_xz"]
-        w(f"  Окно для кабелей в задней стенке (PLACEHOLDER, как модуль): X {wx0:g}..{wx1:g}, Z {wz0:g}..{wz1:g} насквозь через стенку {SILL_REAR_WALL:g} мм (Y {g['y_rear'] - SILL_REAR_WALL:g}..{g['y_rear']:g}), углы R {SILL_WINDOW_R:g}. "
-          f"С ревью ревизии 14a это числа самого порога (SILL_WINDOW_X, SILL_WINDOW_Z), не смещения от hw.FRONT_IO_W: окно лежит внутри задней грани модуля-заглушки, а значит и любого модуля, который принимает каретка "
-          f"(он может только расти), и кабель, выходящий из задней грани перед окном, проходит в него; проверка 20 валит модуль, задняя грань которого окно не закрывает. Винты модуля и их стенки в окно не попадают. "
-          f"Отдельного окна для кабеля светлой линии нет: канал открыт через оба торца порога.")
-        w(f"  Задний нижний край порога (Y {g['y_rear']:g}, Z {g['z0']:g}) оставлен острым по всей длине (запись в журнале скруглений): скругление {ROUND_CONVEX:g} мм прорезало плоскость задней стенки кармана "
-          f"(стенки не было ниже Z 10.9, меньше 2 мм до Z 12.8), а радиус, оставляющий {SILL_WALL_MIN:g} мм, не больше 0.9 мм, меньше {ROUND_MIN:g}. Стенку меряет проверка 22: наименьшая {res['sill_wall']['min'][0]:.2f} мм.")
-        w(f"  Крепления органической оболочки: {len(organic_pilots('front_sill'))} пилота M3 в торцевых гранях (X +-{SILL_HALF_X:g}), см. hw.ORGANIC_PADS.")
-        w(f"  Зазоры: до front_io {solid_distance(sl.solid, hardware['front_io']):.2f} мм (за модулем; с боков и сверху между ними каретка), до front_io_carrier {solid_distance(sl.solid, next(q for q in parts if q.name == 'front_io_carrier').solid):.2f} мм, "
-          f"до light_strip {solid_distance(sl.solid, hardware['light_strip']):.2f} мм (зазоры кармана и канала по плану, не контакты); beam_front x front_io 0.00 мм: низ модуля стоит на верхней грани балки (контакт по плану: Z 10 у обоих).")
-        w("")
     carr = next((q for q in parts if q.name == "front_io_carrier"), None)
     if carr is not None:
         cw = res["carrier"]
         xin0, xin1, zin = carrier_inside()
-        w("Каретка front_io_carrier и упор gpu_rest (ревизия 14a)")
-        w(f"  Каретка (ABS): перевёрнутая П вокруг модуля, два торцевых блока и верхняя плита, задней стенки нет (кабели модуля выходят через окно порога), открыта спереди, сзади и снизу. "
-          f"Снаружи X {CARRIER_X[0]:g}..{CARRIER_X[1]:g}, Y {hw.ENVELOPE_Y0:g}..{CARRIER_Y1:g}, Z {CARRIER_Z[0]:g}..{CARRIER_Z[1]:g} (числа каретки, не модуля: порог следует им); внутри по модулю: X {xin0:g}..{xin1:g} (зазор {CARRIER_PLAY:g}), верх Z {zin:g} (зазор {CARRIER_TOP_PLAY:g}). "
-          f"Торцевые блоки {cw['end'][0]:.1f} и {cw['end'][1]:.1f} мм, верхняя плита {cw['top']:.2f} мм (план просил не меньше 3: потолок кармана упирается в канал светлой линии, выше Z {g['roof']:g} нельзя без зазора 2 мм до него). "
-          f"Масса: {mass_estimate(carr.solid, carr.material)[1]:.0f} г при 100 %, {mass_estimate(carr.solid, carr.material)[2]:.0f} г при 4 стенках/20 %; порог {mass_estimate(sl.solid, sl.material)[1]:.0f} / {mass_estimate(sl.solid, sl.material)[2]:.0f} г (до ревизии 482 / 205 г).")
-        w(f"  Крепления: 2 x {hw.FRONT_IO_SCREW_KIND} модуля (PLACEHOLDER) в торцевые блоки с внутренней грани; 4 x M3 x {screw_fit(CARRIER_STACK)[0]} каретки (по 2 на конец: Y {CARRIER_SCREWS_YZ[0][0]:g} и {CARRIER_SCREWS_YZ[1][0]:g}, Z {CARRIER_SCREWS_YZ[0][1]:g}) "
-          f"изнутри в вставки торцевых блоков порога: головка и шайба в зенковке Ø{CARRIER_CB_D:g}, под шайбой {CARRIER_SCREW_FLOOR:g} мм блока и {SILL_POCKET_PLAY:g} мм зазора кармана; отвёртка доходит вдоль X, когда модуля нет. "
-          f"Каретка не касается порога и балки (зазоры {SILL_POCKET_PLAY:g} мм) и висит на винтах.")
-        w(f"  Модуль может вырасти до того, как придётся менять каретку или порог (проверка 20): по X на {min(cw['grow']['left'], cw['grow']['right']):.2f} мм с каждого конца (торцевой блок не меньше {CARRIER_END_MIN:g}: пилот модуля {hw.M3_PILOT_DEPTH:g} + стенка {hw.M3_MIN_WALL:g}), "
-          f"вверх на {cw['grow']['top']:.2f} мм (плита не меньше {CARRIER_TOP_MIN:g}), назад на {cw['grow']['rear']:.2f} мм (до задней стенки кармана); вперёд и вниз на {max(cw['grow']['front'], cw['grow']['bottom']):.1f} мм: плоскость Y = {hw.ENVELOPE_Y0:g} и верх beam_front. "
-          f"За этими пределами каретка перестаёт держать стенки (проверка 20), а порог следует её наружному размеру; больше места слева и справа даёт порог (блоки {CARRIER_X[0] - SILL_POCKET_PLAY + SILL_HALF_X:.1f} и {SILL_HALF_X - CARRIER_X[1] - SILL_POCKET_PLAY:.1f} мм).")
+        w("Каретка front_io_carrier и упор gpu_rest (ревизия 14a; каретка на beam_front с ревизии 18)")
+        w(f"  Каретка (ABS): перевёрнутая П вокруг модуля, два торцевых блока и верхняя плита, задней стенки нет (кабели модуля выходят из его задней грани), открыта спереди, сзади и снизу. "
+          f"Снаружи X {CARRIER_X[0]:g}..{CARRIER_X[1]:g}, Y {hw.ENVELOPE_Y0:g}..{CARRIER_Y1:g}, Z {CARRIER_Z[0]:g}..{CARRIER_Z[1]:g} (числа каретки, не модуля); внутри по модулю: X {xin0:g}..{xin1:g} (зазор {CARRIER_PLAY:g}), верх Z {zin:g} (зазор {CARRIER_TOP_PLAY:g}). "
+          f"Торцевые блоки {cw['end'][0]:.1f} и {cw['end'][1]:.1f} мм, верхняя плита {cw['top']:.2f} мм. "
+          f"Масса: {mass_estimate(carr.solid, carr.material)[1]:.0f} г при 100 %, {mass_estimate(carr.solid, carr.material)[2]:.0f} г при 4 стенках/20 %.")
+        rows = carrier_bolt_rows()
+        w(f"  Крепления (ревизия 18): 2 x {hw.FRONT_IO_SCREW_KIND} модуля (PLACEHOLDER) в торцевые блоки с внутренней грани; каретка стоит на верхней грани beam_front (контакт по плану) и держится "
+          f"{len(rows)} x M3 x {screw_fit(CARRIER_STACK)[0]} снизу с шайбой через проходные Ø{hw.M3_CLEAR_D:g} в beam_front ({CARRIER_STACK:g} мм) во вставки в нижней грани торцевых блоков: "
+          + ", ".join(f"(X {x:g}, Y {y:g})" for x, y in CARRIER_SCREWS_XY) + ". Стенка пилота до боков блока " + ", ".join(f"{r['block_wall']:.2f}" for r in rows)
+          + " мм, до пилота модуля " + ", ".join(f"{r['pilot_gap']:.2f}" for r in rows) + f" мм (нужно {hw.M3_MIN_WALL:g}); головки под балкой, до стола {BEAM_FRONT_Z[0] - hw.DESK_Z:g} мм. "
+          "Модуль выдвигается вперёд из-под капюшона органического слоя, слой снимать не надо.")
+        w(f"  Модуль может вырасти до того, как придётся менять каретку (проверка 20): по X на {min(cw['grow']['left'], cw['grow']['right']):.2f} мм с каждого конца (торцевой блок не меньше {CARRIER_END_MIN:g}: пилот модуля {hw.M3_PILOT_DEPTH:g} + стенка {hw.M3_MIN_WALL:g}), "
+          f"вверх на {cw['grow']['top']:.2f} мм (плита не меньше {CARRIER_TOP_MIN:g}), назад на {cw['grow']['rear']:.2f} мм (коробка {CARRIER_REAR_ROOM:g} мм за его задней гранью доходит до {cw['behind'][0]}); вперёд и вниз на {max(cw['grow']['front'], cw['grow']['bottom']):.1f} мм: плоскость Y = {hw.ENVELOPE_Y0:g} и верх beam_front. "
+          f"За этими пределами каретка перестаёт держать стенки (проверка 20).")
         rest = next(q for q in parts if q.name == "gpu_rest")
         rb = bbox_of(rest.solid)
         w(f"  Упор gpu_rest (ABS): капсула шириной {REST_W:g} мм (u {hw.GPU_BS[2] - REST_W:g}..{hw.GPU_BS[2]:g}), контактная грань u = {hw.GPU_BS[2]:g} на n {REST_SEAT_N:g}..{REST_N_AXIS[1]:g} (ось n {REST_N_AXIS[0]:g}..{REST_N_AXIS[1]:g} как у пальца), "
@@ -4955,7 +4855,7 @@ DEVIATIONS: list[str] = [
     "Ревизия 8a, скорость: frame_v0.py вместе с порогом и тремя картинками около 75 с против 62 с, test_checks.py 96 с против 81 с. Из прибавки: пробный расчёт радиуса 2 мм для каждого выпуклого угла, "
     "расчёт допуска на каждый кандидат, новая деталь и 23 теста. Сборка со скруглением 15-18 с, run_checks 18-20 с.",
     # --- ревизия 9
-    "Ревизия 9, io_block_base и полноширинный порог - одна деталь: front_sill. Порог X -140..140 (280 мм <= 290, делить пополам не понадобилось), стоит на beam_front, "
+    "Ревизия 9 (ИСТОРИЯ: порог front_sill и светлая линия сняты в ревизии 18, записи ревизии 9 о них оставлены как были), io_block_base и полноширинный порог - одна деталь: front_sill. Порог X -140..140 (280 мм <= 290, делить пополам не понадобилось), стоит на beam_front, "
     "грань - плоскость n = 59.04 (параллельна плате, 45°). Сечение (Y, Z): (0, 10) -> (0, 53.5) -> (29.1, 82.6) -> (47.4, 64.2) -> (47.4, 10), высота до Z 80.1, глубина Y 0..47.4 (балка кончается на Y 40: свес 7.4 мм). "
     "Все числа порога мои; план задаёт X, грань 45° и три размера светлой линии.",
     "Ревизия 9, плоскость грани: бокс front_io (Y 0..42, Z 10..46, 165 x 42 x 36) по плану не может быть наклонённым на 45° блоком: у такого блока габарит по Y и по Z одинаков ((L + t) cos 45°), а здесь 42 и 36. "
@@ -5111,14 +5011,8 @@ DEVIATIONS: list[str] = [
     f"(2) головки в зенковках: через всю диагональ {DIAG_W:g} мм ни одна длина набора не подходит под пилот 6.7 мм (M3 x 35 вошёл бы на 6.5 мм при пределе 6.2, а рассверловка под вставкой, которой это требует screw_fit, не проходит проверку 7: стенка 0.29 мм), "
     f"поэтому в низе диагонали зенковки Ø{REST_CB_D:g} x {REST_CB_DEPTH:g} мм, стек {REST_STACK:g} мм, M3 x {screw_fit(REST_STACK)[0]} входит на {screw_fit(REST_STACK)[1]:g} мм; головки на {M3_CB_SINK:g} мм ниже низа ребра (там рельс с мостиками и кабели; до ревью зенковка была 3.0 и головка с шайбой торчала на 0.5); "
     "(3) растяжение винтов: 52 Н на дальний от веса карты и 150 Н от удара, вместе 202 Н на винт (расчёт в проверке 19); прочность вставки в ABS в данных нет. Проверка 5: gpu_rest считается по контакту с картой (1) и по двум винтам (оба тела: пилот в упоре и проходное в ребре); контакт rib_A_right x gpu заменён на gpu_rest x gpu и gpu_rest x rib_A_right.",
-    "Ревизия 14a, каретка front_io_carrier. Перевёрнутая П из ABS вокруг бокса модуля: два торцевых блока и верхняя плита, задней стенки нет (кабели выходят в окно порога, задняя стенка порога осталась бы при 2.1 мм), открыта спереди, сзади и снизу. Модуль держат его два винта "
-    f"{hw.FRONT_IO_SCREW_KIND} (PLACEHOLDER) в пилотах торцевых блоков; каретку держат 4 x M3 x {screw_fit(CARRIER_STACK)[0]} вдоль X (по 2 на конец) в вставках торцевых блоков порога, головки в зенковках с внутренней стороны. Порог: карман по наружному размеру каретки плюс {SILL_POCKET_PLAY:g} мм, "
-    f"2.5 мм зазора за модулем, задняя стенка {SILL_REAR_WALL:.1f} мм (плоскость Y {SILL_Y_REAR:g} не двигалась), пилотов модуля в нём больше нет. ОТКЛОНЕНИЯ ОТ ПЛАНА: (1) верхняя плита {CARRIER_Z[1] - carrier_inside()[2]:.1f} мм, а не 3: потолок кармана "
-    f"может подняться не выше Z {CARRIER_Z[1] + SILL_POCKET_PLAY:g} (до канала светлой линии не меньше 2 мм; план называл Z 51.2 до касания канала, зазор 2 мм оставляет 49.2), с зазором {SILL_POCKET_PLAY:g} мм до порога и {CARRIER_TOP_PLAY:g} мм до модуля остаётся 2.7 мм; "
-    f"(2) потолок кармана поднялся с Z 46.4 до {CARRIER_Z[1] + SILL_POCKET_PLAY:g}, а кожа лица порога {SILL_FACE_WALL:g} мм над передним верхним краем кармана осталась правилом порога: лицо ушло на {sill_geometry()['n_face'] - 59.04:.2f} мм по n вперёд (n {sill_geometry()['n_face']:.2f} вместо 59.04), "
-    "верх порога стал на 1.4 мм выше (Z 81.5 вместо 80.1); органический слой (organic_frame.py читает сечение порога) от этого не сломался, его проверки проходят; (3) каретка висит на винтах над beam_front на 0.3 мм: опирается на балку модуль, не она; "
-    f"(4) торцевые блоки порога стали {CARRIER_X[0] - SILL_POCKET_PLAY + SILL_HALF_X:.1f} и {SILL_HALF_X - CARRIER_X[1] - SILL_POCKET_PLAY:.1f} мм (были 69.6 и 44.6), стенки окна, канала, 4 винтов к beam_front и площадок оболочки не затронуты. "
-    "Проверка 20 (новая): торцевой блок не тоньше 8.3 мм (пилот модуля 6.7 + стенка 1.6), плита не тоньше 2.5 мм, модуль не глубже кармана: модуль, выросший за каретку, не проходит молча.",
+    # frozen in revision 18: the numbers this note printed belonged to the sill and the counterbored carrier screws, which are gone
+    "Ревизия 14a (ИСТОРИЯ: с ревизии 18 каретка стоит на beam_front и держится винтами снизу, порога и проверки 22 нет, см. запись ревизии 18), каретка front_io_carrier. Перевёрнутая П из ABS вокруг бокса модуля: два торцевых блока и верхняя плита, задней стенки нет (кабели выходят в окно порога, задняя стенка порога осталась бы при 2.1 мм), открыта спереди, сзади и снизу. Модуль держат его два винта M3 (PLACEHOLDER) в пилотах торцевых блоков; каретку держат 4 x M3 x 10 вдоль X (по 2 на конец) в вставках торцевых блоков порога, головки в зенковках с внутренней стороны. Порог: карман по наружному размеру каретки плюс 0.3 мм, 2.5 мм зазора за модулем, задняя стенка 2.9 мм (плоскость Y 47.4 не двигалась), пилотов модуля в нём больше нет. ОТКЛОНЕНИЯ ОТ ПЛАНА: (1) верхняя плита 2.7 мм, а не 3: потолок кармана может подняться не выше Z 49.2 (до канала светлой линии не меньше 2 мм; план называл Z 51.2 до касания канала, зазор 2 мм оставляет 49.2), с зазором 0.3 мм до порога и 0.2 мм до модуля остаётся 2.7 мм; (2) потолок кармана поднялся с Z 46.4 до 49.2, а кожа лица порога 5 мм над передним верхним краем кармана осталась правилом порога: лицо ушло на 1.96 мм по n вперёд (n 61.00 вместо 59.04), верх порога стал на 1.4 мм выше (Z 81.5 вместо 80.1); органический слой (organic_frame.py читает сечение порога) от этого не сломался, его проверки проходят; (3) каретка висит на винтах над beam_front на 0.3 мм: опирается на балку модуль, не она; (4) торцевые блоки порога стали 57.7 и 32.7 мм (были 69.6 и 44.6), стенки окна, канала, 4 винтов к beam_front и площадок оболочки не затронуты. Проверка 20 (новая): торцевой блок не тоньше 8.3 мм (пилот модуля 6.7 + стенка 1.6), плита не тоньше 2.5 мм, модуль не глубже кармана: модуль, выросший за каретку, не проходит молча.",
     "Ревизия 14a, направляющая hose_guide_cpu. Гребёнка из PA6 на внутренней грани левого бокового вентилятора у угла D (u 252.25, n 90.25): один M3 x 30 с внешней грани через вентилятор в вставку гребёнки, два канала Ø13 (шланг + 0.6) с устьями к плате (+X), от вентилятора. "
     "С шеи neck_left снята вставка направляющей (шея теперь зеркало neck_right, кроме площадки оболочки neck_top_L, которая не двигалась). ОТКЛОНЕНИЯ ОТ ПЛАНА: (1) канал первого шланга поставлен на вершину его keep-out цепочки (u 235.4), а не в точку (u 239.3, n 75.0) по маршруту: "
     "труба шланга (проверка 10) строится по цепочке из каждой третьей точки маршрута, и от u 240.2, где шланг начинает изгиб, хорда цепочки уходит от маршрута на 0.1 мм и больше, а канал даёт всего 0.3 мм; в точке 239.3 стенка до трубы была бы 0.06 мм (нужно 0.2..0.5). "
@@ -5142,6 +5036,11 @@ DEVIATIONS: list[str] = [
     "(расстояние, а не объём цилиндра: по замечанию проверки Grok допуск 1 мм³ пропускал короткий выступ на пути головки); до ревизии на плечах 2.50 мм при нужных 3.60 (цилиндр Ø7.2 задевал колено на 31.46 мм³), "
     "теперь не меньше радиуса зенковки. Длины штатных винтов 6-32 - одна таблица HW_SCREW_LEN для проверок 16 и 23. Прочность колена сеткой не перепроверена: strength.py сеткует заготовку детали до отверстий и "
     "канавки не видит; вручную сечение колена поперёк n 10.5 x 13.5 = 141.8 мм², канавка забирает 4.84 мм² (3.4 %) с другой стороны от болта шеи.",
+    "Ревизия 18 (docs/plans/front-and-outline.md, часть A): светлая линия и передний порог front_sill сняты (hardware: LIGHT_STRIP_*, light_strip; порог 198.5 г ABS при 4 стенках/20 %). "
+    "Каретка front_io_carrier стоит на верхней грани beam_front (низ Z 10, был 10.3) и держится четырьмя M3 x 25 снизу через проходные в балке во вставки в нижней грани торцевых блоков "
+    "(CARRIER_SCREWS_XY: X -77.85 и 102.85, стенка пилота 1.9 мм до наружного торца блока и до его внутренней грани при модуле, выросшем на все 3.3 мм проверки 20; Y 10 и 30, места болтов порога); прежние четыре винта вдоль X в порог с зенковками сняты. Проверка 20: вместо кармана порога и окна для кабелей "
+    "коробка CARRIER_REAR_ROOM 15 мм за задней гранью модуля, в которой нет деталей каркаса; торцевой блок не тоньше пилота модуля и стенки (8.3). Проверка 22 снята с порогом. "
+    "Пилоты площадок слоя: front_post_R/L в rib_A (Y 20, Z -8), neck_top_L и rear_foot_R/L сдвинуты с шайб (hw.ORGANIC_PADS).",
 ]
 OPEN_ITEMS: list[str] = [
     "Отсеки под диски: глубина штекера и изгиба кабеля за диском 25 мм (DRIVE_PLUG_ZONE) - ПРЕДПОЛОЖЕНИЕ, источника нет. Головки винтов, нижний предел входа 2.5 дюйма, резиновые втулки (нет размеров), кабели SATA (данные от платы, питание от БП), "
@@ -5175,14 +5074,10 @@ OPEN_ITEMS: list[str] = [
     "Скругление: концы коробчатых деталей (4 мм) остаются острыми ступеньками у торца; верх beam_front, верх полозьев и низ пластины БП остаются острыми (контакты); галтель ноги кронштейна 5.5 / 3.0 мм (ядро не берёт 8); "
     "beam_mid не скруглён у двух рёбер; направляющие шлангов (PA6) не скруглены (стенка канала); передний нижний угол порога острый (контакт с beam_front). Острые углы объяснены в списке 'Оставлено острым'. "
     "Прочность на изгиб после скруглений не считалась. (Ревизия 12: острых рёбер 64 из 156, было 66.)",
-    "ПОРОГ И МОДУЛЬ ВВОДА (ревизия 9), всё PLACEHOLDER до обмера модуля Fractal North XL: бокс front_io, два винта M3 в торцевые стенки кармана, положение канала light_strip, шаги портов (таблица в hardware.py, +-1 мм). "
+    "МОДУЛЬ ВВОДА (ревизия 9; с ревизии 18 без порога), всё PLACEHOLDER до обмера модуля Fractal North XL: бокс front_io, два винта M3 в торцевые блоки каретки, шаги портов (таблица в hardware.py, +-1 мм). "
     "Нужно обмерить: плату модуля (контур, толщину), крепёжные отверстия и винты, высоту разъёмов и на сколько они выступают, переключатель и выходит ли колпачок кнопки вместе с модулем, длины четырёх кабелей. "
-    "Вырезов под порты в пороге нет: они режутся в коже 5 мм по грани после обмера.",
-    "Светлая линия: подключение ленты (заголовок LED платы или 5 В, чтобы горела при включённом ПК) и прокладка кабелей, как и остальные кабели, не сделаны. Посадочного места под диффузор (PLA прозрачный, 1.6 мм, щель 4 мм) нет; "
-    "лента клеится на ABS-порог, не на диффузор. Мощность ленты в канале 14 x 14: полный белый может дать 50 °C на поверхности, нужна лента малой мощности или снижение яркости; канал через торцы упирается в рёбра (зазор 2 мм).",
-    "Порог: масса 490 г при 100 % (210 г при 4 стенках/20 %), 280 x 47 x 70 мм, длинная ABS-деталь с большой плоской гранью склонна к короблению: если печать повело, делить пополам по X = 0 (каждая половина 140 мм). "
-    "Винты порога к beam_front ставятся снизу, зазор до стола 5 мм (собирать до постановки на стол). Порог выступает на 7.4 мм за заднюю грань beam_front (Y 40 -> 47.4), до платы 12.6 мм. "
-    "Порог не входит в проверку 12.",
+    "Лицевой панели модуля с вырезами под порты нет: она ждёт обмера (docs/plans/front-and-outline.md, часть G).",
+    "Винты каретки к beam_front ставятся снизу, зазор до стола 5 мм (собирать до постановки на стол или наклонив каркас); инструмент - assembly_access.py.",
     "PA6 (только две направляющие шлангов; мостики кабелей с 16.11.2026 из ABS, оболочка крепится винтами M3): сушить и печатать из сухой коробки, CFS при 65 % влажности для нейлона не годится; плотность 1.14 г/см³ принята по справочному значению, не по катушке. "
     "Ревизия 12, открыто: (1) вставка M3: владелец измерил свои вставки 17.11.2026 (ревизия 15): длина 4.0, наружный диаметр 4.96 мм (hardware.M3_INSERT_LEN, M3_INSERT_OD). Пилот Ø4.5 (hardware.M3_PILOT_D): "
     "владелец напечатал лесенку C2 из PETG и 18.11.2026 сообщил, что вставка садится лучше всего в 4.5..4.6 мм (docs/plans/fit-gauges.md); в ABS, из которого печатается каркас, это не проверено: "

@@ -208,7 +208,7 @@ def real_model():
     fast = [dict(r) for r in frame_v0.FASTENERS]
     model, fails = aa.model_of(parts, hardware, fast)
     n = {c: sum(1 for s in model["screws"] if s["cls"] == c) for c in "AB"}
-    expect("the real model: 90 class A and 30 class B screws, 2 placeholders and 16 organic pads counted", (n["A"], n["B"], len(model["placeholder"]), len(model["organic"])), (90, 30, 2, 16))
+    expect("the real model: 86 class A and 30 class B screws, 2 placeholders and 16 organic pads counted (revision 18: 90 before, the sill's four bolts to beam_front went with it)", (n["A"], n["B"], len(model["placeholder"]), len(model["organic"])), (86, 30, 2, 16))
     expect("every row of the bill is accounted for and nothing else fails", fails, [])
     expect("every class A and class B screw is picked by one row", sum(1 for s in model["screws"] if s.get("row") is None), 0)
     groups = {}

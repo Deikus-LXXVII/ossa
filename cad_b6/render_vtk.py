@@ -24,7 +24,7 @@ HW_RGB = {
     "dimms": (0.84, 0.76, 0.29), "atx24": (0.25, 0.65, 0.63), "eps": (0.54, 0.37, 0.79),
     "rad420_ports": (0.76, 0.35, 0.0), "rad360_ports": (0.48, 0.56, 0.0),
     "cpu_hoses": (0.10, 0.10, 0.11), "gpu_hoses": (0.42, 0.24, 0.12),     # the hoses are drawn opaque, as hoses
-    "front_io": (0.83, 0.63, 0.09), "light_strip": (0.95, 0.89, 0.35),
+    "front_io": (0.83, 0.63, 0.09),
 }
 HW_RGB.update({k: (0.42, 0.48, 0.54) for k in hardware.DRIVES})
 HW_RGB.update({k: (0.79, 0.63, 0.86) for k in hardware.DRIVE_PLUGS})

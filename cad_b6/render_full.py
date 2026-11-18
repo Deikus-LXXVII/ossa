@@ -70,7 +70,6 @@ def scene(layer, cable_colours):
         if name in hw.KEEP_OUT or name in hw.HOSES:
             continue
         out += render_vtk._actors(solid, render_vtk.HW_RGB.get(name, (0.6, 0.6, 0.6)), opacity=1.0, edge_opacity=0.35)
-    out += render_vtk._actors(organic_frame.SILL["cuts"]["slit"], (1.0, 0.86, 0.35), opacity=1.0, edge_opacity=0.4)
     for name, (pair, spec) in hoses.routes().items():
         rgb = (0.10, 0.10, 0.11) if name == "cpu" else (0.42, 0.24, 0.12)
         out += [hose_routes.tube_actor(h["pts"], spec["r"], rgb) for h in pair]

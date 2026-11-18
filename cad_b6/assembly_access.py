@@ -40,6 +40,8 @@ import cadquery as cq  # noqa: E402
 
 import frame_v0  # noqa: E402
 import hardware as hw  # noqa: E402
+from skeleton_screws import (CLASS_B, SEAT_PROBE, across, class_b_seat, joint_members, on_pilot_axis, rad420_core, screws_of,  # noqa: E402,F401
+                             split_drives, unit)                     # revision 18 (part J.1): the screws' seats and heads are one source with organic_frame.py
 
 OUT_DIR = os.path.join(ROOT, "out", "assembly")
 SEAT_LIFT = 0.1                         # mm: the insertion corridor starts this far above the seat, so it does not share the seat's face
@@ -47,12 +49,11 @@ LKEY_STEP_DEG = 5.0                     # the L-key's long arm is tried every th
 RAW_LEN = hw.DRIVER_SHAFT_LEN + hw.DRIVER_HANDLE_LEN      # the raw free lengths are measured this far from the top of the head: the straight driver's whole length
 RAW_WIDE_D = hw.DRIVER_HANDLE_D         # the second raw corridor: as wide as a handle
 SEARCH_CAP = 200_000                    # states the search may visit before it gives up ("no order within the cap" is not "every order was tried")
-SEAT_PROBE = 60.0                       # mm: class B, the line the seat is measured on runs this far either side of the bore's middle
 TOOLS_BY_HEAD = {"socket": ("straight", "lkey"), "pan": ("straight", "stubby")}
 
 # Every key of hw.build_hardware(), by exact name, in one of three lists.
 HARD_HARDWARE = ("board", "gpu", "cpu_block", "rad360", "rad420", "psu", "fan_side_right", "fan_side_left", "front_io", "dimms", "rad420_ports", "rad360_ports",
-                 "light_strip", "drive_left", "drive_plugs_left")
+                 "drive_left", "drive_plugs_left")
 SOFT_HARDWARE = ("cpu_hoses", "gpu_hoses", "atx24", "eps")          # a hose can be pushed aside, a plug goes in last
 NOT_OBSTACLES = ("io_zone", "gpu_out_zone")
 LISTS = dict(hard=HARD_HARDWARE, soft=SOFT_HARDWARE, none=NOT_OBSTACLES)
@@ -70,23 +71,9 @@ UNITS = {"cpu_aio": ("cpu_block", "cpu_hoses", "rad420", "rad420_ports"),
 # The 360 is the card's radiator, so the card hangs on its hoses from this group and is put in its slot in the same step.
 BENCH = {"rad360_with_arms": ("visor_arm_right", "visor_arm_left", "gpu_aio")}
 # A node that sits on another with no screw of the model between them goes on after it: the CPU block on the board's socket, the card in the board's slot, the PSU on its skids,
-# the I/O module in its carrier, the strip on the sill. Without this the search may put a cooler in before the board it stands on.
-SITS_ON = {"cpu_aio": ("board",), "gpu_aio": ("board",), "psu": ("skid_front", "skid_rear"), "front_io": ("front_io_carrier",), "light_strip": ("front_sill",)}
-HARDWARE_PREFERENCE = ("psu", "board", "cpu_aio", "gpu_aio", "fan_side_right", "fan_side_left", "drive_left_25", "drive_left_35", "front_io", "light_strip")
-
-_D35, _D25 = hw.DRIVE_FORMS[hw.DRIVE_ON["outer"]], hw.DRIVE_FORMS[hw.DRIVE_ON["inner"]]
-# Class B: the screws into a thread of the hardware. The holes carry no item, stack or meaningful washer, so each group is described here. The head is a pan head,
-# no washer. `thread` is the solid that holds the thread (the 420's core, not its fans: the run to the seat goes on through the fan).
-CLASS_B = {
-    "psu": dict(parts=("psu_bulkhead",), kind="6-32c", thread="psu", head_d=hw.UNC6_HEAD_D, head_h=hw.UNC6_HEAD_H, length=hw.PSU_SCREW_LEN),
-    "rad360": dict(parts=("visor_arm_left", "visor_arm_right"), kind="6-32c", thread="rad360", head_d=hw.UNC6_HEAD_D, head_h=hw.UNC6_HEAD_H, length=hw.RAD360_SCREW_LEN),
-    "rad420": dict(parts=("antler_left", "antler_right"), kind="6-32c", thread="rad420", head_d=hw.UNC6_HEAD_D, head_h=hw.UNC6_HEAD_H,
-                   length=hw.RAD_FAN_SCREW_LEN + frame_v0.ANTLER_T),
-    "drive_left_35": dict(parts=("drive_sled_left",), kind=frame_v0.THREAD_CLEAR[_D35["thread"]], thread="drive_left_35", head_d=_D35["head_d"], head_h=_D35["head_h"],
-                          length=_D35["screw_len"]),
-    "drive_left_25": dict(parts=("drive_sled_left",), kind=frame_v0.THREAD_CLEAR[_D25["thread"]], thread="drive_left_25", head_d=_D25["head_d"], head_h=_D25["head_h"],
-                          length=_D25["screw_len"]),
-}
+# the I/O module in its carrier. Without this the search may put a cooler in before the board it stands on.
+SITS_ON = {"cpu_aio": ("board",), "gpu_aio": ("board",), "psu": ("skid_front", "skid_rear"), "front_io": ("front_io_carrier",)}
+HARDWARE_PREFERENCE = ("psu", "board", "cpu_aio", "gpu_aio", "fan_side_right", "fan_side_left", "drive_left_25", "drive_left_35", "front_io")
 
 # One entry per row of frame_v0.FASTENERS, by the row's item. The holes' items differ from the rows' ("side fan" against fan_side_left and fan_side_right).
 BILL = {
@@ -97,7 +84,7 @@ BILL = {
     "fan_side_left": dict(how="A", items=("side fan",), parts=("fan_bracket_left",)),
     "fan_side_right": dict(how="A", items=("side fan",), parts=("fan_bracket_right",)),
     "front_io": dict(how="placeholder"),
-    "front_io_carrier": dict(how="A", items=("front_io_carrier",)),
+    "front_io_carrier": dict(how="A", items=("front_io_carrier",)),         # revision 18: four screws from below through beam_front into the carrier's underside
     "gpu": dict(how="same", row="gpu_post"),
     "gpu_rest": dict(how="A", items=("gpu_rest",)),
     "lap A<->B": dict(how="A", items=("lap A<->B",)),
@@ -115,7 +102,6 @@ BILL = {
     "hose_guide_cpu": dict(how="A", items=("hose_guide_cpu",)),
     "hose_guide_gpu": dict(how="A", items=("hose_guide_gpu",)),
     "gpu_post": dict(how="A", items=("gpu_post",)),
-    "front_sill": dict(how="A", items=("front_sill -> beam_front",)),
     "tie_pilot": dict(how="same", row="tie_bridge"),
     "tie_bridge": dict(how="A", items=("tie bridge",)),
     "drive_left": dict(how="B", groups=("drive_left_35", "drive_left_25")),
@@ -316,19 +302,6 @@ def loose_nodes(order, screws, units):
 # ---------------------------------------------------------------------------
 # Geometry
 # ---------------------------------------------------------------------------
-def unit(v):
-    v = np.asarray(v, dtype=float)
-    return v / np.linalg.norm(v)
-
-
-def across(e):
-    """A unit vector at right angles to e."""
-    a = np.cross(e, [1.0, 0.0, 0.0])
-    if np.linalg.norm(a) < 0.1:
-        a = np.cross(e, [0.0, 1.0, 0.0])
-    return a / np.linalg.norm(a)
-
-
 def frame_at(origin, e):
     """The location whose local Z is e and whose origin is `origin`."""
     return cq.Location(cq.Plane(origin=tuple(float(c) for c in origin), xDir=tuple(float(c) for c in across(e)), normal=tuple(float(c) for c in e)))
@@ -411,62 +384,10 @@ def screw_tools(s, obstacles, with_lkey):
     return dict(insert=insert, tools=tools, raw=raw, top=top)
 
 
-def class_b_seat(hole, thread, clamped, head_d):
-    """(seat, e, stack) of a class B screw in the clearance hole `hole`: e points from the thread to the head; the seat is on the axis where the material the screw clamps
-    ends, measured on a line beside the bore (halfway between the bore's radius and the head's) from the face of `thread` outward. None if nothing is clamped there."""
-    d = unit(hole.d)
-    mid = np.array(hole.point(hole.length / 2))
-    c = frame_v0.exact_box(thread)
-    centre = np.array([(c[0] + c[1]) / 2, (c[2] + c[3]) / 2, (c[4] + c[5]) / 2])
-    e = d if np.dot(mid - centre, d) > 0 else -d
-    rho = (hole.r + head_d / 2) / 2
-    start = mid - SEAT_PROBE * e + rho * across(e)
-    probe = frame_v0.Hole("probe", tuple(start), tuple(e), 0.1, 2 * SEAT_PROBE, 0.0, False)
-    faces = [b for a, b in frame_v0.material_spans(thread, probe) if b <= SEAT_PROBE]
-    if not faces:
-        return None
-    s_t = max(faces) + frame_v0.SPAN_MARGIN          # material_spans stops SPAN_MARGIN short of each face
-    spans = []
-    for solid in clamped:
-        spans += [(a - s_t, b - s_t) for a, b in frame_v0.material_spans(solid, probe)]
-    end = frame_v0.axis_run(None, [x for x in spans if x[1] > 0])
-    if end <= 0:
-        return None
-    stack = end + frame_v0.SPAN_MARGIN
-    return mid + (s_t + stack - SEAT_PROBE) * e, e, stack
-
 
 # ---------------------------------------------------------------------------
 # The model: the screws, the obstacles, the bill
 # ---------------------------------------------------------------------------
-def split_drives(hardware):
-    """{name: solid} of each drive body of each bay, named drive_<side>_35 / _25 by its form (hw.DRIVE_ON), and the failures (a body not found in the compound)."""
-    out, fails = {}, []
-    lay = hw.drive_layout()
-    for side, sgn in hw.DRIVE_SIDES.items():
-        key = f"drive_{side}"
-        bodies = hardware[key].Solids()
-        for face, fc in lay["faces"].items():
-            want = frame_v0.exact_box(hw._drive_box(sgn, fc["body"]))
-            hit = [b for b in bodies if max(abs(x - y) for x, y in zip(frame_v0.exact_box(b), want)) < 1e-3]
-            name = f"{key}_{fc['form'][-2:]}"
-            if len(hit) != 1:
-                fails.append(f"ASSEMBLY {key}: the {face} drive's body ({name}) is not one solid of the compound ({len(hit)} found)")
-            else:
-                out[name] = hit[0]
-    return out, fails
-
-
-def rad420_core(hardware):
-    """(core, fans) of the 420: the solid of the compound that is the core (hw.RAD420_CORE_U, hw.RAD420_CORE_N), and the rest."""
-    want = frame_v0.exact_box(hw.bs_box(*hw.RAD420_BS[:2], *hw.RAD420_CORE_U, *hw.RAD420_CORE_N))
-    sol = hardware["rad420"].Solids()
-    core = [b for b in sol if max(abs(x - y) for x, y in zip(frame_v0.exact_box(b), want)) < 1e-3]
-    if len(core) != 1:
-        return None, None
-    return core[0], [b for b in sol if b is not core[0]]
-
-
 def obstacles_of(parts, hardware, lists=LISTS):
     """({name: solid} of everything a tool can meet, {name: 'hard' | 'soft'}, failures). Printed parts are hard and drilled; hardware by the lists."""
     fails = []
@@ -494,85 +415,6 @@ def obstacles_of(parts, hardware, lists=LISTS):
         else:
             solids[k], kind[k] = s, which
     return solids, kind, fails
-
-
-def on_pilot_axis(g, pilots):
-    for _p, h in pilots:
-        if abs(abs(float(np.dot(g.d, h.d))) - 1.0) > 1e-6:
-            continue
-        off = np.subtract(g.start, h.start)
-        t = float(np.dot(off, h.d))
-        if math.sqrt(max(0.0, float(np.dot(off, off)) - t * t)) <= 0.01:
-            return True
-    return False
-
-
-def joint_members(h, row, parts, hardware):
-    """The names check 15 measured on the screw's axis that lie inside its stack (check 15 lists every part with a clearance hole on the axis, the far side's too)."""
-    by = {p.name: p for p in parts}
-    probe = frame_v0.Hole("probe", h.point(frame_v0.OVERSHOOT), tuple(-c for c in h.d), 0.1, row["stack"], 0.0, False)
-    # a name that is neither a part nor a hardware solid is check 15's own note on a row it could not measure; that row has failed check 15, which fails this run too
-    return {n for n in row["what"] if (n in by or n in hardware) and frame_v0.material_spans(by[n].blank if n in by else hardware[n], probe)}
-
-
-def screws_of(parts, hardware, solids, groups=CLASS_B):
-    """(screws, organic, placeholder, failures). A screw is dict(id, cls, part, item or group, seat, e, head, head_d, head_h, washer_t, length, stack, members)."""
-    fails = []
-    f15 = []
-    rows = frame_v0.check_screws(parts, hardware, f15)["rows"]
-    fails += [f"ASSEMBLY check 15, whose rows give the lengths, fails: {x}" for x in f15]
-    by_pos = {(r["part"], tuple(round(c, 6) for c in r["pos"])): r for r in rows}
-    pilots = [(p, h) for p in parts for h in p.holes if h.pilot]
-    screws, organic, placeholder = [], [], []
-    for p, h in pilots:
-        mouth = h.point(frame_v0.OVERSHOOT)
-        if h.item == "organic pad":
-            organic.append((p.name, mouth))
-            continue
-        if h.stack is None:
-            placeholder.append((p.name, h.item, mouth))
-            continue
-        r = by_pos.get((p.name, tuple(round(c, 6) for c in mouth)))
-        if r is None:
-            fails.append(f"ASSEMBLY {p.name}: {h.describe()} has no row in check 15")
-            continue
-        d = unit(h.d)
-        screws.append(dict(cls="A", part=p.name, item=h.item, group=None, seat=np.array(mouth) - r["stack"] * d, e=-d, head="socket", head_d=hw.M3_HEAD_D,
-                           head_h=hw.M3_HEAD_H, washer_t=hw.M3_WASHER_T if r["washer"] else 0.0, length=r["length"], stack=r["stack"],
-                           members=frozenset({p.name} | joint_members(h, r, parts, hardware))))
-    core, fans = rad420_core(hardware)
-    by = {p.name: p for p in parts}
-    for p in parts:
-        for h in p.holes:
-            if h.pilot or h.kind not in ("M3c", "6-32c") or on_pilot_axis(h, pilots):
-                continue
-            g = [k for k, G in groups.items() if p.name in G["parts"] and h.kind == G["kind"]]
-            if len(g) != 1:
-                fails.append(f"ASSEMBLY {p.name}: {h.describe()} is a screw into the hardware that {'no' if not g else 'more than one'} group of CLASS_B describes")
-                continue
-            G = groups[g[0]]
-            if G["thread"] == "rad420":
-                if core is None:
-                    fails.append("ASSEMBLY the 420's core is not one solid of hardware['rad420']")
-                    continue
-                thread, clamped = core, [by[p.name].solid] + fans
-            elif G["thread"] in solids:
-                thread, clamped = solids[G["thread"]], [by[p.name].solid]
-            else:
-                fails.append(f"ASSEMBLY {p.name}: the thread of group {g[0]} is in {G['thread']}, which is no obstacle solid")
-                continue
-            got = class_b_seat(h, thread, clamped, G["head_d"])
-            if got is None:
-                fails.append(f"ASSEMBLY {p.name}: {h.describe()}: nothing clamped between {G['thread']} and the head")
-                continue
-            seat, e, stack = got
-            members = {p.name, G["thread"]}
-            screws.append(dict(cls="B", part=p.name, item=None, group=g[0], seat=seat, e=e, head="pan", head_d=G["head_d"], head_h=G["head_h"], washer_t=0.0,
-                               length=G["length"], stack=stack, members=frozenset(members)))
-    for k, s in enumerate(screws, 1):
-        p = s["seat"]
-        s["id"] = f"#{k} {s['part']} ({p[0]:.1f}, {p[1]:.1f}, {p[2]:.1f})"
-    return screws, organic, placeholder, fails
 
 
 def picks(rule, s):

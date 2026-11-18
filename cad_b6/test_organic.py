@@ -34,7 +34,7 @@ import organic_frame as of  # noqa: E402
 
 FIELD = os.path.join(os.path.dirname(HERE), "out", "organic", "field.npz")
 # The number of cases a run records, pinned so that a reviewer sees it change in the diff that adds or removes cases (quick: the field and piece cases only).
-EXPECTED_CASES = {"quick": 32, "full": 51}
+EXPECTED_CASES = {"quick": 43, "full": 65}       # revision 18: 32 and 51 before; the plug's room, the four new checks of the saved arrays, the cross-threads' rule, and in the full run the probes' solver cases
 RESULTS: list[tuple[bool, str]] = []
 
 
@@ -268,6 +268,103 @@ def piece_cases(f):
          of.piece_checks({k: f[k] for k in f if k != "d_main"})[1], "ORGANIC_PIECES the field names the piece main but has no field d_main")
 
 
+def solid_at(g, centre, r, piece="main"):
+    """Material (d = -1) in the field of `piece` and in the union d at the grid points within r of centre (the nearest grid point at least)."""
+    g["d_" + piece] = g["d_" + piece].copy()
+    g["d"] = g["d"].copy()
+    sl, m = ball_mask(g, centre, r)
+    if not m.any():
+        idx = grid_index(g, centre)
+        sl, m = tuple(slice(i, i + 1) for i in idx), np.ones((1, 1, 1), dtype=bool)
+    for k in ("d_" + piece, "d"):
+        blk = g[k][sl]
+        blk[m] = -1.0
+        g[k][sl] = blk
+    return g
+
+
+def revision18_cases(f):
+    """Revision 18's checks of the saved arrays (organic_frame.layer_clearance_checks): the carrier comes out (C.6), no layer in a pad's pilot (C.8), no cable or hose in the layer (H.6),
+    no layer in a screw's head (J.3); and the cross-threads' rule reads organic_strength's push and allowable (C.7)."""
+    from scipy.spatial import cKDTree
+    _l, fails = of.layer_clearance_checks(f)
+    check("the undamaged layer passes revision 18's checks (the carrier's way, the pads' pilots, the cables and hoses, the screws' heads)", not fails, "no failure", fails or "none")
+    b = f["carrier_box"]
+    front = ((b[0] + b[1]) / 2, b[2] - 5.0, (b[4] + b[5]) / 2)          # a lump 5 mm in front of the module's face, in the carrier's way out
+    case(f"a lump in front of the module's face (X {front[0]:.1f}, Y {front[1]:.1f}, Z {front[2]:.1f})", "ORGANIC_CARRIER main has ... voxels in the way the carrier slides out",
+         of.carrier_checks(solid_at(dict(f), front, 2.0))[1], "ORGANIC_CARRIER main has", "in the way the carrier slides out")
+    names = [str(n) for n in f["names"]]
+    i = names.index(next(n for n, p in zip(names, f["pad_piece"]) if str(p) == "main"))
+    q, n = f["pads"][i][:3], f["pads"][i][3:]
+    mouth = q - 1.0 * n                                                   # 1 mm into the insert's pilot, on its axis
+    case(f"a voxel in the mouth of {names[i]}'s pilot", f"ORGANIC_PILOT main has ... voxels in the insert pilot of the pad {names[i]}",
+         of.pilot_checks(solid_at(dict(f), mouth, 0.1))[1], "ORGANIC_PILOT main has", f"pilot of the pad {names[i]}")
+    no_pads = {**dict(f), "pads": np.zeros((0, 6)), "names": np.array([], dtype=str)}
+    case("a field saved with no pad", "ORGANIC_PILOT no pad saved with the field: nothing is checked", of.pilot_checks(no_pads)[1], "ORGANIC_PILOT no pad saved", "nothing is checked")
+    lines = of.strands_of(f)
+    card = next(l for l in lines if l[0].startswith("cable gpu12v"))
+    p = card[1][len(card[1]) // 2]
+    case(f"a lump on the card's power cable's line (X {p[0]:.1f}, Y {p[1]:.1f}, Z {p[2]:.1f})", "ORGANIC_STRANDS cable gpu12v[...]: ... points of its centre line are nearer the layer",
+         of.strand_checks(solid_at(dict(f), p, 3.0))[1], "ORGANIC_STRANDS cable gpu12v", "nearer the layer")
+    hose = next(l for l in lines if l[0].startswith("hose"))
+    k = 4 * (len(hose[1]) // 8) + 2                                       # half way between two of the points the layer was carved from until revision 18 (every fourth)
+    t = hose[1][k + 1] - hose[1][k - 1]
+    w = np.cross(t, (0.0, 0.0, 1.0)) if abs(t[2]) < 0.9 * np.linalg.norm(t) else np.cross(t, (1.0, 0.0, 0.0))
+    w /= np.linalg.norm(w)
+    at = hose[1][k] + w * (hose[2] + 1.0)                                 # 1 mm off the hose's surface, inside GAP_HW
+    case(f"a voxel 1 mm off {hose[0]} between two of its every-fourth points (point {k})", f"ORGANIC_STRANDS {hose[0]}: ... nearer the layer than its radius and {of.GAP_HW:g} mm",
+         of.strand_checks(solid_at(dict(f), at, 0.1))[1], f"ORGANIC_STRANDS {hose[0]}", "nearer the layer")
+    # a wall whose nearest voxel centres stand at the clearance passes; the same wall one voxel closer fails. On a field holding the wall alone and one strand alone
+    name, line, r, gap = next(l for l in lines if l[0] == "cable usb3[0]")
+    samp = of.densify(line, 1.0)
+    tree = cKDTree(samp)
+    j = len(samp) // 2
+    t = samp[j + 1] - samp[j - 1]
+    ax = int(np.argmin(np.abs(t)))                                        # the grid axis most across the cable there
+    sgn = 1
+    c = list(grid_index(f, samp[j]))
+    xs3 = (f["xs"], f["ys"], f["zs"])
+
+    def wall(m):
+        idx = []
+        o = [a for a in range(3) if a != ax]
+        for da in range(-3, 4):
+            for db in range(-3, 4):
+                ii = list(c)
+                ii[ax] += sgn * m
+                ii[o[0]] += da
+                ii[o[1]] += db
+                idx.append(tuple(ii))
+        return np.array(idx)
+
+    def centres(idx):
+        return np.stack([np.asarray(xs3[a], dtype=float)[idx[:, a]] for a in range(3)], axis=1)
+
+    m0 = next(m for m in range(1, 40) if tree.query(centres(wall(m)))[0].min() - r >= gap - 1e-9)
+    near = tree.query(centres(wall(m0)))[0].min() - r
+
+    def only_wall(m):
+        g = dict(f)
+        for piece in [str(x) for x in f["pieces"]]:
+            g["d_" + piece] = np.ones_like(f["d_" + piece])
+        idx = wall(m)
+        g["d_main"][tuple(idx.T)] = -1.0
+        g["d"] = np.minimum.reduce([g["d_" + str(x)] for x in f["pieces"]])
+        g.update(of.strand_arrays([(name, line, r, gap)]))
+        return g
+    got = of.strand_checks(only_wall(m0))[1]
+    check(f"a wall whose nearest voxel centres stand {near:.2f} mm off {name}'s surface (clearance {gap:g}) passes", not got, "no failure", got or "none")
+    case(f"  the same wall one voxel closer ({tree.query(centres(wall(m0 - 1)))[0].min() - r:.2f} mm) fails", f"ORGANIC_STRANDS {name}: ... nearer the layer",
+         of.strand_checks(only_wall(m0 - 1))[1], f"ORGANIC_STRANDS {name}", "nearer the layer")
+    sc_ = f["screws"][0]
+    head = sc_[:3] + sc_[3:6] * (sc_[7] / 2)                              # in the middle of the first screw's washer and head
+    case(f"a lump on the head of the screw at X {sc_[0]:.1f}, Y {sc_[1]:.1f}, Z {sc_[2]:.1f}", "ORGANIC_HEADS main has ... voxels within 1 mm of the washer or head",
+         of.head_distance_checks(solid_at(dict(f), head, 1.0))[1], "ORGANIC_HEADS main has", "of the washer or head of the screw")
+    import organic_strength as ost
+    check("the cross-threads' rule reads organic_strength's push and allowable (LINK_PUSH = PUSH_N, LINK_ALLOW = ALLOW)", of.LINK_PUSH == ost.PUSH_N and of.LINK_ALLOW == ost.ALLOW,
+          f"{ost.PUSH_N:g} N and {ost.ALLOW:g} MPa", f"{of.LINK_PUSH:g} N and {of.LINK_ALLOW:g} MPa")
+
+
 def manifest_cases(f):
     """Revision 17, second step: organic_manifest.py notices when a piece changes (REVIEW.md row 13 for the layer)."""
     import organic_manifest as om
@@ -404,6 +501,49 @@ def zone_cases(f):
     case("... and so is a hand that cannot get in without the layer", "ZONE_ACCESS hand: without the organic layer no ball", fz, "ZONE_ACCESS hand: without the organic layer no ball")
 
 
+GAP_UNDER_TEST = 140.0     # probe_solver_cases: the thread's length between the blocks. The blocks clamp its ends, which the rule's loose bar does not, and the voxel model is stiff in
+                           # bending: at 60 mm the thin thread gave 4.9 MPa (100 mm 9.6, 140 mm 14.5, 180 mm 19.4; at the rule's radius 2.3, 3.0, 3.8, 3.8)
+
+
+def probe_solver_cases():
+    """Revision 18 (part I.3): organic_strength pushes at a film member's probe and judges it, with the solver. A small field: two 30 mm blocks, each held by a pad on its outer end, and a
+    thread across GAP_UNDER_TEST between them with its probe at the middle. The thread at LINK_R's mid radius (2.6) fails; at the radius of part C.7's rule for its length it passes."""
+    import tempfile
+    import organic_strength as ost
+    import shell_concepts as sc
+    vox, gap = of.VOX, GAP_UNDER_TEST
+    xs = np.arange(-3.0, 2 * 30.0 + gap + 3.0 + vox / 2, vox, dtype=np.float32)
+    ys = zs = np.arange(-3.0, 33.0 + vox / 2, vox, dtype=np.float32)
+    G = np.meshgrid(xs, ys, zs, indexing="ij")
+    x1 = 30.0 + gap
+    blocks = np.minimum(sc.box_world(G, (0.0, 30.0, 0.0, 30.0, 0.0, 30.0)), sc.box_world(G, (x1, x1 + 30.0, 0.0, 30.0, 0.0, 30.0)))
+    mid = (30.0 + gap / 2, 15.0, 15.0)
+
+    def run(r_mid, with_probe=True, every=False):
+        r_end = max(of.LINK_R[0], r_mid + of.LINK_END_MORE)
+        thread = sc.tube(G, [(30.0, 15.0, 15.0), mid, (x1, 15.0, 15.0)], of.bone(r_end, r_mid, r_end))
+        d = sc.smin(blocks.astype(np.float32), thread, 7.0).astype(np.float32)
+        z = dict(d=d, d_test=d, xs=xs, ys=ys, zs=zs, pieces=np.array(["test"]), pads=np.array([[0.0, 15.0, 15.0, 1.0, 0.0, 0.0], [x1 + 30.0, 15.0, 15.0, -1.0, 0.0, 0.0]]),
+                 names=np.array(["a", "b"]), pad_piece=np.array(["test", "test"]), probes=np.array([mid]), probe_kind=np.array(["link"]), probe_len=np.array([gap]),
+                 probe_piece=np.array(["test" if with_probe else "another piece"]))
+        with tempfile.TemporaryDirectory() as tmp:
+            path = os.path.join(tmp, "field.npz")
+            np.savez(path, **z)
+            with patched(ost, "FIELD", path):
+                _lines, fails, _arr, head = ost.run_piece("test", 1, n_points=1)
+        return (fails if every else [x for x in fails if "probe pushes" in x]), head
+
+    thin, h_thin = run(of.LINK_R[1])
+    case(f"organic_strength: a {gap:g} mm thread of radius {of.LINK_R[1]:g} pushed at its probe ({h_thin['probe_stress']:.1f} MPa, {h_thin['probe_move']:.2f} mm)",
+         "test: ORGANIC_STRENGTH ... probe pushes are over the allowable", thin, "ORGANIC_STRENGTH", "probe pushes are over the allowable")
+    r_rule = of.link_radii(gap)[1]
+    ok, h_ok = run(r_rule)
+    check(f"  the same thread at the rule's radius {r_rule:.2f} passes ({h_ok['probe_stress']:.1f} MPa, {h_ok['probe_move']:.2f} mm; pushed {h_ok['probes_pushed']} of {h_ok['probes']})",
+          not ok and h_ok["probes_pushed"] == 1, "no probe failure, the probe pushed", ok or f"none; pushed {h_ok['probes_pushed']}")
+    none, _h = run(r_rule, with_probe=False, every=True)
+    case("  the same thread with no probe saved for its piece", "ORGANIC_STRENGTH no probe was pushed", none, "ORGANIC_STRENGTH no probe was pushed", "not checked")
+
+
 class patched:
     """Set a module attribute for the length of a with-block."""
     def __init__(self, mod, name, value):
@@ -425,10 +565,12 @@ def main():
     f = {k: z[k] for k in z.files}
     field_cases(f)
     piece_cases(f)
+    revision18_cases(f)
     manifest_cases(f)
     mode = "quick" if "--quick" in sys.argv else "full"
     if mode == "full":
         zone_cases(f)
+        probe_solver_cases()
     bad = [n for ok, n in RESULTS if not ok]
     print(f"\n{len(RESULTS) - len(bad)} of {len(RESULTS)} cases pass" + ("" if not bad else ": FAILING " + "; ".join(bad)))
     if len(RESULTS) != EXPECTED_CASES[mode]:

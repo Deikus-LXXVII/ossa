@@ -4,7 +4,7 @@
 In the manner of hoses.py: a route is a list of sections, a section is a list of way-points joined with hoses.fillet_path. A section is
 round (the cable's radius and bend from hardware.CABLES) or a slab (hardware.CABLE_SLAB round strands side by side along u, bend
 hardware.SLAB_BEND; a slab stays in a plane of constant u). The facts (headers, sockets, radii, lengths) are in hardware.py. Nothing here moves
-hardware or changes the skeleton; the front cables go through the sill's cable window (frame_v0.py), and what else the skeleton would have to give is listed in report_cables.txt.
+hardware or changes the skeleton; the front cables leave the I/O module's rear face (revision 18: the sill and its cable window are gone), and what else the skeleton would have to give is listed in report_cables.txt.
 
 Board space (v, u, n) as in hardware.py: B(v, u, n) is the world point. Every way-point number is a named constant below with its reason.
 
@@ -53,18 +53,18 @@ GAP_U = {"usb3": 163.5, "gpu12v": 184.0, "atx24": 224.5, "eps1": 255.0, "eps2": 
 OWN = {   # the hardware a route may touch: its two ends
     "atx24": {"psu", "board", "atx24"}, "eps1": {"psu", "board", "eps"}, "eps2": {"psu", "board", "eps"}, "gpu12v": {"psu", "gpu"},
     "usb3": {"front_io", "board"}, "usbc": {"front_io", "board"}, "jfp1": {"front_io", "board"}, "jaud1": {"front_io", "board"},
-    "argb": {"light_strip", "board"}, "cpu_fan": {"cpu_block", "board", "eps"},      # CPU_FAN1 lies inside the EPS keep-out box
+    "cpu_fan": {"cpu_block", "board", "eps"},      # CPU_FAN1 lies inside the EPS keep-out box
     "fan_right": {"fan_side_right", "board"}, "fan_left": {"fan_side_left", "board"},
 }
 HEADER_OF = {"atx24": "ATX_PWR1", "eps1": "CPU_PWR1", "eps2": "CPU_PWR2", "usb3": "JUSB3", "usbc": "JUSBC1", "jfp1": "JFP1",
-             "jaud1": "JAUD1", "argb": "JARGB_V2_1", "cpu_fan": "CPU_FAN1", "fan_right": "SYS_FAN1", "fan_left": "SYS_FAN3"}
+             "jaud1": "JAUD1", "cpu_fan": "CPU_FAN1", "fan_right": "SYS_FAN1", "fan_left": "SYS_FAN3"}
 SOCKET_OF = {"atx24": "mb", "eps1": "eps1", "eps2": "eps2", "gpu12v": "gpu"}
 TITLE = {"atx24": "ATX 24-pin", "eps1": "EPS 1", "eps2": "EPS 2", "gpu12v": "12V-2x6", "usb3": "USB 3 front", "usbc": "USB-C front",
-         "jfp1": "Power switch", "jaud1": "Audio", "argb": "Light line", "cpu_fan": "Pump / 420 fans", "fan_right": "Right side fan",
+         "jfp1": "Power switch", "jaud1": "Audio", "cpu_fan": "Pump / 420 fans", "fan_right": "Right side fan",
          "fan_left": "Left side fan"}
 RGB = {"atx24": (0.85, 0.10, 0.10), "eps1": (0.95, 0.55, 0.05), "eps2": (0.95, 0.80, 0.05), "gpu12v": (0.95, 0.20, 0.55),
        "usb3": (0.10, 0.35, 0.85), "usbc": (0.05, 0.65, 0.85), "jfp1": (0.80, 0.10, 0.75), "jaud1": (0.10, 0.70, 0.25),
-       "argb": (0.55, 0.20, 0.85), "cpu_fan": (0.0, 0.0, 0.0), "fan_right": (0.60, 0.35, 0.10), "fan_left": (0.30, 0.55, 0.10)}
+       "cpu_fan": (0.0, 0.0, 0.0), "fan_right": (0.60, 0.35, 0.10), "fan_left": (0.30, 0.55, 0.10)}
 
 
 def B(v, u, n):
@@ -145,7 +145,7 @@ class Route:
         self.pts = np.vstack([secs[0].pts] + [s.pts[1:] for s in secs[1:]])
         self.solid = self.body = self.psu_body = self.card_body = None
         self.clear = []            # (target, distance, needed)
-        self.stretch = None        # front USB routes: (distance to the board, to the sill) of the first stretch
+        self.stretch = None        # front USB routes: the distance to the board of the first stretch
         self.fail = []             # (class, text)
         self.tie = None            # tie_eval(...) of the six cables with tie points, set by evaluate
         self.tie_n = 0             # how many bridges that was worked out with
@@ -225,10 +225,17 @@ WAY_X = {"eps1": 68.0, "eps2": 81.5}       # third-pass search: world X, Y, Z of
 WAY_Y = {"eps1": 123.0, "eps2": 146.5}
 WAY_Z = {"eps1": 11.0, "eps2": 0.0}
 
-# 12V-2x6: from the socket's mouth along +n (plug 13 + straight 35), one arch in the vertical plane through the socket and the descent, down the gap.
+# 12V-2x6: from the socket's mouth along +n (plug 13 + straight 35), one arch over the socket, and back down beside it under the organic layer's film (revision 18, docs/plans/front-and-outline.md,
+# part H: the owner, "it can go under it; the main thing is that there is room for the connector"). From the slab's top the round part goes up the gap at the slab's u to GPU12V_UNDER_N,
+# over to the foot of the loop (GPU12V_LOOP_V, GPU12V_LOOP_U) at GPU12V_RUN_N, under the film in the gap between the card (u up to 126.6) and the 360 (u from 184), up the loop's far leg to
+# the arch's top, across to above the socket and down into it. Until revision 18 it went up the gap to an S-bend (GPU12V_S_N) and a descent at u 173 (GPU12V_ARCH_U), which ran through
+# the layer's lip and over the bone `card`. The four numbers were searched with this script's own checks (docs/plans/sketches/cable_under_route.py, a grid of 81): every bend 35 (the
+# cable's least), the loop's far leg clear of the lip, the route clear of the card and the 360 by evaluate_route's clearances; they pass with the least bend 35.0 and the route 9.1 mm in
+# front of Y 0 (10.4 before; GPU12V_FRONT_TOL 11).
 GPU12V_TOP_N = 220.0                       # top of the arch: mouth n 137 + plug 13 + straight 35 + the first bend's radius 35 (the arch cannot be lower)
-GPU12V_ARCH_U = 173.0                      # search: u of the round descent: its surface (r 7) stands 4 mm off the 360's face (u 184), which the descent passes at n 122..177
-GPU12V_S_N = [118.5, 67.0]                 # search: n of the two corners of the S-bend that moves the descent from GPU12V_ARCH_U to the slab's u (below the 360's face, n 122, and above USB 3's hook)
+GPU12V_UNDER_N = 83.0                      # search: n up the gap at the slab's u before the cable turns over to the loop
+GPU12V_LOOP_V, GPU12V_LOOP_U = 192.5, 154.0      # search: (v, u) of the loop's far leg (X 70.5), which rises from GPU12V_RUN_N to GPU12V_TOP_N; the organic layer's right film starts past it
+GPU12V_RUN_N = 115.0                       # search: n of the run under the film to the foot of the loop
 GPU12V_SLAB_TOP_N = 53.0                   # search: the slab (4 strands r 4, constant u) starts here ...
 GPU12V_SLAB_BOTTOM_N = -22.0               # ... and ends here: the round part's bend ends at the lane level + 35 = -23; its r 7 stays 3.5 mm off the rib at X 142
 # ATX 24-pin: round r 12 to the foot of the gap, slab up through it, hook out over the rail, one U-turn, down into ATX_PWR1.
@@ -239,33 +246,42 @@ USB3_HOOK = dict(n1=29.0, n2=46.0, v_up=283.5, n_top=70.0)  # search: the same f
 EPS_RUN_N = {"eps1": 65.0, "eps2": 59.5}   # search: level of the run over the board: over the DIMMs (n 45) + 3 + r 6 = 54
 EPS_END_U = 300.0                          # u of the last leg: 4 mm from the DIMM box (u 290) and from the 420's core face (u 310) with r 6
 # Front I/O
-# The two USB cables leave the module's rear face (Y FRONT_IO_W[3], read when the routes are built) and pass the sill through its cable window (frame_v0.sill_geometry()["window_xz"],
-# the sill's own since the review of revision 14a, inside the rear face of every module the carrier admits; check 20 holds that): X at these offsets from the window's left edge
-# (the plan's 60 and, so that the two do not start together, 70), Z in the window's middle. Before the window the start lay behind the sill (Y 54) and the cable passed the board's
-# bottom edge 1.93 mm and the sill's rear face 2.65 mm away, because the 12.6 mm between them is less than 8 + 2 x 3; through the window the cable no longer has the sill beside it there.
-USB_WINDOW_X = {"usb3": 20.0, "usbc": 30.0}
+# The two USB cables leave the module's rear face (Y FRONT_IO_W[3]) at hw.FRONT_IO_LEAD_XZ, both read when the routes are built. Until revision 18 they passed the sill through its
+# cable window and their X and Z were read from it; the sill is gone and the points keep those values (60, 30) and (70, 30). Before the window the start lay behind the sill (Y 54) and
+# the cable passed the board's bottom edge 1.93 mm and the sill's rear face 2.65 mm away.
 
 
 def usb_start(name):
-    """World start of a front USB cable: on the module's rear face as hardware.py has it now, in front of the sill's window."""
-    wx0, _wx1, wz0, wz1 = frame_v0.sill_geometry()["window_xz"]
-    return (wx0 + USB_WINDOW_X[name], hw.FRONT_IO_W[3], (wz0 + wz1) / 2)
+    """World start of a front USB cable: on the module's rear face as hardware.py has it now."""
+    x, z = hw.FRONT_IO_LEAD_XZ[name]
+    return (x, hw.FRONT_IO_W[3], z)
 U_EDGE = -9.5                              # search: u at which a USB cable passes the board's bottom edge
 USB_DIVE_U = -4.5                          # search: u at which a USB cable has dived under the board at the lane level
 USBC_RISER = dict(v=249.5, u=84.0)         # search: USB-C goes up the gap here, 3 mm + r 4 from the board's edge, and its U-turn stays off gpu_rest (u 75.6) by 3 mm
 USBC_N = {"lane": -46.0, "plane": hw.LYING_PLUG["thick"] / 2}   # search: lane level under beam_low (n -30) with r 4; the plug's centre line over the board's plane (spec)
 USBC_U_TURN = dict(v=290.0, u_end=121.5, v_exit=259.0)   # search: apex of the in-plane U-turn over the rail; the u it comes back to; the v where it straightens for the plug
 FRONT_START_X = {"jaud1": 48.0, "jfp1": 82.0}     # first pass: along X on the plan's start line (Y 50, Z 30)
-LIGHT_START_W = (-125.0, 50.0, 30.0)       # first pass: "sill end", the left end, behind the sill (only its X is used; Y and Z as THIN_START_YZ)
-THIN_START_YZ = (55.0, 40.0)               # first pass: front start of JFP1, JAUD1 and the light line: the plan's (Y 50, Z 30) is 2.7 mm from the sill; Y +5 and Z +10 put an r 2 lead 3.5 mm off it
-THIN_ENTRY_N = 14.0                        # first pass: n at which JFP1 and the light line meet their header (2 mm over the plug's top, one radius)
-AUD_RUN = (30.0, 20.0)                     # first pass: (n, u) of JAUD1's run over the board's front strip: it descends into its header from there, over the light line
+THIN_START_YZ = (55.0, 40.0)               # first pass: front start of JFP1 and JAUD1: the plan's (Y 50, Z 30) was 2.7 mm from the sill (gone in revision 18); Y +5 and Z +10 put an r 2 lead 3.5 mm off it
+THIN_ENTRY_N = 14.0                        # first pass: n at which JFP1 meets its header (2 mm over the plug's top, one radius)
+AUD_RUN = (30.0, 20.0)                     # first pass: (n, u) of JAUD1's run over the board's front strip: it descends into its header from there (over the light line's lead, gone in revision 18)
 AUD_RUN_V0 = 110.0                         # first pass: v at which JAUD1 reaches the level of its run
-LIGHT_PASS_UN = (14.0, 14.0)               # first pass: (u, n) at which the light line passes under JAUD1's descent, at JAUD1's header's v
 # Pump lead and side fans
 PUMP_START_N = 50.5                        # search: where the pump lead leaves the block's wall: 3 mm + r 2 over the DIMMs (n 45), in from the DIMM side
-FAN_LEFT_START_V = hw.x_to_v(hw.FAN_SIDE_X["fan_side_left"][1])      # inner face of the left fan
-FAN_RIGHT = dict(v0=hw.x_to_v(hw.FAN_SIDE_X["fan_side_right"][0]), u0=hw.FAN_SIDE_U[1], n=46.0, ua=287.0, va=270.0)   # search: the right fan's lead leaves the fan's rear edge (its high-u edge) at v0 (the fan's inner face), crosses the board's edge beyond EPS 2's rise (u ua) at level n, and enters SYS_FAN1 from the +u side; 5.5 mm off the hoses
+def fan_left_start_v():
+    """v of the left fan's inner face, read when the route is built (revision 18: it was bound when the module was imported)."""
+    return hw.x_to_v(hw.FAN_SIDE_X["fan_side_left"][1])
+
+
+FAN_RIGHT_RUN = dict(n=46.0, ua=287.0, va=270.0)
+
+
+def fan_right():
+    """The right fan's lead, read when the route is built (revision 18: it was the dict FAN_RIGHT, bound when the module was imported). v0 the fan's inner face, u0 its high-u edge; the
+    rest is FAN_RIGHT_RUN."""
+    return dict(v0=hw.x_to_v(hw.FAN_SIDE_X["fan_side_right"][0]), u0=hw.FAN_SIDE_U[1], **FAN_RIGHT_RUN)
+
+
+# search: the right fan's lead leaves the fan's rear edge (its high-u edge) at v0 (the fan's inner face), crosses the board's edge beyond EPS 2's rise (u ua) at level n, and enters SYS_FAN1 from the +u side; 5.5 mm off the hoses
 FAN_LEFT = dict(u=177.5, n=65.0)           # search: the left fan's lead runs straight from the fan to above the header (the first pass's `alt`), over the board at level n, u from the fan to the header's
 
 
@@ -290,8 +306,8 @@ def waypoints_all():
     mouth_n = hw.GPU_BS[5] - gs["recess"]
     rd1 = psu_lead("gpu12v", SHIFT_DEG["gpu12v"]) + [B(V_GAP, c, GPU12V_SLAB_BOTTOM_N)]
     sl = [B(V_GAP, c, GPU12V_SLAB_BOTTOM_N), B(V_GAP, c, GPU12V_SLAB_TOP_N)]
-    rd2 = [B(V_GAP, c, GPU12V_SLAB_TOP_N), B(V_GAP, c, GPU12V_S_N[1]), B(V_GAP, GPU12V_ARCH_U, GPU12V_S_N[0]),
-           B(V_GAP, GPU12V_ARCH_U, GPU12V_TOP_N), B(gs["v"], gs["u"], GPU12V_TOP_N), B(gs["v"], gs["u"], mouth_n)]
+    rd2 = [B(V_GAP, c, GPU12V_SLAB_TOP_N), B(V_GAP, c, GPU12V_UNDER_N), B(GPU12V_LOOP_V, GPU12V_LOOP_U, GPU12V_RUN_N),
+           B(GPU12V_LOOP_V, GPU12V_LOOP_U, GPU12V_TOP_N), B(gs["v"], gs["u"], GPU12V_TOP_N), B(gs["v"], gs["u"], mouth_n)]
     R["gpu12v"] = [Sec("round", rd1, "gpu12v"), Sec("slab", sl, "gpu12v"), Sec("round", rd2, "gpu12v")]
     # --- EPS 1 and 2
     for name in ("eps1", "eps2"):
@@ -316,8 +332,6 @@ def waypoints_all():
     # --- the front cables that stay in front of the board
     hv, hu = header("jfp1")
     R["jfp1"] = [Sec("round", [np.array([FRONT_START_X["jfp1"], *THIN_START_YZ]), B(hv, hu, THIN_ENTRY_N)], "jfp1")]
-    hv, hu = header("argb")
-    R["argb"] = [Sec("round", [np.array([LIGHT_START_W[0], *THIN_START_YZ]), B(hw.HEADERS["JAUD1"][0], *LIGHT_PASS_UN), B(hv, hu, THIN_ENTRY_N)], "argb")]
     hv, hu = header("jaud1")
     R["jaud1"] = [Sec("round", [np.array([FRONT_START_X["jaud1"], *THIN_START_YZ]), B(AUD_RUN_V0, AUD_RUN[1], AUD_RUN[0]), B(hv, AUD_RUN[1], AUD_RUN[0]),
                                 B(hv, hu, top)], "jaud1")]
@@ -330,11 +344,11 @@ def waypoints_all():
     R["cpu_fan"] = [Sec("round", [B(wall[0], wall[1], PUMP_START_N), B(hv, wall[1], PUMP_START_N), B(hv, hu, PUMP_START_N), B(hv, hu, top)], "cpu_fan")]
     # --- the side fans: straight from the fan to above the header
     hv, hu = header("fan_right")
-    a = FAN_RIGHT
+    a = fan_right()
     R["fan_right"] = [Sec("round", [B(a["v0"], a["u0"], a["n"]), B(a["va"], a["ua"], a["n"]), B(hv, a["ua"], a["n"]), B(hv, hu, a["n"]), B(hv, hu, top)], "fan_right")]
     hv, hu = header("fan_left")
     a = FAN_LEFT
-    R["fan_left"] = [Sec("round", [B(FAN_LEFT_START_V, a["u"], a["n"]), B(hv, a["u"], a["n"]), B(hv, hu, a["n"]), B(hv, hu, top)], "fan_left")]
+    R["fan_left"] = [Sec("round", [B(fan_left_start_v(), a["u"], a["n"]), B(hv, a["u"], a["n"]), B(hv, hu, a["n"]), B(hv, hu, top)], "fan_left")]
     return R
 
 
@@ -351,14 +365,14 @@ def build_routes():
             for name, secs in waypoints_all().items()}
 
 
-FRONT_STRETCH_U = 16.0   # the stretch of a front USB route with u below this lies by the sill and the board's bottom edge (report only)
+FRONT_STRETCH_U = 16.0   # the stretch of a front USB route with u below this passes the board's bottom edge (report only)
 
 
 def front_stretch(rt, targets):
-    """(distance to the board, distance to the sill) of the first stretch of a front USB route, where it passes the sill and the board's bottom edge."""
+    """The distance to the board of the first stretch of a front USB route, where it passes the board's bottom edge (revision 18: the distance to the sill went with it)."""
     us = np.array([hoses.world_to_bs(p)[1] for p in rt.pts])
     zone = chain_solid(rt.pts[:int(np.argmax(us > FRONT_STRETCH_U)) + 1], rt.r)
-    return frame_v0.solid_distance(zone, targets["hw:board"]), frame_v0.solid_distance(zone, targets["front_sill"])
+    return frame_v0.solid_distance(zone, targets["hw:board"])
 
 
 def evaluate_route(rt, targets, gpu_under, slots):
@@ -510,16 +524,14 @@ def fmt_rows(routes, overlaps):
 
 def skeleton_section(routes):
     out = ["", "What the skeleton has to provide (coordinates only; item 1 is built, nothing else is cut)", ""]
-    wx0, wx1, wz0, wz1 = frame_v0.sill_geometry()["window_xz"]
-    ys = frame_v0.sill_geometry()["y_rear"]
-    out.append(f"1. The sill's cable window: BUILT (frame_v0.py, front_sill). PLACEHOLDER like the module: X {wx0:g}..{wx1:g}, Z {wz0:g}..{wz1:g} through the rear wall (Y {ys - frame_v0.SILL_REAR_WALL:g}..{ys:g}), "
-               f"corners R {frame_v0.SILL_WINDOW_R:g}, the sill's own numbers (inside the rear face of every module the carrier admits; check 20). The USB cables start on the module's rear face (Y {hw.FRONT_IO_W[3]:g}) and pass through it:")
+    out.append(f"1. The room behind the I/O module (revision 18: the sill and its cable window are gone): no part of the skeleton stands within {frame_v0.CARRIER_REAR_ROOM:g} mm behind the module's rear face "
+               f"over its X and Z (frame_v0.py, check 20). The USB cables start on the module's rear face (Y {hw.FRONT_IO_W[3]:g}, PLACEHOLDER like the module):")
     for n in ("usb3", "usbc"):
         rt = routes[n]
         p = rt.pts[0]
-        d_board, d_sill = rt.stretch
-        out.append(f"   {TITLE[n]:16} starts at {fmt(p)}; its first stretch (u < {FRONT_STRETCH_U:g}, where it passes the sill and the board's bottom edge) is {d_sill:.2f} mm from the sill and {d_board:.2f} mm from the board (3 wanted)")
-    out.append("   Power switch (X 82) and audio (X 48) lie inside the window's X range but start behind the rear face (Y 55) and do not use it. The light line's lead needs no window: the light channel is open through both ends of the sill.")
+        d_board = rt.stretch
+        out.append(f"   {TITLE[n]:16} starts at {fmt(p)}; its first stretch (u < {FRONT_STRETCH_U:g}, where it passes the board's bottom edge) is {d_board:.2f} mm from the board (3 wanted)")
+    out.append("   Power switch (X 82) and audio (X 48) start behind the module's rear face (Y 55).")
     notch = []
     for n, rt in routes.items():
         for c, f in rt.fail:
@@ -650,12 +662,12 @@ def facts_section(routes):
 def notes():
     return f"""
 Numbers chosen here (all in cables.py, each with its reason there):
-  order in the gap, from low u: USB 3 {GAP_U['usb3']:g}, 12V-2x6 slab {GAP_U['gpu12v']:g} (round descent {GPU12V_ARCH_U:g}), ATX slab {GAP_U['atx24']:g}, EPS 1 {GAP_U['eps1']:g}, EPS 2 {GAP_U['eps2']:g}
+  order in the gap, from low u: USB 3 {GAP_U['usb3']:g}, 12V-2x6 slab {GAP_U['gpu12v']:g} (then up the gap to n {GPU12V_UNDER_N:g}, under the organic layer's film at n {GPU12V_RUN_N:g} to the loop at v {GPU12V_LOOP_V:g}, u {GPU12V_LOOP_U:g}, up to the arch over the socket), ATX slab {GAP_U['atx24']:g}, EPS 1 {GAP_U['eps1']:g}, EPS 2 {GAP_U['eps2']:g}
   lanes under the board at v {V_IN:g} (EPS 1: v {V_IN_OF['eps1']:g}, X {V_IN_OF['eps1'] + hw.ORIGIN[0]:g}, so that its 36 deg corner is within the reach of a bridge on rib A's mid leg), levels n: """ + ", ".join(f"{TITLE[k]} {v:g}" for k, v in LANE_N.items()) + f"""; each cable's diagonal takes it to v {V_GAP:g} and it rises through the gap
   hooks (ATX, USB 3): up the gap, out over the rail (S-bend) to v {ATX_HOOK['v_up']:g} / {USB3_HOOK['v_up']:g}, up, one U-turn of R 15, down at the header's v
   EPS: up the gap to the run over the board (n {EPS_RUN_N['eps1']:g} / {EPS_RUN_N['eps2']:g}, over the DIMMs' 45 + 3 + r 6), a diagonal to above the header at u {EPS_END_U:g}, down into it
   USB-C: up the gap at v {USBC_RISER['v']:g} / u {USBC_RISER['u']:g}, then in the board's plane (n {USBC_N['plane']:g}) a U-turn over the rail and the plug along -v
-Not built: nylon clips for single cables, any cut in the skeleton beyond the sill's window. The tie points (frame_v0.TIE_POINTS) are built; the two rules for them (TIE_REACH {TIE_REACH:g} mm, stretches of {TIE_STRETCH:g} mm, bends of {TIE_BEND_DEG:g} deg) are checks in this script, and their numbers are in the section above.
+Not built: nylon clips for single cables, any cut in the skeleton. The tie points (frame_v0.TIE_POINTS) are built; the two rules for them (TIE_REACH {TIE_REACH:g} mm, stretches of {TIE_STRETCH:g} mm, bends of {TIE_BEND_DEG:g} deg) are checks in this script, and their numbers are in the section above.
 """
 
 

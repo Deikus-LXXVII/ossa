@@ -201,11 +201,12 @@ def fan_side_bs(name):
     return (x_to_v(x0), x_to_v(x1), FAN_SIDE_U[0], FAN_SIDE_U[1], FAN_SIDE_N[0], FAN_SIDE_N[1])
 
 # ---------------------------------------------------------------------------
-# Revision 9: the front I/O module of the owner's Fractal North XL and the light line, both on the front sill.
-# EVERYTHING IN THIS BLOCK IS A PLACEHOLDER until the owner has measured the module: the box, the screw positions, the strip's place.
+# Revision 9: the front I/O module of the owner's Fractal North XL. Revision 18 (docs/plans/front-and-outline.md): the light line and the front sill are gone; the module sits in
+# its carrier (frame_v0.py, front_io_carrier), which stands on beam_front and is screwed to it from below, under the organic layer's hood.
+# EVERYTHING IN THIS BLOCK IS A PLACEHOLDER until the owner has measured the module: the box, the screw positions.
 # ---------------------------------------------------------------------------
 # PLACEHOLDER until the module is measured: the module with its housing, world x0, x1, y0, y1, z0, z1 (165 x 42 x 36). The ports face forwards
-# and upwards through the sill's 45 deg face, parallel to the board, so a plug goes in along the board's normal.
+# and upwards, parallel to the board, so a plug goes in along the board's normal.
 FRONT_IO_W = (-70.0, 95.0, 0.0, 42.0, 10.0, 46.0)
 # Ports in a row along X, as read off refs/north_io_front_measured.png (7.3 px/mm on the USB-A shells; the panel measures 208 mm, which is the
 # North's width). Centre to centre, +-1 mm. The module has no reset button.
@@ -215,30 +216,15 @@ FRONT_IO_OFFSETS = tuple(round(sum(FRONT_IO_PITCH[:k]), 2) for k in range(len(FR
 FRONT_IO_BUTTON_D = 18.0                                # cap, about
 FRONT_IO_ROW_EXTENT = 112.0                             # from the button's outer edge to the USB-C's outer edge, about
 FRONT_IO_LED_SLIT_BEYOND = 43.0                         # the power-LED slit runs this far beyond the USB-C, about
-# PLACEHOLDER: the module's mounting. Two screws along X into the end walls of the sill's pocket: (x, y, z) on the module's end face and
+# PLACEHOLDER: the module's mounting. Two screws along X into the carrier's end blocks: (x, y, z) on the module's end face and
 # the direction out of the module into the holder. Thread, positions, and whether the module has ears at all are not known.
 FRONT_IO_SCREWS = (((-70.0, 21.0, 28.0), (-1.0, 0.0, 0.0)), ((95.0, 21.0, 28.0), (1.0, 0.0, 0.0)))
 FRONT_IO_SCREW_KIND = "M3"                              # key of INSERTS
+# PLACEHOLDER: where the USB 3 and USB-C leads leave the module's rear face, (X, Z). Until revision 18 they were read from the front sill's cable window (its left edge X 40 plus 20 and
+# 30, Z in its middle); the sill is gone and the points keep those values. cables.py starts the two routes here; frame_v0.py's check 20 holds them on the module's rear face.
+FRONT_IO_LEAD_XZ = {"usb3": (60.0, 30.0), "usbc": (70.0, 30.0)}
 
-# PLACEHOLDER position: the light line, a reserved channel for an LED strip and its diffuser along the upper edge of the sill's face, over the
-# whole width. 14 x 14 mm in section, aligned with the board (u along the face, n out of it), behind the module's top face and clear of the
-# module in u. Its outer face along n is where the placeholder module's front top edge was when the line was placed (Y 0, Z 46: the module's
-# highest point along the board's normal). Since the review of revision 14a it no longer follows FRONT_IO_W: the module sits in a carrier and may
-# change inside it (frame_v0.py, check 20) without moving the strip, and so without changing the sill, whose light channel is drawn round the strip.
-LIGHT_STRIP_X = (-135.0, 135.0)
-LIGHT_STRIP_SECTION = (14.0, 14.0)                      # (along u, along n)
-LIGHT_STRIP_U0 = -9.0
-LIGHT_STRIP_N1 = bs_of(0.0, 0.0, 46.0)[2]               # the strip's outer face along n: the placeholder module's front top edge (world Y 0, Z 46) of revision 9
-LIGHT_STRIP_BS = (x_to_v(LIGHT_STRIP_X[0]), x_to_v(LIGHT_STRIP_X[1]), LIGHT_STRIP_U0, LIGHT_STRIP_U0 + LIGHT_STRIP_SECTION[0],
-                  LIGHT_STRIP_N1 - LIGHT_STRIP_SECTION[1], LIGHT_STRIP_N1)
-# The intended build-up (owner's translucent PLA; not geometry yet): the strip is up to 12 mm wide and sits on the sill (ABS), never on the
-# diffuser (PLA); at least 10 mm from the LEDs to the diffuser, which is 1.6 mm thick and shows as a 4 mm line. The channel stays open at both
-# ends so it breathes: a full-white strip in a closed 14 x 14 channel can pass 50 deg C, PLA softens at 55..60.
-LIGHT_STRIP_W_MAX = 12.0
-LIGHT_LED_TO_DIFFUSER_MIN = 10.0
-LIGHT_DIFFUSER_T = 1.6
-LIGHT_LINE_W = 4.0
-FRONT_HARDWARE = ("front_io", "light_strip")           # in front of the front plane they must not reach either (check 8)
+FRONT_HARDWARE = ("front_io",)                         # in front of the front plane it must not reach either (check 8)
 
 PSU_REAR_Y = 375.0
 
@@ -425,7 +411,7 @@ GPU_OUT_ZONE_BS = (GPU_BS[0] - GPU_OUT_DEPTH, GPU_BS[0], GPU_BS[2], GPU_BS[3], G
 # with a small margin. The hose keep-outs stop at these boxes; they are not hoses.
 RAD420_PORTS_BS = (-111, -86, 288, 310, 30, 78)
 RAD360_PORTS_BS = (298, 323, 220, 269, 100, 122)
-KEEP_OUT = ("io_zone", "gpu_out_zone", "dimms", "atx24", "eps", "rad420_ports", "rad360_ports", "cpu_hoses", "gpu_hoses", "light_strip") + DRIVE_PLUGS
+KEEP_OUT = ("io_zone", "gpu_out_zone", "dimms", "atx24", "eps", "rad420_ports", "rad360_ports", "cpu_hoses", "gpu_hoses") + DRIVE_PLUGS
 HOSES = ("cpu_hoses", "gpu_hoses")
 
 # ---------------------------------------------------------------------------
@@ -457,14 +443,14 @@ PSU_SOCKET_USE = {"mb": "mb", "eps1": "cpu_c1r2", "eps2": "cpu_c1r1", "gpu": "gp
 PSU_SOCKETS = {k: PSU_SOCKET_FIELD[v] for k, v in PSU_SOCKET_USE.items()}
 
 # Cables: name -> (real length in mm or None, radius, minimum bend radius). STANDING: lengths of the PSU's own cables are Seasonic's spec
-# sheet (ATX 24-pin 610, EPS 700, 12V-2x6 700); "None" = unknown (front I/O cables of the Fractal North XL, the ARCTIC PWM lead, the light line,
-# which is still to be chosen); 400 for the two side fans is the research's TYPICAL length ("400 or more"), not measured.
+# sheet (ATX 24-pin 610, EPS 700, 12V-2x6 700); "None" = unknown (front I/O cables of the Fractal North XL, the ARCTIC PWM lead);
+# 400 for the two side fans is the research's TYPICAL length ("400 or more"), not measured.
 # Radii and minimum bends are ASSUMPTIONS (the cable's outer size was not found; the build is individually sleeved wires with combs).
 # gpu12v: the socket on the card is known now (GPU_PWR_SOCKET below, read off MSI's render); its 35 mm straight at the plug is the plan's.
 CABLES = {
     "atx24": (610.0, 12.0, 30.0), "eps1": (700.0, 6.0, 20.0), "eps2": (700.0, 6.0, 20.0), "gpu12v": (700.0, 7.0, 35.0),
     "usb3": (None, 4.0, 15.0), "usbc": (None, 4.0, 15.0), "jfp1": (None, 2.0, 8.0), "jaud1": (None, 2.0, 8.0),
-    "argb": (None, 2.0, 8.0), "cpu_fan": (None, 2.0, 8.0), "fan_right": (400.0, 2.0, 8.0), "fan_left": (400.0, 2.0, 8.0),
+    "cpu_fan": (None, 2.0, 8.0), "fan_right": (400.0, 2.0, 8.0), "fan_left": (400.0, 2.0, 8.0),
 }
 GPU12V_STRAIGHT = 35.0                    # straight length at the 12V-2x6 plug
 
@@ -474,6 +460,7 @@ GPU12V_STRAIGHT = 35.0                    # straight length at the 12V-2x6 plug
 # u is 7 mm below the backplate edge. The socket sits in a notch on the face that looks away from the board: the centre of its mouth is
 # `recess` below that face (n = GPU_BS[5] - recess) and the plug enters along -n, so the cable leaves along +n.
 GPU_PWR_SOCKET = dict(v=130.0, u=119.0, recess=13.0)
+GPU_PWR_SOCKET_TOL = dict(v=12.0, u=3.0, recess=8.0)      # revision 18: the tolerances above as numbers (organic_frame.py opens the layer over the socket by them)
 GPU12V_PLUG = 13.0                        # ASSUMPTION: how far the plug's back stands out of the socket's mouth; GPU12V_STRAIGHT counts from it
 # Lying headers: the socket is on the board's edge and the plug enters along -v from outside it. STANDING: JUSBC1 is a lying socket at u 103..116,
 # v 232..244 on the board scan (refs/board_scan_overlay.png, refs/usbc_under_card.png). The plug is centred thick / 2 above the board face.
@@ -499,21 +486,23 @@ SLAB_BEND = 15.0
 # docs/plans/rear-panel.md, revision 17). name -> (part name, centre of the pad = the mouth of the insert pilot on the part's face, world (X, Y, Z),
 # the face's outward normal as a unit vector, the piece of the layer the pad holds). The pilot is cut by frame_v0.py along minus the normal into the part;
 # organic_frame.py puts its pads here and checks that each screw axis lies on a pilot. The twelve rows of the piece `main` are organic_frame.py's pads of the first
-# build, six a side on the outer faces (normal along X), except neck_top_L, which moved (8, 8) from its target (216, 289) because the left neck's CPU hose guide had a pilot of its own there (revision 14a took the guide off the neck;
-# the pad stays where it is until the layer is redrawn in revision 14b).
+# build, six a side on the outer faces (normal along X). Revision 18 (docs/plans/front-and-outline.md, part C.5): the sill's two pads (sill_end_R/L) went with the sill; front_post_R/L
+# hold the front posts on rib_A's foot between beam_front's two screws (Y 10 and 30, Z 0); three pads moved off a screw's washer (organic_frame.pad_fits keeps a pad's rim
+# PAD_WASHER_GAP from it): neck_top_L to the mirror image of neck_top_R (it stood 1.23 mm on the washer of a visor arm's screw; before revision 14a the left neck's CPU hose guide
+# had a pilot at that place), rear_foot_R/L 2 mm forward and 1 mm down (they stood 0.10 mm on the washer of a PSU bulkhead's screw).
 ORGANIC_PADS = {
     "front_foot_R": ("rib_A_right", (158.0, 60.0, 12.0), (1.0, 0.0, 0.0), "main"),
-    "sill_end_R": ("front_sill", (140.0, 28.0, 45.0), (1.0, 0.0, 0.0), "main"),
+    "front_post_R": ("rib_A_right", (158.0, 20.0, -8.0), (1.0, 0.0, 0.0), "main"),
     "base_mid_R": ("rib_B_right", (158.0, 250.0, -6.0), (1.0, 0.0, 0.0), "main"),
-    "rear_foot_R": ("rib_B_right", (158.0, 372.0, -6.0), (1.0, 0.0, 0.0), "main"),
+    "rear_foot_R": ("rib_B_right", (158.0, 370.0, -7.0), (1.0, 0.0, 0.0), "main"),
     "rear_post_R": ("rib_B_right", (158.0, 374.0, 50.0), (1.0, 0.0, 0.0), "main"),
     "neck_top_R": ("neck_right", (192.0, 216.0, 289.0), (1.0, 0.0, 0.0), "main"),
     "front_foot_L": ("rib_A_left", (-158.0, 60.0, 12.0), (-1.0, 0.0, 0.0), "main"),
-    "sill_end_L": ("front_sill", (-140.0, 28.0, 45.0), (-1.0, 0.0, 0.0), "main"),
+    "front_post_L": ("rib_A_left", (-158.0, 20.0, -8.0), (-1.0, 0.0, 0.0), "main"),
     "base_mid_L": ("rib_B_left", (-158.0, 250.0, -6.0), (-1.0, 0.0, 0.0), "main"),
-    "rear_foot_L": ("rib_B_left", (-158.0, 372.0, -6.0), (-1.0, 0.0, 0.0), "main"),
+    "rear_foot_L": ("rib_B_left", (-158.0, 370.0, -7.0), (-1.0, 0.0, 0.0), "main"),
     "rear_post_L": ("rib_B_left", (-158.0, 374.0, 50.0), (-1.0, 0.0, 0.0), "main"),
-    "neck_top_L": ("neck_left", (-192.0, 208.0, 297.0), (-1.0, 0.0, 0.0), "main"),
+    "neck_top_L": ("neck_left", (-192.0, 216.0, 289.0), (-1.0, 0.0, 0.0), "main"),
     # Revision 17 (docs/plans/rear-panel.md, second step): the rear panel's four pads, held at four corners. Two on psu_bulkhead's end blocks, rear face (Y 381,
     # frame_v0.BULK_Y1), X 132 the middle of the block ((frame_v0.BULK_BLOCK_X + frame_v0.X_IN) / 2), Z 64; two on rib_B's posts, rear face (Y 348, frame_v0.POST_REAR_Y),
     # X 150 the middle of the rib's thickness ((frame_v0.X_IN + frame_v0.X_OUT) / 2), Z 234: the plan's Z 236 put the pad's disc 0.45 mm from the antler (organic_frame.pad_clear
@@ -566,7 +555,6 @@ def build_hardware() -> dict[str, Solid]:
     hw["rad360_ports"] = bs_box(*RAD360_PORTS_BS)
     hw["cpu_hoses"] = hose_solid("cpu_hoses", hw["cpu_block"])
     hw["gpu_hoses"] = hose_solid("gpu_hoses", hw["gpu"])
-    hw["light_strip"] = bs_box(*LIGHT_STRIP_BS)
     lay = drive_layout()
     for name, plug_name, side in zip(DRIVES, DRIVE_PLUGS, DRIVE_SIDES.values()):
         hw[name] = Compound.makeCompound([_drive_box(side, f["body"]) for f in lay["faces"].values()])
@@ -580,7 +568,7 @@ HW_COLORS = {
     "fan_side_right": "#6fb3b8", "fan_side_left": "#6fb3b8", "io_zone": "#c0507a", "gpu_out_zone": "#d98aa8",
     "dimms": "#d6c14a", "atx24": "#3fa7a0", "eps": "#8a5fc9",
     "rad420_ports": "#c25a00", "rad360_ports": "#7a8f00", "cpu_hoses": "#1a1a1c", "gpu_hoses": "#6b3d1f",
-    "front_io": "#d4a017", "light_strip": "#f2e45a",
+    "front_io": "#d4a017",
 }
 HW_COLORS.update({k: "#6c7a89" for k in DRIVES})
 HW_COLORS.update({k: "#c9a0dc" for k in DRIVE_PLUGS})

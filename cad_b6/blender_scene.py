@@ -14,7 +14,7 @@ Runs inside Blender (5.2 LTS), headless:
         --suffix S      appended to the picture names
         --check-only    build the scene, run the checks, render nothing
 
-Exact, from the export: the skeleton parts, the organic layer, the hoses, the cables (centre lines and radii), the light line's slit.
+Exact, from the export: the skeleton parts, the organic layer, the hoses, the cables (centre lines and radii). Revision 18: the light line is gone.
 Stand-ins, built here from the constants of hardware.py (scene.json "hw"): fans, radiators, motherboard, graphics card, CPU block, power
 supply, front I/O module, drives, hose fittings and cable plugs. No logos, no textures from anywhere; every surface is a procedural material.
 
@@ -186,7 +186,6 @@ def make_materials():
     principled("void", (0.002, 0.002, 0.002), 0.9)
     principled("hdd_body", (0.060, 0.060, 0.064), 0.5, metallic=0.9)
     principled("hdd_cover", (0.20, 0.20, 0.21), 0.3, metallic=1.0)
-    principled("light", (0.9, 0.9, 0.9), 0.5, emit=(1.0, 0.50, 0.20), strength=1.5)      # warm white, about 3000 K
     principled("led_white", (0.5, 0.5, 0.5), 0.5, emit=(1.0, 0.97, 0.92), strength=1.2)
     m, b = principled("desk", (0.26, 0.257, 0.253), 0.50)
     nt = m.node_tree
@@ -885,7 +884,7 @@ def build_front_io():
     x0, x1, y0, y1, z0, z1 = HW["FRONT_IO_W"]
     zc = (z0 + z1) / 2
     MB().box(x0, x1, y0 + 1.2, y1, z0, z1).obj("front_io_housing", "plastic_black", WORLD, "front_io", bevel=0.5)
-    # the row, from the power button at the -X end (the USB cables leave at the +X end, where the sill's window is)
+    # the row, from the power button at the -X end (the USB cables leave its rear face at the +X end)
     xb = x0 + 5.0 + HW["FRONT_IO_BUTTON_D"] / 2
     xs = [xb + o for o in HW["FRONT_IO_OFFSETS"]]
     row = dict(zip(["power", "phones", "mic", "usb_a1", "usb_a2", "usb_c"], xs))
@@ -918,15 +917,6 @@ def build_front_io():
     tongues.box(row["usb_c"] - 3.3, row["usb_c"] + 3.3, zc - 0.35, zc + 0.35, -1.2, 1.0)
     tongues.obj("front_io_tongues", "plastic_grey", Mface, "front_io", smooth=None)
     MB().box(led[0], led[1], y0 + 1.4, y0 + 2.2, zc - 0.8, zc + 0.8).obj("front_io_led", "led_white", WORLD, "front_io", smooth=None)
-
-
-def build_light_line():
-    """The diffuser in the sill's slit: the exported cutter, kept just under the sill's face so that it glows in the slit."""
-    V = bs_of(NPZ[MESH["light_slit"]["key"] + "_v"])
-    lo, hi = V.min(axis=0), V.max(axis=0)
-    top = HW["SILL"]["n_face"] - 0.25
-    g = 0.05                                             # clear of the slit's walls, so the two surfaces do not coincide
-    MB().box(lo[0] + g, hi[0] - g, lo[1] + g, hi[1] - g, lo[2] + g, top).obj("light_line", "light", BS, None, smooth=None)
 
 
 def build_drives():
@@ -1106,7 +1096,7 @@ def aim_camera(cam, rig, view):
     cam.data.dof.use_dof = fstop is not None
     if fstop is not None:
         cam.data.dof.aperture_fstop = fstop
-        cam.data.dof.focus_distance = (cam.location - Vector((0.0, 0.03, 0.09))).length     # on the sill
+        cam.data.dof.focus_distance = (cam.location - Vector((0.0, 0.03, 0.09))).length     # on the I/O module's carrier
     bpy.context.view_layer.update()
 
 
@@ -1161,7 +1151,7 @@ def setup_render():
             pass
     vs.exposure = 0.25
     print("view transform:", vs.view_transform, "/", vs.look)
-    try:                                 # a little bloom round the light line
+    try:                                 # a little bloom round the bright highlights (the light line it was for is gone, revision 18)
         ng = bpy.data.node_groups.new("ossa_comp", "CompositorNodeTree")
         ng.interface.new_socket("Image", in_out="OUTPUT", socket_type="NodeSocketColor")
         rl, gl, out = ng.nodes.new("CompositorNodeRLayers"), ng.nodes.new("CompositorNodeGlare"), ng.nodes.new("NodeGroupOutput")
@@ -1188,7 +1178,6 @@ def main():
     build_gpu()
     build_psu()
     build_front_io()
-    build_light_line()
     build_drives()
     print(f"scene built: {len(bpy.data.objects)} objects ({time.time() - T0:.0f} s)")
     bpy.context.view_layer.update()

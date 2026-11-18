@@ -172,3 +172,30 @@ The module's own face plate with its cut-outs (it waits for the module to be mea
 ### Order of work
 
 The parts are checked as they are built: first A, B and D with `frame_v0.py`, `cables.py`, `assembly_access.py` and the test suite; then C, H and J with `organic_frame.py` and its tests; then I. A stop in one part is reported with what the earlier parts gave.
+
+## Revision 18 as built (18 Nov 2026)
+
+Built by two Opus implementers (the first stopped at the carrier's pilots, see A.3), rerun in full by the main session, reviewed by Grok.
+
+| What | Before | After |
+|---|---|---|
+| ABS at 4 walls / 20 % | 1733.2 g | 1534.6 g |
+| Inserts, washers, screws with a stack | 108, 97, 106 | 104, 93, 102 |
+| The layer: `main`, `rear_panel` | 1741.7, 302.3 cm³ | 1914.2, 304.5 cm³ |
+| The layer's pads | 16 | 16 (`sill_end_R/L` gone, `front_post_R/L` new, three moved) |
+| Strength of `main`: stress, movement | 6.5 MPa, 2.16 mm | 7.4 MPa, 2.60 mm; its 87 film members 5.0 MPa, 2.43 mm |
+| Strength of `rear_panel` | 6.4 MPa, 0.97 mm | 6.4 MPa, 0.97 mm; its 14 film members 4.3 MPa, 0.87 mm |
+| The card's power cable | 670 mm, 10.4 mm in front of Y 0, inside the layer | 639 mm, 9.1 mm, 10.48 mm from the layer |
+| Nearest cable and hose to the layer | inside it | `jaud1` 4.66 mm (needs 3), a CPU hose 5.79 mm (needs 4) |
+| Screws with layer within 1 mm of the head | 23 | 0 (least 1.11 mm) |
+| Pads with layer in the insert's pilot | 15 | 0 |
+| `test_checks.py`, `test_organic.py` (full, quick) | 329; 51, 32 | 327; 65, 43 |
+
+The four new checks of the layer, run on the layer as it was committed before (`runs/9_new_checks_on_the_old_layer.txt`): the pilots fail on 15 pads, the cables and hoses on the card's cable and two hoses, the heads on 23 screws; the carrier's way out was free.
+
+Grok's review of the built change found two checks that passed when they had nothing to check (a piece with no probe saved in `organic_strength.py`, a field with no pad in `pilot_checks`); both fail now, each with a case. It also found sentences of the report that still described the sill as present; they are marked as history.
+
+Left open:
+- `organic_strength.py` takes 34 minutes on the Mac, where it took 5: 400 s of processor time, the rest waiting for memory. The solve of `main` went from 89 s to 973 s for 8 % more unknowns. Half of the run is the model of before revision 17, which is printed and not judged.
+- `PLUG_ZONE`'s half widths (30 and 14 mm) are typed numbers, not built from the socket's tolerance.
+- The module may grow 12.55 mm to the rear by check 20's room; the cables are routed for 2.5 mm of it only.
