@@ -68,7 +68,7 @@ SECTIONS: list[tuple[str, object]] = []             # (title, function(hardware,
 # A run that records fewer fails (a section emptied, cut short or skipped would otherwise pass as "N/N cases as expected"), and
 # so does a section, or the prelude, that records none. A run that records more passes and says to raise this in the same commit.
 # Not in budgets.json: check_budgets.py --write rewrites that file from a run's record, and the pin must not follow a run down.
-EXPECTED_CASES = 327      # revision 18: 329 before; 9 records went with the sill, the light strip, the window and check 22 (what they damaged is gone), 5 are new (the carrier's screws: stack, washer, check_bolts and its two damages); the rest have successors; 2 more for the pad's rule against washers (part C.5)
+EXPECTED_CASES = 328      # revision 18: 329 before; one more after the build's review (check 4 lost its only case with the sill: beam_front grown to 300 mm takes its place); 9 records went with the sill, the light strip, the window and check 22 (what they damaged is gone), 5 are new (the carrier's screws: stack, washer, check_bolts and its two damages); the rest have successors; 2 more for the pad's rule against washers (part C.5)
 
 # the expensive operations, counted per process: the budget of the time to verify gates on these (check_budgets.py)
 COUNTS: collections.Counter = collections.Counter()
@@ -961,6 +961,11 @@ def s_front_io(hardware, parts, base):
     front = dict(hardware, front_io=hw.wbox(hw.FRONT_IO_W[0], hw.FRONT_IO_W[1], -3.0, hw.FRONT_IO_W[3] - 3.0, hw.FRONT_IO_W[4], hw.FRONT_IO_W[5]))
     r = f.run_checks(front, parts, MEMO)
     case("front_io moved 3 mm in front of Y = 0 (hardware reaches the envelope check)", "CHECK8 front_io reaches Y = -3.00, in front of 0", r["failures"], "CHECK8 front_io reaches Y", "in front of 0")
+    # check 4 (a part fits the bed): the case that grew the sill to 300 mm went with the sill in revision 18; beam_front (284 mm) takes its place
+    beam = next(p for p in parts if p.name == "beam_front")
+    wide = hw.wbox(-150.0, 150.0, 5.0, 15.0, -5.0, 5.0)
+    r = f.run_checks(hardware, with_part(parts, "beam_front", solid=beam.solid.fuse(wide).clean()), MEMO)
+    case("beam_front grown to X -150..150 (300 mm)", "CHECK4 beam_front is 300.0 mm (> 290.0)", r["failures"], "CHECK4 beam_front", "> 290")
     hs = sorted(car_own, key=lambda h: (h.start[0], h.start[1]))[0]          # revision 18: the successor of the sill's bolt pilot filled back in
     r = f.run_checks(hardware, with_part(parts, "front_io_carrier", solid=refilled(carrier, hs)), MEMO)
     case("front_io_carrier: one of its own screws' pilots (X -77.85, Y 10) filled back in", "CHECK7 front_io_carrier ... M3 pilot ... is not drilled", r["failures"], "CHECK7 front_io_carrier", "M3 pilot at (-77.8, 10.0", "is not drilled")
