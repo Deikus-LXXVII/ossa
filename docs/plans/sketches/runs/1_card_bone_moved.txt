@@ -1,0 +1,15 @@
+cables.py's own checks with the descent at u 158: 1 FAIL
+    12V-2x6: envelope: 12.1 mm in front of Y 0 (surface at Y -12.1), accepted up to 11
+main: 1913.4 cm3 in 1 bodies [1913.4]
+rear_panel: 302.3 cm3 in 1 bodies [302.3]
+least gap between a strand's surface and the layer (the five closest):
+   cable gpu12v[5]     3.9 mm at X 132, Y 48, Z 265
+   cable jaud1[0]      4.0 mm at X 3, Y 53, Z 59
+   hose cpu[1]         4.5 mm at X -219, Y 102, Z 246
+   hose cpu[0]         7.6 mm at X -195, Y 68, Z 222
+   cable fan_right[0]    8.8 mm at X 235, Y 211, Z 246
+  bitten: ('front_R', 6.274135740649487, array([158.,  14.,   4.]), 'rib_A_right', 0.0)
+  bitten: ('front_R', 26.339623445960843, array([165.75351375,  30.9291577 , 161.51837508]), 'gpu_rest', 7.948693811485143)
+  bitten: ('front_L', 6.274135740649487, array([-158.,   14.,    4.]), 'rib_A_left', 0.0)
+strength of main: worst 23.1 MPa at (4, 17, 118), 2 over; largest movement 4.96 mm pushing (114, 1, 24), 0 over
+exit 0

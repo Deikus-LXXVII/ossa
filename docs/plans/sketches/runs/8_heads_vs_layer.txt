@@ -1,0 +1,3 @@
+fields: ['cls', 'e', 'group', 'head', 'head_d', 'head_h', 'id', 'item', 'length', 'members', 'part', 'row', 'seat', 'stack', 'washer_t']
+120 screws; 0 have layer voxels inside the head or washer
+exit 0

@@ -29,13 +29,43 @@ CHEEK_R, CHEEK_SQUASH = 22.0, 3.0         # a cheek: a tube down from the roof, 
 CHEEK_Z = (56.0, 42.0, 28.0)              # its centre line's Z. The first sketch (the one rendered for the owner) went down to 14 and was 12.6 mm thick. Shorter and thicker was
                                           # tried against a 4.86 mm movement under a push on a cheek; it changed nothing (4.87), because the cause was the post's foot (POST_PAD_YZ).
                                           # Kept, because every run behind the plan was made with it; both reach down to the beam's top
-POST_PAD_YZ = (20.0, -6.0)                # a pad under each front post, on the rib's foot between beam_front's two screws (Y 10 and 30, Z 0). Without it the post's foot hangs: the
-                                          # sill's pads are gone, the pad front_foot is 46 mm behind the foot, and the clearance round the screw's head at Y 30 cuts the foot from the
-                                          # base rail. A 30 N push on the hood then swings the whole post back, 5.5 mm at the foot (hood_mode.py at 3 mm voxels: the post turns about its top)
+POST_PAD_YZ = (20.0, -8.0)                # a pad under each front post, on the rib's foot between beam_front's two screws (Y 10 and 30, Z 0): 12.81 mm from each screw's axis, so
+                                          # the pad's rim (8) keeps 1.31 mm from the washer (3.5). Without the pad the post's foot hangs: the sill's pads are gone, the pad
+                                          # front_foot is 46 mm behind the foot, and the foot's blob and the base rail (which starts at Y 40) do not join. A 30 N push on the
+                                          # hood then swings the whole post back, 5.5 mm at the foot (hood_mode.py at 3 mm voxels: the post turns about its top)
+PAD_WASHER_GAP = 1.0                      # a pad's rim keeps this far from the washer of any screw on its face. Three pads of HEAD do not: neck_top_L stands 1.23 mm ON the
+MOVED_PADS = {                            # washer of a visor arm's screw, rear_foot_R/L 0.10 mm on the washer of a PSU bulkhead's screw. New places, each accepted by
+    "neck_top_L": ("neck_left", (-192.0, 216.0, 289.0), (-1.0, 0.0, 0.0), "main"),       # pad_fits and pad_clear: the mirror image of neck_top_R (9.60 mm from the washer),
+    "rear_foot_R": ("rib_B_right", (158.0, 370.0, -7.0), (1.0, 0.0, 0.0), "main"),       # and 2.2 mm forward and down (1.50 mm from the washer)
+    "rear_foot_L": ("rib_B_left", (-158.0, 370.0, -7.0), (-1.0, 0.0, 0.0), "main"),
+}
+HEAD_GAP = 2.0                            # the layer keeps this far from the washer and the head of every screw of the skeleton (GAP_SKEL's value). The layer of HEAD is carved
+                                          # from the printed parts only and stands in the heads of 22 screws (heads_vs_layer.py): a head stands 3.5 mm proud of a face and the
+                                          # layer starts 2 mm from it
 LINK_ALLOW, LINK_PUSH = 10.0, 30.0        # organic_strength's ALLOW and PUSH_N: a cross-thread is as thick at mid-span as a round bar held loosely at both ends needs to be
-                                          # for that push (r^3 = push * length / (pi * allow)). The layer's own rule gives every link 2.6 mm whatever its length; the front
-                                          # film's longest link, 55 mm, showed 29.7 MPa when a push happened to land on its middle
+                                          # for that push (r^3 = push * length / (pi * allow), length between its end points). The layer's own rule gives every link a radius of
+                                          # 2.6 mm whatever its length; the front film's longest link, 67.3 mm, showed 29.7 MPa when a push happened to land near its middle
 FILM = dict(n=13, seed=23, sag=(0.0, 1.0, 0.0), sag_mm=2.0, links=6)     # 13 strands where the veil had 7, nearly straight (the veil sagged up to 12 mm)
+
+
+_HEADS = []
+
+
+def skeleton_heads():
+    """[(seat, outward axis, radius, height)] of every screw of the skeleton as assembly_access.py has it, without the sill's and the carrier's (they go, and the carrier's new
+    screws are under beam_front, where no layer is)."""
+    if not _HEADS:
+        import assembly_access as aa
+        hware = hw.build_hardware()
+        parts, _ = frame_v0.build_frame(hardware=hware)
+        model, _fails = aa.model_of(parts, hware, frame_v0.FASTENERS)
+        for sc_ in model["screws"]:
+            if "front_sill" in str(sc_["id"]) or "front_io_carrier" in str(sc_["id"]) or sc_["part"] in ("front_sill", "front_io_carrier"):
+                continue
+            r = max(hw.M3_WASHER_D / 2 if sc_["washer_t"] > 0 else 0.0, sc_["head_d"] / 2)
+            _HEADS.append((np.array(sc_["seat"], dtype=float), np.array(sc_["e"], dtype=float), r, sc_["washer_t"] + sc_["head_h"]))
+        print(f"heads carved: {len(_HEADS)} of {len(model['screws'])} screws", flush=True)
+    return _HEADS
 
 
 def patch_front():
@@ -49,6 +79,7 @@ def patch_front():
     for sgn, side, tag in ((1.0, "right", "R"), (-1.0, "left", "L")):
         hw.ORGANIC_PADS[f"front_post_{tag}"] = (f"rib_A_{side}", (158.0 * sgn, POST_PAD_YZ[0], POST_PAD_YZ[1]), (sgn, 0.0, 0.0), "main")
     of.BONE_OF["front_post"] = "front"
+    hw.ORGANIC_PADS.update(MOVED_PADS)
     old_bones, old_films, old_add = of.bone_members, of.film_list, of.Field.add
     old_members = of.film_members
 
@@ -98,6 +129,9 @@ def patch_front():
         b = frame_v0.exact_box(car.solid)
         F.carve_world_box((b[0], b[1], -20.0, b[3], 0.0, b[5]), of.GAP_SKEL)
         F.carve_world_box(m, of.GAP_HW)
+        for seat, e, r, h in skeleton_heads():               # every screw's washer and head
+            sl, mask = of.cylinder_mask(F.xs, F.ys, F.zs, seat - HEAD_GAP * e, e, r + HEAD_GAP + F.vox, 0.0, h + 2 * HEAD_GAP + F.vox)
+            F.d[sl] = np.where(mask, np.maximum(F.d[sl], 1.0), F.d[sl])
 
     of.carve_layer = carve_layer
 

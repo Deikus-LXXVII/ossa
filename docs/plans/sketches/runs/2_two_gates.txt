@@ -1,0 +1,15 @@
+cables.py's own checks, the routes as they are: pass
+main: 1895.3 cm3 in 1 bodies [1895.3]
+rear_panel: 302.3 cm3 in 1 bodies [302.3]
+least gap between a strand's surface and the layer (the five closest):
+   cable gpu12v[5]     3.9 mm at X 132, Y 62, Z 273
+   cable jaud1[0]      4.0 mm at X 3, Y 53, Z 59
+   hose cpu[1]         4.5 mm at X -219, Y 102, Z 246
+   cable fan_right[0]    8.8 mm at X 235, Y 211, Z 246
+   cable jfp1[0]      10.6 mm at X 113, Y 54, Z 43
+  bitten: ('front_R', 6.259189679652922, array([158.,  14.,   4.]), 'rib_A_right', 0.0)
+  bitten: ('front_L', 6.259189679652922, array([-158.,   14.,    4.]), 'rib_A_left', 0.0)
+  bitten: ('card_L', 6.222657878028631, array([-25.5       ,  24.64466094, 233.64675298]), 'hw:gpu', 19.000000000000032)
+  bitten: ('card_R', 6.436904540048129, array([ 41.5       ,  24.64466094, 233.64675298]), 'hw:gpu', 19.000000000000032)
+strength of main: worst 7.6 MPa at (-2, 68, 274), 0 over; largest movement 4.86 mm pushing (119, 1, 20), 0 over
+exit 0

@@ -1,0 +1,28 @@
+field_head_4f34a0b.npz: layer 2044 cm3
+  cable atx24[0]     r 12.0: least gap to the layer 1000000000.0 mm at X   26.0, Y  165.0, Z   28.0
+  cable atx24[1]     r  4.0: least gap to the layer    91.3 mm at X  138.8, Y  193.5, Z  185.7
+  cable atx24[2]     r  4.0: least gap to the layer    89.0 mm at X  138.8, Y  199.1, Z  191.4
+  cable atx24[3]     r  4.0: least gap to the layer    86.8 mm at X  138.8, Y  204.8, Z  197.1
+  cable atx24[4]     r  4.0: least gap to the layer    84.6 mm at X  142.5, Y  209.0, Z  204.1
+  cable atx24[5]     r  4.0: least gap to the layer    82.3 mm at X  142.5, Y  214.7, Z  209.8
+  cable atx24[6]     r  4.0: least gap to the layer    80.2 mm at X  142.5, Y  220.3, Z  215.5
+  cable gpu12v[0]    r  7.0: least gap to the layer 1000000000.0 mm at X    1.5, Y  165.0, Z   67.0
+  cable gpu12v[1]    r  4.0: least gap to the layer 1000000000.0 mm at X  131.5, Y  197.2, Z  136.1
+  cable gpu12v[2]    r  4.0: least gap to the layer 1000000000.0 mm at X  131.5, Y  202.8, Z  141.7
+  cable gpu12v[3]    r  4.0: least gap to the layer 1000000000.0 mm at X  131.5, Y  208.5, Z  147.4
+  cable gpu12v[4]    r  4.0: least gap to the layer 1000000000.0 mm at X  131.5, Y  214.1, Z  153.0
+  cable gpu12v[5]    r  7.0: least gap to the layer   -14.7 mm at X    8.0, Y   24.6, Z  233.6   INSIDE the layer over about 84 mm of its length
+  cable eps1[0]      r  6.0: least gap to the layer 1000000000.0 mm at X  -19.0, Y  165.0, Z   49.0
+  cable eps2[0]      r  6.0: least gap to the layer    18.0 mm at X  128.6, Y  351.0, Z  120.7
+  cable usb3[0]      r  4.0: least gap to the layer 1000000000.0 mm at X   60.0, Y   42.0, Z   30.0
+  cable usbc[0]      r  4.0: least gap to the layer    68.9 mm at X  162.9, Y  119.3, Z   95.0
+  cable jfp1[0]      r  2.0: least gap to the layer 1000000000.0 mm at X   82.0, Y   55.0, Z   40.0
+  cable argb[0]      r  2.0: least gap to the layer 1000000000.0 mm at X -125.0, Y   55.0, Z   40.0
+  cable jaud1[0]     r  2.0: least gap to the layer 1000000000.0 mm at X   48.0, Y   55.0, Z   40.0
+  cable cpu_fan[0]   r  2.0: least gap to the layer 1000000000.0 mm at X   45.8, Y  199.3, Z  240.7
+  cable fan_right[0] r  2.0: least gap to the layer     8.8 mm at X  235.0, Y  211.3, Z  246.4
+  cable fan_left[0]  r  2.0: least gap to the layer    38.2 mm at X -235.0, Y  139.5, Z  201.5
+  hose cpu[0]        r  6.2: least gap to the layer    16.1 mm at X -220.6, Y  109.0, Z  226.4
+  hose cpu[1]        r  6.2: least gap to the layer     2.8 mm at X -219.4, Y  102.7, Z  246.4
+  hose gpu[0]        r  6.0: least gap to the layer    10.0 mm at X  192.2, Y  252.8, Z  141.8
+  hose gpu[1]        r  6.0: least gap to the layer    -1.0 mm at X  188.7, Y  279.7, Z  166.5   INSIDE the layer over about 15 mm of its length

@@ -1,0 +1,4 @@
+fields: ['cls', 'e', 'group', 'head', 'head_d', 'head_h', 'id', 'item', 'length', 'members', 'part', 'row', 'seat', 'stack', 'washer_t']
+120 screws; 1 have layer voxels inside the head or washer
+     2 voxels of main       in the head   of #87 visor_arm_left (-192.0, 198.4, 300.6) (visor_arm_left) at (-192.0, 198.4, 300.6) along (-1.0, -0.0, -0.0)
+exit 0
