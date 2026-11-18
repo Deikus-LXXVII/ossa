@@ -20,7 +20,7 @@ The current layout is called B6.
 - The power supply sits under the board. The front I/O module sits in its carrier on the front beam.
 - Both hose pairs run inside the envelope, so nothing sticks out to snag.
 
-The case is 520.0 mm wide, 382.0 mm deep and 400.0 mm high. The skeleton itself stays inside |X| 229; the side-fan brackets reach the fans' inner face at |X| 235. Every printed part is 290 mm or shorter, to fit a 300 mm printer bed.
+The case is 520.0 mm wide, 382.0 mm deep and 400.0 mm high. The skeleton itself stays inside |X| 229; the side-fan brackets reach the fans' inner face at |X| 235. Every part of the skeleton is 290 mm or shorter, to fit a 300 mm printer bed; the organic layer's piece `main` is not yet split into pieces that fit.
 
 The skeleton is 36 printed parts: 2809.7 cm³, 2925.0 g solid, 1557.6 g at 4 walls and 20 % infill, of which the ABS is 1534.6 g. The organic layer is two pieces, counted in its own report: `main` 1914.2 cm³ (2431 g of PETG solid) and `rear_panel` 304.5 cm³ (387 g). Revision 14a made the card's right-hand rest (`gpu_rest`) and the front I/O module's carrier (`front_io_carrier`) separate small parts, and put the CPU hose clip on the left fan's free corner. Revision 16 cut an open groove through the knee of `visor_arm_left` and `visor_arm_right` so the 360's screw at that end can pass its head. Revision 17 adds the layer's second piece, the rear panel, on four pads, 321 mm wide, printed upright and turned 45 degrees, and taken off before a drive comes out. Revision 18 removes the front sill and the light line, and holds the carrier by four M3 x 25 from below through `beam_front`.
 
@@ -93,7 +93,7 @@ Run them from the repository root.
 1. No two components overlap.
 2. No printed part overlaps a component.
 3. No two printed parts overlap.
-4. Every part is 290 mm or shorter.
+4. Every part of the skeleton is 290 mm or shorter.
 5. Every component has its holders and its full count of fasteners.
 6. Nothing reaches below the desk plane.
 7. Every hole is empty and has enough wall around it.
@@ -121,7 +121,7 @@ A separate check keeps each contact face at 97 % of its area or more after round
 
 - The rear panel's upright print is not tried.
 - `main` is still not split into printable pieces.
-- The print test of the layer in PETG (ABS only if PETG prints badly): the trial piece exists (`cad_b6/organic_trial.py` writes `out/organic/trial_base_mid_R.stl`), it has not been printed.
+- The layer in PETG: the owner printed the trial piece (`cad_b6/organic_trial.py`, `out/organic/trial_base_mid_R.stl`) on 18 Nov 2026 and found no problem with the surface's steps, the supports or the strength (`docs/printer-and-materials.md`). The piece `main` still has to be split into pieces that fit the bed.
 - The front I/O module's real dimensions.
 - The pilot's diameter of 4.5 mm comes from the ladder C2 printed in PETG (the owner, 18 Nov 2026: the inserts sit best in 4.5 to 4.6 mm; before that it was the maker's 4.4). The skeleton is ABS: the figure is confirmed on the first small ABS part.
 - The second pass of the fit gauges with the PC apart (G1, G2, G3, G4a, G4b) and the coupons C1 and C2.
