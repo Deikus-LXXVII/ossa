@@ -120,7 +120,6 @@ A separate check keeps each contact face at 97 % of its area or more after round
 ## Not done yet
 
 - The rear panel's upright print is not tried.
-- The layer's lumpy surface.
 - `main` is still not split into printable pieces.
 - The print test of the layer in PETG (ABS only if PETG prints badly): the trial piece exists (`cad_b6/organic_trial.py` writes `out/organic/trial_base_mid_R.stl`), it has not been printed.
 - The front I/O module's real dimensions.

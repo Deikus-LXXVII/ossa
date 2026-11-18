@@ -30,6 +30,8 @@ Given by the owner on 15 Nov 2026. Facts about his equipment, not design decisio
 - **M3 inserts:** 200 ordered on 16 Nov 2026.
 - **If the layer goes to ABS after all, ABS needed in all:** about 1.73 kg for the skeleton and 2.1 kg solid for the organic layer (2044 cm3 at the report's 1.04 g/cm3), before supports and rejects, against the 2 kg on hand. The earlier band, 1.5 to 2 kg for the layer with its supports and 4 to 5 kg in all, was for the layer at 1742 cm3.
 - **Side fans:** the two 140 mm fans come from the owner's present case.
+- **Radiator fans (owner, 18 Nov 2026):** the 420 keeps the ARCTIC fans it came with. The card's 360 gets Noctua fans; the owner says they are as thick as ordinary ones (the model has 25 mm for the 360's fans). The side fans stay the two from the present case.
+- **PETG is proved for the organic layer (owner, 18 Nov 2026):** the trial piece of the layer, the insert ladder and the scale coupon were printed in PETG. The trial piece shows no problem with the surface's steps, the supports or the strength; the coupon's legs come out at about 150 mm where the model has 150. ABS as the fallback for the layer is not needed. Which slicer settings the owner used is not recorded.
 - **Hook-and-loop straps:** to be ordered.
 - **Drives:** the owner has neither an HDD nor a SATA SSD. The drive bay is a provision for later; no SATA cable is routed.
 - **Radiator fan screws:** the screws the owner used to put fans on a radiator are about 30 mm under the head.
