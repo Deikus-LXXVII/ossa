@@ -1,0 +1,8 @@
+under (83.0, 130.0, 159.0, 115.0): 1 FAIL; length 595 of 700; least bend of the last section 20.0; arch top n 180.0; in front of Y 0 by -18.2; tightest hw:cpu_hoses 0.0 (needs 5); nearest cable usb3 x gpu12v 0.5; a bone of radius 5 at u 119 clears it by 3 with its centre line at n >= 192.2 (now 169.0)
+      0.00 mm from hw:cpu_hoses, needs 5
+under (83.0, 145.0, 156.1, 115.0): 1 FAIL; length 582 of 700; least bend of the last section 20.0; arch top n 180.0; in front of Y 0 by -17.9; tightest hw:cpu_hoses 0.0 (needs 5); nearest cable usb3 x gpu12v 0.5; a bone of radius 5 at u 119 clears it by 3 with its centre line at n >= 192.7 (now 169.0)
+      0.00 mm from hw:cpu_hoses, needs 5
+under (83.0, 158.3, 147.3, 115.0): pass; length 573 of 700; least bend of the last section 20.0; arch top n 180.0; in front of Y 0 by -16.7; tightest rib_A_right 3.5 (needs 3); nearest cable usb3 x gpu12v 0.5; a bone of radius 5 at u 119 clears it by 3 with its centre line at n >= 194.1 (now 169.0)
+under (83.0, 130.0, 159.0, 100.0): 1 FAIL; length 604 of 700; least bend of the last section 20.0; arch top n 180.0; in front of Y 0 by -18.2; tightest hw:cpu_hoses 0.0 (needs 5); nearest cable usb3 x gpu12v 0.5; a bone of radius 5 at u 119 clears it by 3 with its centre line at n >= 192.2 (now 169.0)
+      0.00 mm from hw:cpu_hoses, needs 5
+exit 0

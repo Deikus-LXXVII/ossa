@@ -199,3 +199,35 @@ Left open:
 - `organic_strength.py` takes 34 minutes on the Mac, where it took 5: 400 s of processor time, the rest waiting for memory. The solve of `main` went from 89 s to 973 s for 8 % more unknowns. Half of the run is the model of before revision 17, which is printed and not judged.
 - `PLUG_ZONE`'s half widths (30 and 14 mm) are typed numbers, not built from the socket's tolerance.
 - The module may grow 12.55 mm to the rear by check 20's room; the cables are routed for 2.5 mm of it only.
+
+## Revision 19: the bone over the card whole and farther out (sketch, 19 Nov 2026, not built)
+
+**What the owner said on revision 18's render (19 Nov 2026).** "This does not suit me ... leave a little room round the card's power connector, and I have said already that the PSU's power cables are very flexible, they do not need an arc of the size you made in the render." Then: "Stop, do not lower the beam, just move it a little away from the card, so that more room is left under it."
+
+**What revision 18 built there.** The plug (13 mm), a straight of 35 and a bend of R 35 stood the cable up to n 220, 51 mm past the bone `card`, so the bone was cut in two with a gate 67 mm wide and the cable arched through it, 9.1 mm in front of the front plane.
+
+**The sketch** (`docs/plans/sketches/beam_out_sketch.py`; it patches the built model and changes nothing in `cad_b6/`):
+
+| | Revision 18 | Sketch | From |
+|---|---|---|---|
+| Straight at the plug, least bend of the last section | 35, 35 | 10, 20 | the main session's choice on the owner's words; the cable's radius is 7, so 13 inside the bend |
+| Top of the arch (centre line) | n 220 | n 180 | `runs/10_beam_out_route.txt` |
+| The arch's far leg (v, u) | 192.5, 154 | 158.3, 147.3 | the same; at v 130 and v 145 the run under the film meets the CPU hoses (0.0 mm, 5 needed) |
+| `cables.py`'s own checks on the route | pass | pass; length 573 of 700; tightest `rib_A_right` 3.5 (needs 3) | the same |
+| In front of the front plane (Y 0) | 9.1 mm | 16.7 mm behind it | the same |
+| The bone `card` | two halves, a gate X -25.5..41.5, a ball on each free end | one bone | the sketch |
+| Its centre line over the socket | n 169 | n 194 (`CARD_BONE_N` + 25) | the route needs n >= 194.1 for 3 mm from the cable with the carve's margin |
+| Room under the bone above the plug's back (n 150) | 14 mm | 39 mm | `runs/11_beam_out_layer.txt` |
+| The bone's front | | Y 2.0 at the socket, about Y 0.5 at its ends (radius 6.5): it cannot go farther out inside the front plane | the same, and by hand for the ends |
+| The plug's room (`PLUG_ZONE`) along n | 137..195 | 137..170 | plug 13 + straight 10 + 10 |
+| The films' window over the connector | X -25.5..89.5 | X -25.5..41.5 | the sketch |
+| `main` | 1914.2 cm³, one body | 1950.3 cm³, one body | `runs/11_beam_out_layer.txt` |
+| `organic_frame.py`'s own checks | pass | pass | the same |
+
+Pictures: `docs/plans/sketches/pictures/render_rev19_hero.png`, `render_rev19_front_left.png`, `render_rev19_front_right.png` (the small lump in the middle of the bone is the sketch's joint of two halves; the build makes one bone).
+
+**Not run on the sketch:** `organic_strength.py` (the bone's ends moved, so the front posts lean 25 mm farther; the strength run decides whether they hold), `zone_access.py`, `test_organic.py`.
+
+**Said to the owner with the render:** the 35 mm straight is the usual advice for a 12V-2x6 plug (the plug seats evenly and does not heat); with a bend 10 mm from the plug, seating it to the click and keeping the cable from pulling it sideways is on his side.
+
+**Waiting for:** the owner's yes on the render. Then a specification (the per-section bend in `cables.py`, the bone and the films in `organic_frame.py`, `PLUG_ZONE`, the tests), Grok's check of it, the implementer, the full reruns with the strength run.

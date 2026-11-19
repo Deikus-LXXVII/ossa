@@ -1,0 +1,7 @@
+cables.py's own checks: pass
+main: 1950.3 cm3 in 1 bodies [1950.3]
+rear_panel: 304.5 cm3 in 1 bodies [304.5]
+saved out/organic/sketch_beam_out_field.npz
+organic_frame's own checks: pass
+the bone `card` over the socket: centre line n 194.0 (the card's top 150, the plug's back 150); room under its 5 mm radius 39.0 mm above the plug's back; its front at Y 2.0 (the front plane Y 0)
+.venv/bin/python docs/plans/sketches/beam_out_sketch.py layer   175.83s user 8.25s system 98% cpu 3:07.32 total
