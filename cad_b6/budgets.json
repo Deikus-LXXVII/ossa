@@ -6,7 +6,7 @@
   "what": "g of ABS at 4 walls / 20 % infill over every ABS part (frame_v0.mass_estimate); hard limit 90 % of hardware.ABS_STOCK_G"
  },
  "organic_cm3": {
-  "figure": 2218.7,
+  "figure": 2321.1,
   "margin": 0.02,
   "petg_stock_g": 4000.0,
   "what": "cm3 of the organic layer (voxels with d < 0 in out/organic/field.npz); hard limit: solid PETG (organic_frame.LAYER_RHO) at most 90 % of petg_stock_g, the 4 kg ordered on 16 Nov 2026 (docs/printer-and-materials.md, 'Stock and order of printing')"
@@ -27,11 +27,11 @@
   "recorded_from": "fast run of 2026-11-18 18:48:02, 6 workers"
  },
  "strength": {
-  "load_cases": 844,
+  "load_cases": 868,
   "count_margin": 0.1,
   "wall_s": 1196.4,
   "wall_margin": 0.25,
   "what": "the full run of organic_strength.py (out/organic/strength.json): its load cases over every piece gate (more is a longer run, fewer is a push point or a probe lost), the pieces' wall time only warns; the size of what it solves follows the organic layer's volume, budgeted above",
-  "recorded_from": "full run of 2026-11-19 04:59:25"
+  "recorded_from": "load cases: full run of 2026-11-19 21:36:18 (revision 19); wall time: full run of 2026-11-19 04:59:25 (the later run's 1950.6 s is not recorded, so that it keeps warning)"
  }
 }
