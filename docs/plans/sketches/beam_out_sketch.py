@@ -30,14 +30,16 @@ import frame_v0
 import cables
 import hoses
 
-STRAIGHT, BEND = 10.0, 20.0                # the cable: straight at the plug, least bend (centre line; the bundle's radius is 7, so 13 inside the bend)
+# The cable: straight at the plug, least bend (centre line). First try 10 and 20 with the bone 25 mm out; the owner: "not that far", with a photo of the cable in his present case
+# (single sleeved wires in two rows, turned through 90 degrees right behind the plug within about 15 mm): "look how well the power cable bends, it does not need that much room".
+STRAIGHT, BEND = float(os.environ.get("SK_STRAIGHT", 2.0)), float(os.environ.get("SK_BEND", 12.0))
 OLD_BEND = hw.CABLES["gpu12v"][2]
 GS = hw.GPU_PWR_SOCKET
 MOUTH_N = hw.GPU_BS[5] - GS["recess"]
 TOP_N = MOUTH_N + hw.GPU12V_PLUG + STRAIGHT + BEND          # the arch's top: 180 (220 in revision 18)
-UNDER = (83.0, 158.3, 147.3, 115.0)        # n_a, v_d, u_d, n_run of cable_under_route.under_wps: the far leg 2 x BEND from the socket, diagonally (+v, +u), beside the card's top edge;
+UNDER = tuple(float(a) for a in os.environ["SK_UNDER"].split(",")) if "SK_UNDER" in os.environ else (83.0, 150.0, 139.5, 115.0)        # n_a, v_d, u_d, n_run of cable_under_route.under_wps: the far leg 2 x BEND from the socket, diagonally (+v, +u), beside the card's top edge;
                                            # straight along +u (v 130 or 145) the run under the film meets the CPU hoses (runs/10_beam_out_route.txt)
-BEAM_OUT = 25.0                            # the bone `card`'s centre line, this much farther from the card along n (the route asks for n >= 194.1 at the socket; it was 169)
+BEAM_OUT = float(os.environ.get("SK_BEAM_OUT", 12.0))                            # the bone `card`'s centre line, this much farther from the card along n (the second try's route asks for n >= 180.4 at the socket; it was 169; the first try, straight 10 and bend 20 with the far leg at v 158.3, u 147.3, asked for 194.1 and was sketched with 25)
 WINDOW_X = (-25.5, 41.5)                   # the films stop here either side of the connector (revision 18's gate: the socket's X 8, its tolerance 12, half a plug 10, 5 spare, a thread's radius)
 PLUG_ABOVE = 10.0                          # the plug's room reaches this far along n beyond the plug and its straight
 

@@ -226,6 +226,21 @@ Left open:
 
 Pictures: `docs/plans/sketches/pictures/render_rev19_hero.png`, `render_rev19_front_left.png`, `render_rev19_front_right.png` (the small lump in the middle of the bone is the sketch's joint of two halves; the build makes one bone).
 
+**Second try (the same day).** The owner on the first sketch: "Not that far", with a photo of the cable in his present case, "look how well the power cable bends, it does not need that much room". The photo shows single sleeved wires in two rows, turned through 90 degrees right behind the plug. Sketched with `SK_STRAIGHT=2 SK_BEND=12`, the far leg at (v 150, u 139.5) and the bone 12 mm out (now the script's defaults):
+
+| | First try | Second try | From |
+|---|---|---|---|
+| Straight, bend | 10, 20 | 2, 12 | the owner's photo |
+| Top of the arch | n 180 | n 164 | `runs/12_beam_out_route_tight.txt` |
+| `cables.py`'s own checks | pass | pass; length 550 of 700; tightest `rib_A_right` 3.5 (needs 3); 25.4 mm behind the front plane | the same; far legs at (130, 143), (140, 140.8) and (147, 136) fail on the CPU hoses or the card |
+| The bone's centre line over the socket | n 194 | n 181 (the route needs n >= 180.4) | the same |
+| Room under the bone above the plug's back | 39 mm | 26 mm | `runs/13_beam_out_layer_12mm.txt` |
+| The bone's front at the socket | Y 2.0 | Y 11.2 | the same |
+| `main` | 1950.3 cm³ | 1948.1 cm³, one body | the same |
+| `organic_frame.py`'s own checks | pass | pass | the same |
+
+Pictures: `render_rev19b_hero.png`, `render_rev19b_front_left.png`, `render_rev19b_front_right.png`. Two things bound the 12 mm from below: the route is a round cable of radius 7 with the layer 3 mm from it (the real lead is flat there, two rows of wires, about 8 mm thick in the bend's plane), and the plug is put in along the socket's axis under the bone (by hand: the plug's 20 mm and the bent wires need about 25 mm above the card's top; not checked by a script).
+
 **Not run on the sketch:** `organic_strength.py` (the bone's ends moved, so the front posts lean 25 mm farther; the strength run decides whether they hold), `zone_access.py`, `test_organic.py`.
 
 **Said to the owner with the render:** the 35 mm straight is the usual advice for a 12V-2x6 plug (the plug seats evenly and does not heat); with a bend 10 mm from the plug, seating it to the click and keeping the cable from pulling it sideways is on his side.
