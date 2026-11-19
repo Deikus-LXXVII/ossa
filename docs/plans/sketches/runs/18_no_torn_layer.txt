@@ -1,0 +1,10 @@
+cables.py's own checks: pass
+build 1: strands and cross-threads of main's films 99; not whole 13 {'strand cut': 5, 'cross-thread cut': 5, 'cross-thread on a strand that is out': 3}; by film {0: 4, 1: 7, 4: 1, 7: 1}
+build 2: strands and cross-threads of main's films 86; not whole 0 
+main in front of the front plane: 230.5 cm3, as far as Y -23.0
+the bone `card`'s centre line at X 0 is solid
+main: 1927.1 cm3 in 1 bodies [1927.1]
+rear_panel: 305.5 cm3 in 1 bodies [305.5]
+saved out/organic/sketch_beam_rev19f.npz
+organic_frame's own checks: pass
+the bone `card`: centre line u 68.0, n 167.5 at the middle (the fans' plane u 75.6, the card's top n 150, the socket u 119); its back 2.6 mm in front of the fans' plane; world Y -10.4, Z 196.5; its front at Y -15.4 at the middle and Y -16.9 at the ends (the front plane Y 0)
