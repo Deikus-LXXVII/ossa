@@ -20,9 +20,9 @@ The current layout is called B6.
 - The power supply sits under the board. The front I/O module sits in its carrier on the front beam.
 - Both hose pairs run inside the envelope, so nothing sticks out to snag.
 
-The case is 520.0 mm wide, 382.0 mm deep and 400.0 mm high. The skeleton itself stays inside |X| 229; the side-fan brackets reach the fans' inner face at |X| 235. Every part of the skeleton is 290 mm or shorter, to fit a 300 mm printer bed; the organic layer's piece `main` is not yet split into pieces that fit.
+The case is 520.0 mm wide, 382.0 mm deep and 400.0 mm high. The depth is the skeleton's; the organic layer stands up to 24 mm in front of it. The skeleton itself stays inside |X| 229; the side-fan brackets reach the fans' inner face at |X| 235. Every part of the skeleton is 290 mm or shorter, to fit a 300 mm printer bed; the organic layer's piece `main` is not yet split into pieces that fit.
 
-The skeleton is 36 printed parts: 2809.7 cm³, 2925.0 g solid, 1557.6 g at 4 walls and 20 % infill, of which the ABS is 1534.6 g. The organic layer is two pieces, counted in its own report: `main` 1914.2 cm³ (2431 g of PETG solid) and `rear_panel` 304.5 cm³ (387 g). Revision 14a made the card's right-hand rest (`gpu_rest`) and the front I/O module's carrier (`front_io_carrier`) separate small parts, and put the CPU hose clip on the left fan's free corner. Revision 16 cut an open groove through the knee of `visor_arm_left` and `visor_arm_right` so the 360's screw at that end can pass its head. Revision 17 adds the layer's second piece, the rear panel, on four pads, 321 mm wide, printed upright and turned 45 degrees, and taken off before a drive comes out. Revision 18 removes the front sill and the light line, and holds the carrier by four M3 x 25 from below through `beam_front`.
+The skeleton is 36 printed parts: 2809.7 cm³, 2925.0 g solid, 1557.6 g at 4 walls and 20 % infill, of which the ABS is 1534.6 g. The organic layer is two pieces, counted in its own report: `main` 2015.5 cm³ (2560 g of PETG solid) and `rear_panel` 305.5 cm³ (388 g); the budget records 2321.1 cm³ for the two together (the report rounds each piece to 0.1 cm³). Revision 14a made the card's right-hand rest (`gpu_rest`) and the front I/O module's carrier (`front_io_carrier`) separate small parts, and put the CPU hose clip on the left fan's free corner. Revision 16 cut an open groove through the knee of `visor_arm_left` and `visor_arm_right` so the 360's screw at that end can pass its head. Revision 17 adds the layer's second piece, the rear panel, on four pads, 321 mm wide, printed upright and turned 45 degrees, and taken off before a drive comes out. Revision 18 removes the front sill and the light line, and holds the carrier by four M3 x 25 from below through `beam_front`. Revision 19 sets the bone over the card, `card`, 2.6 mm in front of the plane of the card's fans, runs the front film from the bone over the I/O module's carrier up to that bone, and keeps a window in the films over the card's power connector (X -25.5 to 47).
 
 | Component | Model |
 |---|---|
@@ -70,7 +70,7 @@ python3 -m venv .venv
 .venv/bin/python cad_b6/check_budgets.py # one line per budget of the skeleton's ABS, the organic layer, the suite's counts and the strength run's load cases; exit 1 on a FAIL
 .venv/bin/python cad_b6/organic_trial.py # the boxed trial of the organic layer is one closed piece with its pad inside; writes out/organic/trial_base_mid_R.stl
 .venv/bin/python cad_b6/test_properties.py  # property tests of the helper functions; ends PASS (a known failure is listed, not hidden)
-.venv/bin/python cad_b6/test_organic.py  # 65 cases, 43 with --quick: the organic layer's checks fail when the field is damaged
+.venv/bin/python cad_b6/test_organic.py  # 74 cases, 52 with --quick: the organic layer's checks fail when the field is damaged
 .venv/bin/python cad_b6/zone_access.py   # plug zones free; bundles 52 mm and 72 mm, and 52 mm and 56 mm with the layer; a hand, 50 mm without the layer and 44 mm with it
 .venv/bin/python cad_b6/assembly_access.py  # about 3 minutes: every screw against the assumed tools; the 360 with its two arms is a bench group, and a node in SITS_ON goes on after what it sits on; writes the order to out/assembly/order.md; exit 0 when that order drives every screw, exit 1 when a screw cannot be driven, no order exists, the order fails the same check, or a bench group or SITS_ON names a node that is not one (tests: cad_b6/test_assembly.py, 52 cases)
 .venv/bin/python cad_b6/parts_manifest.py --expect <parts>  # exit 1 names any part or hardware solid that changed outside the list
@@ -78,7 +78,7 @@ python3 -m venv .venv
 .venv/bin/python cad_b6/render_vtk.py    # previews/b6_v0_*.png
 .venv/bin/python cad_b6/render_full.py   # previews/b6_full_*.png, the whole design
 .venv/bin/python cad_b6/render_blender.py # meshes for the Blender render (cad_b6/blender_scene.py, previews/b6_render_*.png)
-.venv/bin/python cad_b6/organic_strength.py  # about 20 minutes on the Mac, most of it waiting for memory: judges each piece, a 30 N push and a probe on each film strand and cross-thread; run once per revision, not after every edit; exits with an error if a push is over the allowable stress or the piece moves more than 5 mm
+.venv/bin/python cad_b6/organic_strength.py  # about 33 minutes on the Mac (1950 s on 19 Nov 2026, 1925 s of it the piece `main`): judges each piece, a 30 N push and a probe on each film strand and cross-thread; run once per revision, not after every edit; exits with an error if a push is over the allowable stress or the piece moves more than 5 mm
 .venv/bin/python cad_b6/strength.py 7 2  # strength and plastic, about 3.5 minutes on Apple silicon (Accelerate through the macldlt package)
 ```
 
@@ -126,7 +126,7 @@ A separate check keeps each contact face at 97 % of its area or more after round
 - The pilot's diameter of 4.5 mm comes from the ladder C2 printed in PETG (the owner, 18 Nov 2026: the inserts sit best in 4.5 to 4.6 mm; before that it was the maker's 4.4). The skeleton is ABS: the figure is confirmed on the first small ABS part.
 - The second pass of the fit gauges with the PC apart (G1, G2, G3, G4a, G4b) and the coupons C1 and C2.
 - The Blender pictures (stale since revision 13).
-- Eleven cable routes are drawn and checked, and eleven tie points for hook-and-loop straps shape them. The graphics card's power cable is 639 mm and stands 9.1 mm in front of the front plane, which the owner accepted, up to 11 mm.
+- Eleven cable routes are drawn and checked, and eleven tie points for hook-and-loop straps shape them. The graphics card's power cable is 550 mm of 700, with a 2 mm straight and a 12 mm bend right behind the plug in its last section (the owner's cable; the rest of the route keeps a bend of 35). The arch's top is at n 164 and the cable stands 25.4 mm behind the front plane. The owner's permission of up to 11 mm in front of that plane stays and is not needed.
 - The tools `assembly_access.py` uses are assumptions until the owner names his.
 
 ## Working with coding agents
