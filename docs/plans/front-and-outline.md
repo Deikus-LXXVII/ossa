@@ -318,7 +318,7 @@ Grok mapped what the code pins and then checked this text against the code (two 
 
 ### E. No torn strand or cross-thread (`organic_frame.py`, `test_organic.py`, `REVIEW.md`)
 
-A strand or cross-thread is **whole** when every point of its centre line (steps of 1 mm) is inside the piece's finished field; within 4 mm of an end, where it stands inside a bone that a clearance may have shaved, the layer within one voxel of the point is enough. A cross-thread is also not whole when one of its two strands is not there.
+A strand or cross-thread is **whole** when every point of its centre line (steps of 1 mm) is inside the piece's finished field; within 4 mm of an end, where it stands inside a bone that a clearance may have shaved, the layer within one voxel of the point is enough (never over more than a third of the member's length at each end: Grok's review of the built change found that a cross-thread under 8 mm long was all end, and a cut through it went unseen). A cross-thread is also not whole when one of its two strands is not there.
 
 1. `film_members`: a cross-thread's ends stand on its two strands' centre lines (the nearest points to where they stand today, on the chords), its middle keeps its offset, its radii follow its new length by `link_radii`, and the film remembers which two strands each cross-thread joins.
 2. `build`: after a piece is finished (both pieces, `main` and `rear_panel`), its films' strands and cross-threads are tested; the two tubes a film lays along its bones are not members in this sense and are not tested. Those not whole are taken out, a cross-thread whose strand went is taken out, and the piece is built again, until none is left (stop with an error after 4 builds). The probes and the links' list follow the members: a probe stays the middle of a surviving member's centre line. The report prints, per piece, how many strands and cross-threads were made, how many were taken out and why, and how many builds it took.
@@ -341,3 +341,27 @@ The sketch's first run lost the whole bone `card` to the front cut and every che
 
 A (the cable alone, `cables.py` passes) → B → C and D together → E → F → the tests. After each step the scripts that step touches are run.
 
+## Revision 19 as built (19 Nov 2026)
+
+Built by the implementer (Opus) from the specification above, rerun whole by the main session, reviewed by Grok.
+
+| | Revision 18 | Revision 19 | Evidence |
+|---|---|---|---|
+| The card's power cable | 639 mm, straight 35 and bend 35, arch top n 220, 9.1 mm in front of Y 0 | 550 mm of 700, straight 2 and bend 12 in its last section, arch top n 164, 25.4 mm behind Y 0; tightest `rib_A_right` 3.5 mm (needs 3) | `report_cables.txt` |
+| The bone over the card | two halves with a gate 67 mm wide, u 118, n 168 | one bone `card`, u 67 at its ends and 68 at the middle, n 166.5 and 167.5: its back 2.6 mm in front of the fans' plane; not bitten anywhere | `report_organic.txt` |
+| The brow | a bone at Y 13, Z 152 | gone; the front film runs from front_low to the bone `card` | the same |
+| The layer's front | cut at Y 0 | cut at Y -24 (`hw.LAYER_FRONT_Y`); least Y -23.0; 232.0 cm³ of `main` in front of Y 0 | the same |
+| Strands and cross-threads | 87 in `main`, 14 in `rear_panel`; not tested for being whole | 99 in `main` (63 and 36), 14 in `rear_panel` (9 and 5); none taken out, one build each, none torn | the same |
+| `main`, `rear_panel` | 1914.2 and 304.5 cm³ | 2015.5 and 305.5 cm³, one body each (2321.1 in all, +4.6 %) | the same |
+| Strength | `main` 7.4 MPa, 2.60 mm; `rear_panel` 6.4 MPa, 0.97 mm; 844 load cases | `main` 6.1 MPa, 2.62 mm, probes 99 of 99 pushed, worst 5.8 MPa and 0.67 mm; `rear_panel` 6.4 MPa, 0.96 mm; 868 load cases | `report_organic_strength.txt` |
+| The hand to the board's connectors | Ø44 with the layer | Ø44 with the layer (budget Ø44) | `report_zone_access.txt` |
+| The skeleton | | unchanged: `parts_manifest.py` reports no difference | |
+| Tests | `test_organic.py` 65, `test_checks.py` 328, `test_budgets.py` 116 | 74 (nine added, none removed or loosened), 328, 116 | |
+
+**Deviations from the specification.** The implementer built parts B to F in one layer build, not one per step. The cable report's line on Y 0 now also says how far behind the plane the cable stands.
+
+**What the review found (Grok, read from the code, nothing run).** A strand or cross-thread shorter than 8 mm was all "end" under part E's rule, so a cut through it was not read strictly; the layer has cross-threads of 5.5 and 6.9 mm. Fixed: the lenient ends are at most a third of the member each, and a ninth case cuts the shortest cross-thread of `main` (6.2 mm) with a 3 mm slice. The rule as first built does not find that cut and the rule now does (run on the saved field by the main session; a 5 mm box, the first attempt at the case, was found by both and proved nothing). The rebuilt layer is the same to the byte (`organic_manifest.json` unchanged), so the strength and access results stand. A nit: the cable table showed 35.0/35 for the 12V-2x6 because its two round sections stand equally on their limits; it now shows the tighter one.
+
+**Budgets.** The layer's volume is over the recorded figure's margin (2321.1 against 2218.7 + 2 %), as foreseen, from the owner's design: re-recorded in a commit of its own, with the strength run's load cases (868). The strength run took 1950 s against the recorded 1196 s. Other work was using this machine's processor then (the fast suite took 689 s beside it and 413 s once it had gone, against the recorded 347 s), but the sketch's strength run of `main` alone (1943 s, before that work began) says the strength run is slower for real. The times are warnings; the recorded times are left as they are so that the warning stands until the cause is dealt with.
+
+**Left open.** The sketches that patch the layer from outside (`beam_out_sketch.py`, `cable_gate_sketch.py`, `straight_sketch.py`, `front_sketch.py`, `no_arcs_sketch.py`) read names this revision removed and no longer run against the tree; they stay as the record of what was tried. The front film's strands now pass in front of the card's fans, 12 mm and more from them; what that costs the card's airflow is not modelled. The strength run's time on this machine.

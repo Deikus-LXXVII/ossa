@@ -303,6 +303,9 @@ ENVELOPE_FAN_X = max(abs(x) for xs in FAN_SIDE_X.values() for x in xs)      # 26
 FAN_SIDE_PARTS = ("fan_bracket_left", "fan_bracket_right", "hose_guide_cpu")      # the printed parts that may stand out to ENVELOPE_FAN_X (revision 14a: the CPU hose guide stands on the left fan's inner face, |X| 235)
 FAN_SIDE_CABLES = ("fan_left", "fan_right")                                  # the cables that may (cables.py)
 ENVELOPE_Y0 = 0.0                                            # the front plane (it was the front fans' face until revision 7)
+# OWNER DECISION, 19 Nov 2026 (docs/plans/front-and-outline.md, revision 19 part B): the organic layer may stand in front of the front plane, so that the bone over the card can
+# stand in front of the plane of the card's fans ("we take the first variant"). The layer alone: ENVELOPE_Y0 stays the limit of the skeleton, the hardware and the cables.
+LAYER_FRONT_Y = -24.0                                        # the layer is solid only behind this plane (Y > LAYER_FRONT_Y)
 # Revision 6: no frame part may rise above the 420's top edge. The 420 stands at 45 deg, so "above" is meant in board space:
 # the top face of the radiator (its fans, 140 mm wide) is the plane n = RAD420_FAN_N[1] and a part reaching past it stands above the radiator seen from
 # the side. (In world Z a 10 mm plate behind the fan face is always higher than the radiator's highest corner.)
@@ -446,13 +449,17 @@ PSU_SOCKETS = {k: PSU_SOCKET_FIELD[v] for k, v in PSU_SOCKET_USE.items()}
 # sheet (ATX 24-pin 610, EPS 700, 12V-2x6 700); "None" = unknown (front I/O cables of the Fractal North XL, the ARCTIC PWM lead);
 # 400 for the two side fans is the research's TYPICAL length ("400 or more"), not measured.
 # Radii and minimum bends are ASSUMPTIONS (the cable's outer size was not found; the build is individually sleeved wires with combs).
-# gpu12v: the socket on the card is known now (GPU_PWR_SOCKET below, read off MSI's render); its 35 mm straight at the plug is the plan's.
+# gpu12v: the socket on the card is known now (GPU_PWR_SOCKET below, read off MSI's render); its straight at the plug and the last section's bend are the owner's cable (GPU12V_STRAIGHT, GPU12V_PLUG_BEND).
 CABLES = {
     "atx24": (610.0, 12.0, 30.0), "eps1": (700.0, 6.0, 20.0), "eps2": (700.0, 6.0, 20.0), "gpu12v": (700.0, 7.0, 35.0),
     "usb3": (None, 4.0, 15.0), "usbc": (None, 4.0, 15.0), "jfp1": (None, 2.0, 8.0), "jaud1": (None, 2.0, 8.0),
     "cpu_fan": (None, 2.0, 8.0), "fan_right": (400.0, 2.0, 8.0), "fan_left": (400.0, 2.0, 8.0),
 }
-GPU12V_STRAIGHT = 35.0                    # straight length at the 12V-2x6 plug
+# The owner's cable (his photo of 19 Nov 2026, docs/plans/front-and-outline.md, revision 19 part A: single sleeved wires in two rows, turned through 90 degrees right behind
+# the plug): the straight at the 12V-2x6 plug and the least bend of the route's last section (centre line). 35 and 35 were the general advice for a 12V-2x6 lead (the plug
+# seats evenly and does not heat); the rest of the route keeps CABLES["gpu12v"]'s bend 35.
+GPU12V_STRAIGHT = 2.0                     # straight length at the 12V-2x6 plug, from the plug's back
+GPU12V_PLUG_BEND = 12.0                   # least bend of the last section, from the socket to the far leg beside the card
 
 # Second pass of the cables (docs/plans/cables-and-organic.md, "Second pass: spec for cad_b6/cables.py").
 # The 12V-2x6 socket on the MSI RTX 5080 SUPRIM LIQUID, in board space. STANDING: read off MSI's render (refs/gpu_5080_suprim_liquid_power.png) with a
@@ -471,7 +478,8 @@ LYING_PLUG = dict(length=15.0, thick=8.0)  # ASSUMPTION (a USB-C plug body with 
 # in the present PC with this board and this card, so a lying plug does fit under the card; the 11 mm itself is still not measured.
 GPU_UNDERSIDE_N = 11.0
 # OWNER DECISION, 15 Nov 2026: the 12V-2x6 cable may stand in front of the front plane (Y = ENVELOPE_Y0). The card's face looks forward and up
-# and a straight plug with its 35 mm straight cannot arch lower. Accepted as measured, 10.4 mm; the limit leaves 0.6 mm for rebuilds.
+# and a straight plug with its 35 mm straight cannot arch lower. Accepted as measured, 10.4 mm; the limit leaves 0.6 mm for rebuilds. Since revision 19 (straight 2, bend 12)
+# the route stands behind the front plane and no longer needs it; the permission stays.
 GPU12V_FRONT_TOL = 11.0
 # ASSUMPTION: where a bundle of sleeved wires passes the 20 mm gap at the board's edge it lies two wires thick, flat. Modelled as that many
 # round strands side by side along u: strand radius, centre pitch, minimum bend. Strands: ATX 24-pin 6, 12V-2x6 4.

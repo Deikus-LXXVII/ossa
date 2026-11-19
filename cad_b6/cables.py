@@ -79,15 +79,16 @@ def header(name):
 # Sections and routes
 # ---------------------------------------------------------------------------
 class Sec:
-    """A stretch of one cross-section: kind "round" (radius and bend of the cable) or "slab" (hw.CABLE_SLAB strands, hw.SLAB_BEND)."""
+    """A stretch of one cross-section: kind "round" (radius and bend of the cable) or "slab" (hw.CABLE_SLAB strands, hw.SLAB_BEND).
+    bend: the section's least bend, when it is not the cable's (hw.CABLES[name][2]); a slab keeps hw.SLAB_BEND."""
 
-    def __init__(self, kind, wps, name):
+    def __init__(self, kind, wps, name, bend=None):
         self.kind, self.wps = kind, [np.array(p, dtype=float) for p in wps]
-        real, r, bend = hw.CABLES[name]
+        real, r, cable_bend = hw.CABLES[name]
         if kind == "slab":
             self.r, self.bend, self.strands = hw.SLAB_STRAND_R, hw.SLAB_BEND, hw.CABLE_SLAB[name]
         else:
-            self.r, self.bend, self.strands = r, bend, 1
+            self.r, self.bend, self.strands = r, cable_bend if bend is None else float(bend), 1
         pts, self.length, self.rmin, _t = hoses.fillet_path(self.wps, [self.bend] * (len(self.wps) - 2))
         self.pts = np.array(pts)
         if kind == "slab":
@@ -172,9 +173,9 @@ class Route:
 
     def build(self):
         self.solid = cq.Compound.makeCompound([s for p, r in self.strands for s in chain_solid(p, r)])
-        if self.name == "gpu12v":              # the card is this route's end: held off it after the plug, the straight and the first bend
+        if self.name == "gpu12v":              # the card is this route's end: held off it after the plug, the straight and the first bend (the last section's own bend)
             cum = np.concatenate([[0], np.cumsum(np.linalg.norm(np.diff(self.pts, axis=0), axis=1))])
-            keep = self.pts[cum <= cum[-1] - (hw.GPU12V_PLUG + hw.GPU12V_STRAIGHT + hw.CABLES["gpu12v"][2])]
+            keep = self.pts[cum <= cum[-1] - (hw.GPU12V_PLUG + hw.GPU12V_STRAIGHT + self.secs[-1].bend)]
             self.card_body = chain_solid(keep, self.r)
         if self.name not in HEADER_OF:
             return
@@ -225,16 +226,18 @@ WAY_X = {"eps1": 68.0, "eps2": 81.5}       # third-pass search: world X, Y, Z of
 WAY_Y = {"eps1": 123.0, "eps2": 146.5}
 WAY_Z = {"eps1": 11.0, "eps2": 0.0}
 
-# 12V-2x6: from the socket's mouth along +n (plug 13 + straight 35), one arch over the socket, and back down beside it under the organic layer's film (revision 18, docs/plans/front-and-outline.md,
+# 12V-2x6: from the socket's mouth along +n (the plug and its straight), one arch over the socket, and back down beside it under the organic layer's film (revision 18, docs/plans/front-and-outline.md,
 # part H: the owner, "it can go under it; the main thing is that there is room for the connector"). From the slab's top the round part goes up the gap at the slab's u to GPU12V_UNDER_N,
 # over to the foot of the loop (GPU12V_LOOP_V, GPU12V_LOOP_U) at GPU12V_RUN_N, under the film in the gap between the card (u up to 126.6) and the 360 (u from 184), up the loop's far leg to
 # the arch's top, across to above the socket and down into it. Until revision 18 it went up the gap to an S-bend (GPU12V_S_N) and a descent at u 173 (GPU12V_ARCH_U), which ran through
-# the layer's lip and over the bone `card`. The four numbers were searched with this script's own checks (docs/plans/sketches/cable_under_route.py, a grid of 81): every bend 35 (the
-# cable's least), the loop's far leg clear of the lip, the route clear of the card and the 360 by evaluate_route's clearances; they pass with the least bend 35.0 and the route 9.1 mm in
-# front of Y 0 (10.4 before; GPU12V_FRONT_TOL 11).
-GPU12V_TOP_N = 220.0                       # top of the arch: mouth n 137 + plug 13 + straight 35 + the first bend's radius 35 (the arch cannot be lower)
+# the layer's lip and over the bone `card`. Revision 19 (part A): the owner's cable turns right behind its plug (hw.GPU12V_STRAIGHT, and every bend of the last section is
+# hw.GPU12V_PLUG_BEND, 12; the rest of the route keeps 35), so the arch is low and its far leg stands beside the card's top edge, diagonally (+v, +u) from the socket. The far leg was
+# searched with this script's own checks (docs/plans/sketches/beam_out_sketch.py route, runs/12_beam_out_route_tight.txt): at (130, 143), (140, 140.8) and (147, 136) the route fails
+# on the CPU hoses or the card; (150, 139.5) passes. GPU12V_UNDER_N and GPU12V_RUN_N are revision 18's search (docs/plans/sketches/cable_under_route.py, a grid of 81).
+GPU12V_MOUTH_N = hw.GPU_BS[5] - hw.GPU_PWR_SOCKET["recess"]                                       # n 137: the centre of the socket's mouth
+GPU12V_TOP_N = GPU12V_MOUTH_N + hw.GPU12V_PLUG + hw.GPU12V_STRAIGHT + hw.GPU12V_PLUG_BEND         # top of the arch (164): the plug, its straight and the first bend's radius (the arch cannot be lower)
 GPU12V_UNDER_N = 83.0                      # search: n up the gap at the slab's u before the cable turns over to the loop
-GPU12V_LOOP_V, GPU12V_LOOP_U = 192.5, 154.0      # search: (v, u) of the loop's far leg (X 70.5), which rises from GPU12V_RUN_N to GPU12V_TOP_N; the organic layer's right film starts past it
+GPU12V_LOOP_V, GPU12V_LOOP_U = 150.0, 139.5      # search: (v, u) of the loop's far leg (X 28), which rises from GPU12V_RUN_N to GPU12V_TOP_N beside the card's top edge
 GPU12V_RUN_N = 115.0                       # search: n of the run under the film to the foot of the loop
 GPU12V_SLAB_TOP_N = 53.0                   # search: the slab (4 strands r 4, constant u) starts here ...
 GPU12V_SLAB_BOTTOM_N = -22.0               # ... and ends here: the round part's bend ends at the lane level + 35 = -23; its r 7 stays 3.5 mm off the rib at X 142
@@ -308,7 +311,7 @@ def waypoints_all():
     sl = [B(V_GAP, c, GPU12V_SLAB_BOTTOM_N), B(V_GAP, c, GPU12V_SLAB_TOP_N)]
     rd2 = [B(V_GAP, c, GPU12V_SLAB_TOP_N), B(V_GAP, c, GPU12V_UNDER_N), B(GPU12V_LOOP_V, GPU12V_LOOP_U, GPU12V_RUN_N),
            B(GPU12V_LOOP_V, GPU12V_LOOP_U, GPU12V_TOP_N), B(gs["v"], gs["u"], GPU12V_TOP_N), B(gs["v"], gs["u"], mouth_n)]
-    R["gpu12v"] = [Sec("round", rd1, "gpu12v"), Sec("slab", sl, "gpu12v"), Sec("round", rd2, "gpu12v")]
+    R["gpu12v"] = [Sec("round", rd1, "gpu12v"), Sec("slab", sl, "gpu12v"), Sec("round", rd2, "gpu12v", bend=hw.GPU12V_PLUG_BEND)]
     # --- EPS 1 and 2
     for name in ("eps1", "eps2"):
         c, nr = GAP_U[name], EPS_RUN_N[name]
@@ -506,7 +509,9 @@ def fmt_rows(routes, overlaps):
         label, d, _need, _tn = rt.clear[0]
         real = f"{rt.real:6.0f}" if rt.real is not None else f"{'n/a':>6}"
         spare = f"{rt.real - rt.length:6.0f}" if rt.real is not None else f"{'n/a':>6}"
-        k = min(range(len(rt.bend_checks)), key=lambda i: rt.bend_checks[i][1] - rt.bend_checks[i][2])
+        # the section nearest its own limit; of sections equally near, the one with the tightest limit (revision 19: the 12V-2x6's last section bends at 12, the rest at 35,
+        # both on their limit, and the table showed 35)
+        k = min(range(len(rt.bend_checks)), key=lambda i: (round(rt.bend_checks[i][1] - rt.bend_checks[i][2], 1), rt.bend_checks[i][2]))
         kind, rmin, bend = rt.bend_checks[k]
         bend_s = f"{rmin:5.1f}/{bend:<3g}" if math.isfinite(rmin) else "  -  /" + f"{bend:<3g}"
         front = f"{-rt.ymin:6.1f} mm" if rt.ymin < hw.ENVELOPE_Y0 else f"none (Y {rt.ymin:.0f})"
@@ -646,7 +651,8 @@ def facts_section(routes):
     mouth_n = hw.GPU_BS[5] - gs["recess"]
     out = ["", "Socket numbers and assumptions used",
            f"  12V-2x6 socket on the card (read off MSI's render, +-12 mm along v, +-3 mm along u, +-8 mm recess): v {gs['v']:g}, u {gs['u']:g}, mouth n {mouth_n:g} (card face n {hw.GPU_BS[5]:g} - recess {gs['recess']:g})",
-           f"  plug {hw.GPU12V_PLUG:g} mm out of the mouth (assumption), straight {hw.GPU12V_STRAIGHT:g} mm from the plug's back; radius {hw.CABLES['gpu12v'][1]:g}, bend {hw.CABLES['gpu12v'][2]:g}",
+           f"  plug {hw.GPU12V_PLUG:g} mm out of the mouth (assumption), straight {hw.GPU12V_STRAIGHT:g} mm from the plug's back, least bend of the last section {routes['gpu12v'].secs[-1].bend:g} (the owner's cable); "
+           f"radius {hw.CABLES['gpu12v'][1]:g}, bend {hw.CABLES['gpu12v'][2]:g} elsewhere",
            f"  slabs: strands r {hw.SLAB_STRAND_R:g}, pitch {hw.SLAB_PITCH:g}, bend {hw.SLAB_BEND:g}; ATX {hw.CABLE_SLAB['atx24']} strands, 12V-2x6 {hw.CABLE_SLAB['gpu12v']} strands (assumptions)",
            f"  USB-C: lying plug {hw.LYING_PLUG['length']:g} x {hw.LYING_PLUG['thick']:g} mm (assumption); the card counts from n {hw.GPU_UNDERSIDE_N:g} up for this route only (assumption; the owner confirmed the port works under this card today)",
            f"  PSU sockets (read off a photo of the modular face, +-3 mm in X, +-5 mm in Z, not measured; hardware.PSU_SOCKET_FIELD): " + ", ".join(f"{k} = {hw.PSU_SOCKET_USE[k]} X {v[0]:g} Z {v[2]:g}" for k, v in hw.PSU_SOCKETS.items()) + f" on the face Y {hw.PSU_W[2]:g}",
@@ -655,7 +661,7 @@ def facts_section(routes):
            ""]
     rt = routes["gpu12v"]
     ymin = rt.ymin
-    out.append(f"12V-2x6, furthest point in front of Y {hw.ENVELOPE_Y0:g}: " + (f"{hw.ENVELOPE_Y0 - ymin:.1f} mm (surface at Y {ymin:.1f}); the arch's top is n {GPU12V_TOP_N:g}. Accepted by the owner on 15 Nov 2026 as a tolerance, up to {hw.GPU12V_FRONT_TOL:g} mm" if ymin < hw.ENVELOPE_Y0 else "none"))
+    out.append(f"12V-2x6, furthest point in front of Y {hw.ENVELOPE_Y0:g}: " + (f"{hw.ENVELOPE_Y0 - ymin:.1f} mm (surface at Y {ymin:.1f}); the arch's top is n {GPU12V_TOP_N:g}. Accepted by the owner on 15 Nov 2026 as a tolerance, up to {hw.GPU12V_FRONT_TOL:g} mm" if ymin < hw.ENVELOPE_Y0 else f"none: the surface stands {ymin - hw.ENVELOPE_Y0:.1f} mm behind it; the arch's top is n {GPU12V_TOP_N:g}"))
     return out
 
 

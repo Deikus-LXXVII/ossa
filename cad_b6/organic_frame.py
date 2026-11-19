@@ -30,6 +30,10 @@ in front; a gate in the bone `card` over the card's power connector, and the plu
 every hose along its whole centre line and from every skeleton screw's washer and head (skeleton_screws.py, the source assembly_access.py reads too); a pad's rim kept off the
 washers on its face; the pad's pilot cut out of the layer. Four more checks read only the saved arrays (layer_clearance_checks): the carrier slides out, no layer in a pad's pilot,
 no cable or hose in the layer, no layer in a screw's head. field.npz also keeps the probes organic_strength.py pushes (the middle of every film strand and cross-thread).
+Revision 19 (docs/plans/front-and-outline.md, parts B to F): the bone `card` whole again and in front of the plane of the card's fans, the layer let stand in front of the case's front
+plane as far as hw.LAYER_FRONT_Y (field_checks fails on anything in front of it); the brow gone and the front film hung on the bone `card`; every piece built by build_whole until no
+strand or cross-thread of its films is torn (member_checks reads the saved members); a bone other than a ring fails when it is bitten for more than BONE_BITTEN_MAX in one run or
+for more than half its length (bone_cut_failures).
 Not done here: the split of `main` into printable pieces, and the strength run (organic_strength.py).
 """
 from __future__ import annotations
@@ -67,7 +71,7 @@ LINK_END_MORE = 0.8
 STRAND_SLENDER = 36.0                      # a strand's mid radius is at least its length / this: a 30 N push at mid-span stays near 10 MPa
 
 # Bone radii: (at one joint, mid-span, at the other joint), or one number for a constant radius
-BONE_R = {"lip": (7, 5.5, 7), "card": (6.5, 5, 6.5), "brow": (7, 5, 7), "ring": 6.5, "front": (10, 6, 8), "rear": (7, 5.5, 10),
+BONE_R = {"lip": (7, 5.5, 7), "card": (6.5, 5, 6.5), "ring": 6.5, "front": (10, 6, 8), "rear": (7, 5.5, 10),
           "side": (7, 5, 7), "base": 6.5, "front_low": (7, 6, 7)}
 CRUMB_CM3 = 6.0                            # loose pieces smaller than this (one strand cut at both ends is about 4) are carving crumbs and are dropped
 MIN_THICK = 4.5                            # carving leaves slivers; whatever is thinner than this is removed
@@ -107,19 +111,25 @@ LIP_U = hw.RAD360_BS[2] - 6.5              # just below the 360's lower edge
 CARD_N = hw.GPU_BS[5]                      # the card's outer edge
 HOT_GAP = 10.0                             # the layer keeps this far from the graphics card and the PSU, which run hot
 GAP_PIECE = 3.0                            # revision 17 (docs/plans/rear-panel.md): the layer's pieces are put on separately, so each keeps this far from the others; a later piece is carved back from the earlier ones
-CARD_BONE_U, CARD_BONE_N = 118.0, CARD_N + HOT_GAP + 8.0   # a bone over the card's top edge, clear of it
+# Revision 19 (docs/plans/front-and-outline.md, part C): the bone `card` stands in front of the plane of the card's fans (the card's face u hw.GPU_BS[2]), its back CARD_FAN_AHEAD in front of
+# that plane at the middle, and HOT_GAP off the card's outer edge (the owner, 19 Nov 2026: "I would like the beam to be level with the plane of the card's fans; ... move the beam a little
+# forward relative to the fans"). The centre line's middle control points stand 1 mm farther along u and n than its ends (u 68, n 167.5 there; 67 and 166.5 at the ends).
+CARD_FAN_AHEAD = 2.6
+CARD_BONE_U = hw.GPU_BS[2] - CARD_FAN_AHEAD - BONE_R["card"][1] - 1.0      # 67
+CARD_BONE_N = CARD_N + HOT_GAP + BONE_R["card"][0]                          # 166.5
 SWEEP_X = 170.0                            # the flank sweeps pass this far out, clear of the card's ends
 NEAR_FILM_N0 = 50.0                        # right fan: the film from the ring's near side to the front sweep starts at this n, above the card's hoses
 UNDER_FILM = {-1: False, 1: False}         # revision 14b: no film from a ring's bottom to the base. Left: the hand's way up to the board's connectors passes under the fan (zone_access.py);
                                            # right: the card's hoses run under the fan
 TOP_FILM_L_U0 = 186.0                      # left fan, film from the ring's top to the side bone: first thread past the CPU hoses (hose b at u 170 + 6.2 + GAP_HW + a thread's radius)
-# Revision 18 (docs/plans/front-and-outline.md, part C.1): the bones that draw the silhouette (the front posts, the rear sweeps, the base rails, the brow) are straight legs with tight
+# Revision 18 (docs/plans/front-and-outline.md, part C.1): the bones that draw the silhouette (the front posts, the rear sweeps, the base rails, the brow of before revision 19) are straight legs with tight
 # knees (the owner, 18 Nov 2026: "make the outlines of the organic design straighter: not the webs themselves, the parts that form the silhouette"; the reference is
 # docs/plans/sketches/straight_sketch.py). Where a bone turns, a control point stands KNEE from the knee along each leg; the number of control points of each bone is as before,
 # because the films slice them.
 KNEE = 25.0
-BROW_Y, BROW_Z = 13.0, 152.0
-BROW = [(-160, BROW_Y, BROW_Z), (0, BROW_Y, BROW_Z), (160, BROW_Y, BROW_Z)]        # bone across the front, straight, well below the card
+# Revision 19 (part D): the brow (a straight bone across the front at Y 13, Z 152) is gone; the front film hangs on the bone `card`. A front post keeps its control point at the brow's
+# height, so that it keeps its number of control points and the films that slice it stay.
+FRONT_MID_Z = 152.0
 LIP_BONE = [bp(LIP_U, FACE_N, -190), bp(LIP_U - 1, FACE_N + 1, -60), bp(LIP_U - 1, FACE_N + 1, 60),
             bp(LIP_U, FACE_N, 190)]
 RING_X = {1: sum(hw.FAN_SIDE_X["fan_side_right"]) / 2, -1: sum(hw.FAN_SIDE_X["fan_side_left"]) / 2}    # both rings in their fan's mid-plane
@@ -141,11 +151,12 @@ REAR_LOW = (169, 372, 44)                  # the rear sweep's lower end of its b
 REAR_FOOT = (166, 368, -6)
 
 # Revision 18 (part C.3): the front, as in docs/plans/sketches/front_sketch.py. The sill and its light line are gone; the I/O module in its carrier stands on beam_front under a hood that is
-# one with the layer, and a film of 13 nearly straight strands hangs between the bone front_low and the brow.
+# one with the layer, and a film of 13 nearly straight strands hangs between the bone front_low and the bone `card` (the brow until revision 19; part D.2: 12 cross-threads, 6 before,
+# for strands of about 140 mm, 92 before).
 FRONT_LOW_Y, FRONT_LOW_Z = 22.0, 60.0      # the bone front_low, straight from post to post over the carrier (its top Z 48.9), and the hood's roof
 FRONT_LOW_X = 160.0
 FRONT_FILM_X = 150.0                       # the film is hung between X -150 and 150
-FRONT_FILM = dict(n=13, seed=23, sag=(0.0, 1.0, 0.0), sag_mm=2.0, links=6, r_a=6.0, r_b=6.0)
+FRONT_FILM = dict(n=13, seed=23, sag=(0.0, 1.0, 0.0), sag_mm=2.0, links=12, r_a=6.0, r_b=6.0)
 HOOD_OUT = 10.0                            # the hood's cheeks stand this far outside the carrier's ends (frame_v0.CARRIER_X): X -92 and 117
 HOOD_X = (frame_v0.CARRIER_X[0] - HOOD_OUT, frame_v0.CARRIER_X[1] + HOOD_OUT)
 ROOF_Z = FRONT_LOW_Z - 1.0                 # the roof: a slab along X between the cheeks, radius ROOF_R flattened ROOF_SQUASH times along Z (15 mm thick, 52 mm deep)
@@ -155,23 +166,23 @@ CHEEK_Z = (56.0, 42.0, 28.0)
 HOOD_BLEND = 10.0                          # the three slabs blended at this
 CARRIER_WAY = (-20.0, 0.0)                 # part C.4: the way the carrier slides out, its exact box extended forward to this Y and down to this Z, is carved by GAP_SKEL
 
-# Revision 18 (part H): the card's power cable comes back down beside its connector and runs under the film (cables.py), so the layer opens over the connector. The bone `card` stops either side
-# of the socket (card_L, card_R), its gate's ends computed from the socket's X, its tolerance along v (hw.GPU_PWR_SOCKET_TOL), room for the plug (CARD_GATE_PLUG), CARD_GATE_SPARE and the bone's end
-# radius. A free end is a ball of radius CARD_END_BALL. The lip stays whole. The film on the right starts where the loop's far leg has passed (cables.GPU12V_LOOP_V): the leg's X, the cable's radius,
-# FILM_UNDER_AIR of air, the film's r_a and FILM_UNDER_SPARE. The plug's room (PLUG_ZONE, board space) is carved by GAP_KEEP and is one of the EMPTY_BOXES.
+# Revision 18 (part H): the card's power cable comes back down beside its connector and runs under the film (cables.py), so the layer opens over the connector. Revision 19 (parts C and D.4):
+# the bone `card` is whole again (it stands in front of the fans' plane, away from the socket, and the cable's low arch passes under it); the two films between it and the lip stop either
+# side of a window over the connector, PLUG_WINDOW_X. Its left edge: the socket's X less its tolerance along v (hw.GPU_PWR_SOCKET_TOL), room for the plug (PLUG_WINDOW_PLUG),
+# PLUG_WINDOW_SPARE and the bone's end radius. Its right edge: the same on the right, or past the cable's far leg (cables.GPU12V_LOOP_V: the leg's X, the cable's radius, FILM_UNDER_AIR of
+# air, the film's r_a and FILM_UNDER_SPARE), whichever is farther. The plug's room (PLUG_ZONE, board space) is carved by GAP_KEEP and is one of the EMPTY_BOXES.
 GPU_SOCKET_X = hw.GPU_PWR_SOCKET["v"] + hw.ORIGIN[0]
-CARD_GATE_PLUG, CARD_GATE_SPARE, CARD_END_BALL = 10.0, 5.0, 8.0
-_GATE_HALF = hw.GPU_PWR_SOCKET_TOL["v"] + CARD_GATE_PLUG + CARD_GATE_SPARE + BONE_R["card"][0]
-CARD_GATE_X = (GPU_SOCKET_X - _GATE_HALF, GPU_SOCKET_X + _GATE_HALF)          # X -25.5 and 41.5
+PLUG_WINDOW_PLUG, PLUG_WINDOW_SPARE = 10.0, 5.0
+_WINDOW_HALF = hw.GPU_PWR_SOCKET_TOL["v"] + PLUG_WINDOW_PLUG + PLUG_WINDOW_SPARE + BONE_R["card"][0]
 FILM_UNDER_AIR, FILM_UNDER_SPARE, CARD_FILM_R = 3.0, 3.0, 6.0
-FILM_UNDER_X0 = cables.GPU12V_LOOP_V + hw.ORIGIN[0] + hw.CABLES["gpu12v"][1] + FILM_UNDER_AIR + CARD_FILM_R + FILM_UNDER_SPARE      # X 89.5
+PLUG_WINDOW_X = (GPU_SOCKET_X - _WINDOW_HALF,
+                 max(GPU_SOCKET_X + _WINDOW_HALF, cables.GPU12V_LOOP_V + hw.ORIGIN[0] + hw.CABLES["gpu12v"][1] + FILM_UNDER_AIR + CARD_FILM_R + FILM_UNDER_SPARE))      # X -25.5 and 47
 _MOUTH_N = hw.GPU_BS[5] - hw.GPU_PWR_SOCKET["recess"]
 PLUG_ZONE_HALF = (30.0, 14.0)              # the plug's room along v and u either side of the socket (the sketch's: the socket's tolerance, 12 along v and 3 along u, and the plug with a hand round it)
 PLUG_ZONE_ABOVE = 10.0                     # and along n beyond the plug and its straight
 PLUG_ZONE = (hw.GPU_PWR_SOCKET["v"] - PLUG_ZONE_HALF[0], hw.GPU_PWR_SOCKET["v"] + PLUG_ZONE_HALF[0], hw.GPU_PWR_SOCKET["u"] - PLUG_ZONE_HALF[1], hw.GPU_PWR_SOCKET["u"] + PLUG_ZONE_HALF[1],
-             _MOUTH_N, _MOUTH_N + hw.GPU12V_PLUG + hw.GPU12V_STRAIGHT + PLUG_ZONE_ABOVE)          # v 100..160, u 105..133, n 137..195
-CARD_L = [bp(CARD_BONE_U, CARD_BONE_N, -SWEEP_X), bp(CARD_BONE_U + 1, CARD_BONE_N + 1, -100), bp(CARD_BONE_U + 1, CARD_BONE_N + 1, CARD_GATE_X[0])]     # revision 18 (part H.2): the bone
-CARD_R = [bp(CARD_BONE_U + 1, CARD_BONE_N + 1, CARD_GATE_X[1]), bp(CARD_BONE_U + 1, CARD_BONE_N + 1, 100), bp(CARD_BONE_U, CARD_BONE_N, SWEEP_X)]      # over the card in two, a gate between
+             _MOUTH_N, _MOUTH_N + hw.GPU12V_PLUG + hw.GPU12V_STRAIGHT + PLUG_ZONE_ABOVE)          # v 100..160, u 105..133, n 137..162 (revision 19: the straight 2, it was 35)
+CARD = [bp(CARD_BONE_U, CARD_BONE_N, -SWEEP_X), bp(CARD_BONE_U + 1, CARD_BONE_N + 1, -60), bp(CARD_BONE_U + 1, CARD_BONE_N + 1, 60), bp(CARD_BONE_U, CARD_BONE_N, SWEEP_X)]   # as the lip
 RING_TIE_L3_BASE_Y = 100.0                 # revision 14b, second pass: the left ring's lower front corner is strutted to the base bone here, just behind the front foot's pad (Y 60)
 
 
@@ -224,11 +235,11 @@ def at_z(a, b, z):
 
 
 def front_sweep(s):
-    """Revision 18: a straight post from the front foot to the end of the card's bone (a point at the brow's height on it, and a knee's neighbour KNEE before the end); on the right one more
+    """Revision 18: a straight post from the front foot to the end of the card's bone (a point at FRONT_MID_Z on it, and a knee's neighbour KNEE before the end); on the right one more
     straight leg to the corner of the 360's lip. On the left the CPU hoses turn down the flank exactly between the card's edge and that corner, so the sweep stops at the card's edge."""
     foot = (FRONT_FOOT[0] * s, *FRONT_FOOT[1:])
     card = bp(CARD_BONE_U, CARD_BONE_N, SWEEP_X * s)
-    pts = [foot, at_z(foot, card, BROW_Z), toward(card, foot, KNEE), card]
+    pts = [foot, at_z(foot, card, FRONT_MID_Z), toward(card, foot, KNEE), card]
     return pts + [bp(LIP_U, FACE_N, 190 * s)] if s > 0 else pts
 
 
@@ -268,7 +279,6 @@ def bone_members():
         lines[name] = sc.spline(ctrl, step=6.0)
 
     add("lip", LIP_BONE, bone(*BONE_R["lip"]))
-    add("brow", BROW, bone(*BONE_R["brow"]))
     for s, tag in ((1, "R"), (-1, "L")):
         add("ring_" + tag, ring(s), BONE_R["ring"])
         add("front_" + tag, front_sweep(s), bone(*BONE_R["front"]))
@@ -304,20 +314,19 @@ def bone_members():
     out.append(("slab", [(HOOD_X[0], FRONT_LOW_Y, ROOF_Z), (0.0, FRONT_LOW_Y, ROOF_Z), (HOOD_X[1], FRONT_LOW_Y, ROOF_Z)], ROOF_R, HOOD_BLEND, ("z", ROOF_SQUASH)))
     for x in HOOD_X:
         out.append(("slab", [(x, FRONT_LOW_Y, z) for z in CHEEK_Z], CHEEK_R, HOOD_BLEND, ("x", CHEEK_SQUASH)))
-    # Revision 18 (part H.2): the bone `card` has a gate over the card's power connector: card_L and card_R, each with a ball on its free end.
-    add("card_L", CARD_L, bone(*BONE_R["card"]))
-    add("card_R", CARD_R, bone(*BONE_R["card"]))
-    for p in (CARD_L[-1], CARD_R[0]):
-        out.append(("ball", p, CARD_END_BALL, 8.0))
+    # Revision 19 (part C.1): the bone `card` is one bone again, in front of the card's fans (revision 18 cut it in two, a gate over the connector)
+    add("card", CARD, bone(*BONE_R["card"]))
     return out, lines
 
 
 class Film(list):
     """A film's members (a list, as before), with what organic_strength.py and the report read of it (revision 18, parts C.7 and I.1): `probes`, one (kind, the middle of the centre line,
-    length) per strand and per cross-thread, kind "strand" or "link"; `links`, one (length, radius at mid-span by LINK_R, radius at mid-span by the rule) per cross-thread."""
-    def __init__(self, members=(), probes=(), links=()):
+    length) per strand and per cross-thread, kind "strand" or "link"; `links`, one (length, radius at mid-span by LINK_R, radius at mid-span by the rule) per cross-thread.
+    Revision 19 (part E.1): `bars`, how many members at the start are the tubes the film lays along its two bones (not strands; the rear panel's film has none, its bones are drawn
+    by panel_frame); the strands and then the cross-threads follow, in the order of `probes`; `joins`, per cross-thread the numbers (0 for the first) of the two strands it joins."""
+    def __init__(self, members=(), probes=(), links=(), joins=(), bars=2):
         super().__init__(members)
-        self.probes, self.links = list(probes), list(links)
+        self.probes, self.links, self.joins, self.bars = list(probes), list(links), [tuple(j) for j in joins], bars
 
 
 def centre_mid(ctrl):
@@ -353,17 +362,23 @@ def film_members(a_ctrl, b_ctrl, n, seed, r_a=8.0, r_b=8.0, sag=(0.0, 0.0, -1.0)
         r_end0, r_end1 = max(r_end0, r_mid + 1.5), max(r_end1, r_mid + 1.5)
         out.append(("tube", [p0, mid, p1], bone(r_end0, r_mid, r_end1), 10.0))
         out.probes.append(("strand", centre_mid([p0, mid, p1]), float(np.linalg.norm(p1 - p0))))
+    lines = [sc.spline(out[2 + i][1], step=0.5) for i in range(n)]      # the strands' centre lines
     for _ in range(links):                               # a few cross-threads between neighbours
         i = int(rng.integers(0, n - 1))
         f0, f1 = rng.uniform(0.25, 0.75), rng.uniform(0.25, 0.75)
         q0 = A[int(ta[i] * (len(A) - 1))] * (1 - f0) + Bc[int(tb[i] * (len(Bc) - 1))] * f0
         q1 = A[int(ta[i + 1] * (len(A) - 1))] * (1 - f1) + Bc[int(tb[i + 1] * (len(Bc) - 1))] * f1
-        ctrl = [q0, (q0 + q1) / 2 + sag * 3.0, q1]
-        length = float(np.linalg.norm(q1 - q0))
+        # revision 19 (part E.1): q0 and q1 lie on the strands' chords, and a strand's middle is thrown up to about 10 mm off its chord, so an end could miss its strand. The ends
+        # stand on the strands' centre lines instead, at the points nearest q0 and q1; the middle keeps its offset
+        e0 = lines[i][int(np.argmin(np.linalg.norm(lines[i] - q0, axis=1)))]
+        e1 = lines[i + 1][int(np.argmin(np.linalg.norm(lines[i + 1] - q1, axis=1)))]
+        ctrl = [e0, (e0 + e1) / 2 + sag * 3.0, e1]
+        length = float(np.linalg.norm(e1 - e0))
         r_end, r_mid = link_radii(length)                # part C.7: as thick as its length asks, never under LINK_R
         out.append(("tube", ctrl, bone(r_end, r_mid, r_end), 7.0))
         out.probes.append(("link", centre_mid(ctrl), length))
         out.links.append((length, LINK_R[1], r_mid))
+        out.joins.append((i, i + 1))
     return out
 
 
@@ -372,19 +387,24 @@ def film_list():
     # The gap between the card's outer edge and the 360's lower edge, at the level the fans set.
     # On the left the CPU hoses (450 mm) run below that surface, at n 131 and 140: the threads pass over them, as on the right.
     # (With the 500 mm hoses the run lay in the surface and the threads dipped 20 mm underneath it.)
-    # Revision 18 (part H.3): the left film ends at the gate's left end (8 strands, 3 links as before); the right one starts past the card cable's loop (FILM_UNDER_X0) and runs to the corner
-    # (6 strands, 3 links). Between them the layer is open over the connector and the loop. The control points are cable_gate_sketch.py's.
+    # Revision 18 (part H.3): the left film ends at the window's left edge (8 strands); the right one starts at its right edge, past the card cable's far leg, and runs to the corner
+    # (6 strands). Between them the layer is open over the connector and the loop. Revision 19 (part D.3): the bone `card` stands in front of the card's fans, so the films lie over the
+    # whole of the card's top face (strands of about 108 mm, 58 before): 6 cross-threads each (3 before), and they sag away from the card (towards it, their centre lines entered the
+    # 10 mm the layer keeps from the card and were cut there: the sketch, runs/18_no_torn_layer.txt).
     cu, cn = CARD_BONE_U, CARD_BONE_N
-    lip_l = [bp(LIP_U, FACE_N, -190), bp(LIP_U - 1, FACE_N + 1, -100), bp(LIP_U - 1, FACE_N + 1, CARD_GATE_X[0])]
-    out.append(film_members(CARD_L, lip_l, 8, seed=3, r_a=CARD_FILM_R, r_b=CARD_FILM_R, sag=(0.0, 0.707, -0.707), sag_mm=4, links=3))
-    x0 = FILM_UNDER_X0
-    out.append(film_members([bp(cu + 1, cn + 1, x0), bp(cu + 1, cn + 1, (x0 + SWEEP_X) / 2), bp(cu, cn, SWEEP_X)],
-                            [bp(LIP_U - 1, FACE_N + 1, x0), bp(LIP_U - 1, FACE_N + 1, (x0 + 190.0) / 2), bp(LIP_U, FACE_N, 190)],
-                            6, seed=8, r_a=CARD_FILM_R, r_b=CARD_FILM_R, sag=(0.0, 0.707, -0.707), sag_mm=4, links=3))
-    # Revision 18 (part C.3): in place of the veil that stood on the sill, a film of nearly straight strands from front_low up to the brow, over X -150..150
+    x0, x1 = PLUG_WINDOW_X
+    away = (0.0, -0.707, 0.707)
+    out.append(film_members([bp(cu, cn, -SWEEP_X), bp(cu + 1, cn + 1, -100), bp(cu + 1, cn + 1, x0)],
+                            [bp(LIP_U, FACE_N, -190), bp(LIP_U - 1, FACE_N + 1, -100), bp(LIP_U - 1, FACE_N + 1, x0)],
+                            8, seed=3, r_a=CARD_FILM_R, r_b=CARD_FILM_R, sag=away, sag_mm=4, links=6))
+    out.append(film_members([bp(cu + 1, cn + 1, x1), bp(cu + 1, cn + 1, (x1 + SWEEP_X) / 2), bp(cu, cn, SWEEP_X)],
+                            [bp(LIP_U - 1, FACE_N + 1, x1), bp(LIP_U - 1, FACE_N + 1, (x1 + 190.0) / 2), bp(LIP_U, FACE_N, 190)],
+                            6, seed=8, r_a=CARD_FILM_R, r_b=CARD_FILM_R, sag=away, sag_mm=4, links=6))
+    # Revision 18 (part C.3): in place of the veil that stood on the sill, a film of nearly straight strands from front_low up, over X -150..150. Revision 19 (part D.2): the brow is gone
+    # and the film hangs on the bone `card`.
     fl = FRONT_FILM
     out.append(film_members([(-FRONT_FILM_X, FRONT_LOW_Y, FRONT_LOW_Z), (0.0, FRONT_LOW_Y, FRONT_LOW_Z), (FRONT_FILM_X, FRONT_LOW_Y, FRONT_LOW_Z)],
-                            [(-FRONT_FILM_X, BROW_Y, BROW_Z), (0.0, BROW_Y, BROW_Z), (FRONT_FILM_X, BROW_Y, BROW_Z)],
+                            [bp(cu + 1, cn + 1, -FRONT_FILM_X), bp(cu + 1, cn + 1, 0.0), bp(cu + 1, cn + 1, FRONT_FILM_X)],
                             fl["n"], seed=fl["seed"], r_a=fl["r_a"], r_b=fl["r_b"], sag=fl["sag"], sag_mm=fl["sag_mm"], links=fl["links"]))
     for s in (-1, 1):
         (u0, u1), (n0, n1) = hw.FAN_SIDE_U, hw.FAN_SIDE_N
@@ -455,7 +475,7 @@ def panel_frame():
     add("panel_low", low, PANEL_R)
     add("panel_top", top, PANEL_R)
     film = film_members(low, top, PANEL_FILM["n"], seed=PANEL_FILM["seed"], r_a=PANEL_R, r_b=PANEL_R, sag=PANEL_FILM["sag"], sag_mm=PANEL_FILM["sag_mm"], links=PANEL_FILM["links"])
-    return out, lines, [Film(film[2:], film.probes, film.links)]      # the film's own two bars are panel_low and panel_top, already drawn above (drawn twice, a bar would swell by a quarter of the blend)
+    return out, lines, [Film(film[2:], film.probes, film.links, film.joins, bars=0)]      # the film's own two bars are panel_low and panel_top, already drawn above (drawn twice, a bar would swell by a quarter of the blend)
 
 
 def panel_legs(a):
@@ -665,7 +685,7 @@ def place_anchors(parts, lines, hware, heads, pads=None, driver_lines=None):
         for bname, pts in lines.items():
             if want is not None and bname != f"{want}_{tag}":
                 continue
-            if not bname.endswith("_" + tag) and bname not in ("lip", "card", "brow"):
+            if not bname.endswith("_" + tag) and bname not in ("lip", "card"):
                 continue
             v = pts - (q + nrm * PAD_H)
             dist = np.linalg.norm(v, axis=1)
@@ -870,7 +890,7 @@ def carve_layer(F, parts, skel):
         sl, (X, Y, Z) = F.block(ends.min(axis=0) - r - GAP_SKEL - 2, ends.max(axis=0) + r + GAP_SKEL + 2)
         F.d[sl] = np.maximum(F.d[sl], GAP_SKEL - cylinder_distance(X, Y, Z, q, e, r, h))
     np.maximum(F.d, -(F.zs + 15.0)[None, None, :], out=F.d)                  # desk
-    np.maximum(F.d, -F.ys[None, :, None], out=F.d)                           # front plane
+    np.maximum(F.d, (hw.LAYER_FRONT_Y - F.ys)[None, :, None], out=F.d)       # the layer's front limit (revision 19, part B: in front of the case's front plane, hw.ENVELOPE_Y0)
     np.maximum(F.d, (np.abs(F.xs) - hw.ENVELOPE_FAN_X)[:, None, None], out=F.d)  # revision 14b: the fans' outer faces (it was the radiators' span, which cut the rings off)
 
 
@@ -919,8 +939,100 @@ def finish_piece(F, anchors):
     return thin_cm3, len(crumbs), float(sizes[[i - 1 for i in crumbs]].sum()) if crumbs else 0.0
 
 
+# ---------------------------------------------------------------------------
+# Whole members (revision 19, docs/plans/front-and-outline.md, part E). The owner, 19 Nov 2026, with a cut of a render that showed cross-threads ending in the air: "by open
+# connections I meant the parts of the organic design that are torn-off cross-threads". A strand or a cross-thread of a film is whole when every point of its centre line, at steps of
+# MEMBER_STEP, is inside its piece's finished field; within MEMBER_END of an end, where it stands inside a bone that a clearance may have shaved, the layer within one voxel of the
+# point is enough (never over more than a third of the member's length at each end). A cross-thread is also not whole when one of its two strands is not there or not whole. The tubes a film lays along its bones are not members in this sense.
+# ---------------------------------------------------------------------------
+MEMBER_STEP = 1.0
+MEMBER_END = 4.0
+MAX_BUILDS = 4                             # build_whole stops with an error when members are still torn after this many builds of a piece
+
+
+def film_rows(films):
+    """[(id, kind, centre line, join)] of every strand and cross-thread of `films`: id (film's number, member's number in the film), kind "strand" or "link", the centre line
+    (sc.spline of the member's control points at MEMBER_STEP), join: a cross-thread's two strands' ids (None for a strand)."""
+    rows = []
+    for fi, fm in enumerate(films):
+        nb, kinds = fm.bars, [k for k, _p, _l in fm.probes]
+        n = kinds.count("strand")
+        assert kinds == ["strand"] * n + ["link"] * (len(kinds) - n) and len(fm) == nb + len(kinds) and len(fm.joins) == len(kinds) - n, f"film {fi}: members, probes and joins disagree"
+        for k, kind in enumerate(kinds):
+            m = nb + k
+            join = None if kind == "strand" else tuple((fi, nb + w) for w in fm.joins[k - n])
+            rows.append(((fi, m), kind, sc.spline(fm[m][1], step=MEMBER_STEP), join))
+    return rows
+
+
+def torn_rows(d, xs, ys, zs, rows, gone=()):
+    """{id: why} of the rows (film_rows' form) not in `gone` that are not whole in the field d on the grid xs, ys, zs: "strand cut", "cross-thread cut", or "cross-thread on a strand that
+    is cut or gone" (one of its two strands is in `gone`, not among the rows, or cut)."""
+    gone = set(gone)
+    solid = np.asarray(d) < 0
+    near = ndimage.binary_dilation(solid, structure=np.ones((3, 3, 3), dtype=bool))
+    grid = [np.asarray(g, dtype=float) for g in (xs, ys, zs)]
+    vox = float(grid[0][1] - grid[0][0])
+
+    def whole(pts):
+        pts = np.asarray(pts, dtype=float)
+        idx = np.stack([np.round((pts[:, k] - grid[k][0]) / vox).astype(int) for k in range(3)], axis=1)
+        if not np.all((idx >= 0) & (idx < np.array(solid.shape))):
+            return False
+        cum = np.concatenate([[0.0], np.cumsum(np.linalg.norm(np.diff(pts, axis=0), axis=1))])
+        reach = min(MEMBER_END, cum[-1] / 3.0)         # the middle third is always read strictly: a member shorter than 2 x MEMBER_END was all end, and a cut through it went unseen
+        end = (cum < reach) | (cum > cum[-1] - reach)
+        at = (idx[:, 0], idx[:, 1], idx[:, 2])
+        return bool(np.where(end, near[at], solid[at]).all())
+
+    ids = {r[0] for r in rows}
+    out = {}
+    for rid, kind, line, _join in rows:
+        if rid not in gone and not whole(line):
+            out[rid] = "strand cut" if kind == "strand" else "cross-thread cut"
+    for rid, kind, _line, join in rows:
+        if kind == "link" and rid not in gone and rid not in out and any(w in gone or w not in ids or w in out for w in join):
+            out[rid] = "cross-thread on a strand that is cut or gone"
+    return out
+
+
+def films_without(films, gone):
+    """The films with the members whose ids are in `gone` taken out; their probes, links and joins follow the members that stay."""
+    out = []
+    for fi, fm in enumerate(films):
+        nb, kinds = fm.bars, [k for k, _p, _l in fm.probes]
+        n = kinds.count("strand")
+        keep = [m for m in range(len(fm)) if m < nb or (fi, m) not in gone]
+        strands = [m - nb for m in keep if nb <= m < nb + n]
+        new_of = {w: i for i, w in enumerate(strands)}
+        links = [m - nb - n for m in keep if m >= nb + n]
+        assert all(w in new_of for j in links for w in fm.joins[j]), f"film {fi}: a cross-thread stays on a strand that went"
+        out.append(Film([fm[m] for m in keep], [fm.probes[m - nb] for m in keep if m >= nb], [fm.links[j] for j in links],
+                        [tuple(new_of[w] for w in fm.joins[j]) for j in links], bars=nb))
+    return out
+
+
+def build_whole(make, films, max_builds=MAX_BUILDS):
+    """Build a piece with make(films) (it returns the piece's finished field, an object with d, xs, ys, zs, and anything else), test every strand and cross-thread of the films in it,
+    take out those that are not whole (and the cross-threads on a strand that went), and build again, until none is torn. Stops with an error when members are still torn after
+    max_builds builds. Returns (make's result, the films without the members taken out, the rows that stay, the record: made {kind: count}, gone {id: why}, builds)."""
+    rows = film_rows(films)
+    made = {k: sum(1 for r in rows if r[1] == k) for k in ("strand", "link")}
+    gone = {}
+    for k in range(1, max_builds + 1):
+        kept = films_without(films, gone)
+        res = make(kept)
+        F = res[0] if isinstance(res, tuple) else res
+        torn = torn_rows(F.d, F.xs, F.ys, F.zs, rows, gone)
+        if not torn:
+            return res, kept, [r for r in rows if r[0] not in gone], dict(made=made, gone=gone, builds=k)
+        gone.update(torn)
+    raise AssertionError(f"members still torn after {max_builds} builds: " + "; ".join(f"film {i} member {m}: {w}" for (i, m), w in sorted(torn.items())))
+
+
 def build(parts, hware, vox=VOX):
-    """The whole layer, piece by piece (PIECES). Returns (the union's field, the anchors of every piece in PIECES' order, {piece: its field}, the numbers for the report)."""
+    """The whole layer, piece by piece (PIECES). Returns (the union's field, the anchors of every piece in PIECES' order, {piece: its field}, the numbers for the report).
+    Revision 19 (part E.2): each piece is built by build_whole, so no strand or cross-thread of its films is left torn."""
     frames = {"main": bone_members() + (film_list(),)}
     if "rear_panel" in PIECES:
         frames["rear_panel"] = panel_frame()
@@ -935,44 +1047,62 @@ def build(parts, hware, vox=VOX):
     t2 = time.time()
     fields, anchors = {}, []
     info = dict(members=0, crumbs=0, crumb_cm3=0.0, thin_cm3=0.0, lines=all_lines, per_piece={}, heads=heads, strand_lines=skel["lines"], probes=[], links={},
-                seconds=dict(screws=t1 - t0, routes=t2 - t1))
+                film_rows={}, film_record={}, seconds=dict(screws=t1 - t0, routes=t2 - t1))
     for piece in PIECES:
         bones_m, lines, films = frames[piece]
         pads = {k: v for k, v in hw.ORGANIC_PADS.items() if v[3] == piece}
         own = place_anchors(parts, lines, hware, heads, pads, driver_lines=all_lines)
-        members = list(bones_m)
-        for fm in films:
-            members += fm
-            info["probes"] += [(piece, kind, pt, length) for kind, pt, length in getattr(fm, "probes", ())]
-            info["links"].setdefault(piece, []).extend(getattr(fm, "links", ()))
+        pad_members = []
         for a in own:
-            members.append(("ball", tuple(a["q"] + a["n"] * (KNOT_R - 4.0)), KNOT_R, 8.0))
+            pad_members.append(("ball", tuple(a["q"] + a["n"] * (KNOT_R - 4.0)), KNOT_R, 8.0))
             if a["tie"] is not None:
-                members.append(("tube", [a["q"] + a["n"] * (PAD_H * 0.6), (a["q"] + a["n"] * PAD_H + a["tie"]) / 2 + a["n"] * 3.0, a["tie"]], bone(*STUB), 8.0))
+                pad_members.append(("tube", [a["q"] + a["n"] * (PAD_H * 0.6), (a["q"] + a["n"] * PAD_H + a["tie"]) / 2 + a["n"] * 3.0, a["tie"]], bone(*STUB), 8.0))
             else:
-                members += panel_legs(a)
-        F = Field(vox)
-        for m in members:
-            F.add(m)
-        t3 = time.time()
-        carve_layer(F, parts, skel)
-        info["seconds"]["carve_" + piece] = time.time() - t3
-        if piece == "rear_panel":
-            carve_panel(F, hware)
-        for prev in fields.values():                                            # a later piece keeps GAP_PIECE from the earlier ones
-            np.maximum(F.d, GAP_PIECE - prev.d, out=F.d)
-        thin_cm3, crumbs, crumb_cm3 = finish_piece(F, own)
+                pad_members += panel_legs(a)
+
+        def make(kept, piece=piece, bones_m=bones_m, pad_members=pad_members, own=own):
+            members = list(bones_m) + [m for fm in kept for m in fm] + pad_members
+            F = Field(vox)
+            for m in members:
+                F.add(m)
+            t3 = time.time()
+            carve_layer(F, parts, skel)
+            info["seconds"]["carve_" + piece] = info["seconds"].get("carve_" + piece, 0.0) + time.time() - t3
+            if piece == "rear_panel":
+                carve_panel(F, hware)
+            for prev in fields.values():                                        # a later piece keeps GAP_PIECE from the earlier ones
+                np.maximum(F.d, GAP_PIECE - prev.d, out=F.d)
+            return F, finish_piece(F, own), len(members)
+
+        (F, (thin_cm3, crumbs, crumb_cm3), n_members), kept, rows, record = build_whole(make, films)
+        for fm in kept:
+            info["probes"] += [(piece, kind, pt, length) for kind, pt, length in fm.probes]
+            info["links"].setdefault(piece, []).extend(fm.links)
+        info["film_rows"][piece] = rows
+        info["film_record"][piece] = record
         fields[piece] = F
         anchors += own
-        info["members"] += len(members)
+        info["members"] += n_members
         info["crumbs"] += crumbs
         info["crumb_cm3"] += crumb_cm3
         info["thin_cm3"] += thin_cm3
-        info["per_piece"][piece] = dict(members=len(members), crumbs=crumbs, crumb_cm3=crumb_cm3, thin_cm3=thin_cm3)
+        info["per_piece"][piece] = dict(members=n_members, crumbs=crumbs, crumb_cm3=crumb_cm3, thin_cm3=thin_cm3)
     U = Field(vox)
     U.d = np.minimum.reduce([f.d for f in fields.values()]) if len(fields) > 1 else fields[PIECES[0]].d.copy()
     info["skeleton_cm3"] = skel["cm3"]
     return U, anchors, fields, info
+
+
+def film_record_lines(info):
+    """Report lines of part E.2: per piece, the strands and cross-threads made, those taken out and why, the builds it took."""
+    out = [f"Нити плёнок (ревизия 19, E): целая нить — вся её ось внутри своего куска (у концов, в {MEMBER_END:g} мм, слой в пределах вокселя); поперечная — ещё и обе её нити на месте:"]
+    for piece, rec in info["film_record"].items():
+        why = {}
+        for w in rec["gone"].values():
+            why[w] = why.get(w, 0) + 1
+        out.append(f"  {piece}: сделано нитей {rec['made']['strand']} и поперечных {rec['made']['link']}; убрано {len(rec['gone'])}"
+                   + (" (" + ", ".join(f"{w}: {k}" for w, k in sorted(why.items())) + ")" if why else "") + f"; построено раз: {rec['builds']}")
+    return out
 
 
 def bitten(F, lines, parts, hware):
@@ -1005,6 +1135,33 @@ def ring_cut_failures(cuts):
     """Revision 14b: a ring is never cut (bitten's runs on a ring are failures); other bones may end in a part and are only reported."""
     return [f"кольцо {name} перерезано зазором на {length:.0f} мм у X {mid[0]:.1f}, Y {mid[1]:.0f}, Z {mid[2]:.0f} ({who} в {dist:.1f} мм)"
             for name, length, mid, who, dist in cuts if name in ("ring_L", "ring_R")]
+
+
+# Revision 19 (part F): a named bone cannot vanish. The sketch's first run of revision 19 lost the whole bone `card` to the front cut and every check passed. A bone other than a ring
+# (ring_cut_failures) fails when one run of its centre line outside the layer (bitten) is longer than BONE_BITTEN_MAX, or when its runs add up to more than BONE_BITTEN_SHARE of its
+# length. The longest run before revision 19 was 20 mm, where a base rail passes a rib; the base rails are bitten in three places each, 58 and 52 mm in all.
+BONE_BITTEN_MAX = 30.0
+BONE_BITTEN_SHARE = 0.5
+
+
+def bone_cut_failures(cuts, lines):
+    """Failures of part F from bitten's runs `cuts` on the bones `lines` ({name: centre line}): one run longer than BONE_BITTEN_MAX, or the runs together more than BONE_BITTEN_SHARE
+    of the bone's length. The rings are left to ring_cut_failures."""
+    out = []
+    for name, pts in lines.items():
+        if name in ("ring_L", "ring_R"):
+            continue
+        runs = [(length, mid) for nm, length, mid, _who, _dist in cuts if nm == name]
+        if not runs:
+            continue
+        total = float(np.linalg.norm(np.diff(np.asarray(pts, dtype=float), axis=0), axis=1).sum())
+        longest, at = max(runs, key=lambda t: t[0])
+        cut = sum(r[0] for r in runs)
+        if longest > BONE_BITTEN_MAX:
+            out.append(f"ORGANIC_BONES {name}: a run of {longest:.0f} mm of its centre line is outside the layer at X {at[0]:.1f}, Y {at[1]:.1f}, Z {at[2]:.1f} (at most {BONE_BITTEN_MAX:g})")
+        if cut > BONE_BITTEN_SHARE * total:
+            out.append(f"ORGANIC_BONES {name}: {cut:.0f} mm of its {total:.0f} mm centre line are outside the layer in {len(runs)} runs (at most {BONE_BITTEN_SHARE:g} of it)")
+    return out
 
 
 # ---------------------------------------------------------------------------
@@ -1051,6 +1208,15 @@ def field_checks(d, xs, ys, zs):
                    f"{RING_R:g} минус воксель) у X {line[i][0]:.1f}, Y {line[i][1]:.0f}, Z {line[i][2]:.0f}")
         if depth < RING_MIN_DEPTH:
             fails.append(f"кольцо {name} не цело: ось лишь на {depth:.2f} мм внутри слоя (нужно {RING_MIN_DEPTH:g}) у X {line[i][0]:.1f}, Y {line[i][1]:.0f}, Z {line[i][2]:.0f}")
+    # revision 19 (part B.3): nothing in front of the layer's front limit (the front cut makes it impossible; this is what a later change trips); the least Y and what stands in front of Y 0
+    ys_a = np.asarray(ys, dtype=float)
+    rows = np.any(solid, axis=(0, 2))
+    ymin = float(ys_a[rows].min()) if rows.any() else float("nan")
+    ahead = int(solid[:, ys_a < hw.LAYER_FRONT_Y, :].sum())
+    out.append(f"Наименьший Y слоя (центр вокселя) {ymin:.1f} мм (граница слоя Y {hw.LAYER_FRONT_Y:g}, решение владельца 19.11.2026); перед передней плоскостью Y {hw.ENVELOPE_Y0:g}: "
+               f"{int(solid[:, ys_a < hw.ENVELOPE_Y0, :].sum()) * vol:.1f} см³; вокселей перед границей {ahead}")
+    if ahead:
+        fails.append(f"слой стоит перед своей передней границей Y {hw.LAYER_FRONT_Y:g}: {ahead} вокселей, {ahead * vol:.1f} см³, наименьший Y {ymin:.1f}")
     for name, b in EMPTY_BOXES.items():
         n = int((solid & bs_box_mask(xs, ys, zs, b)).sum())
         out.append(f"Слой в {name} (v {b[0]:g}..{b[1]:g}, u {b[2]:g}..{b[3]:g}, n {b[4]:g}..{b[5]:g}): {n} вокселей, {n * vol:.1f} см³")
@@ -1328,7 +1494,59 @@ def saved_arrays(F, anchors, fields, parts, info=None):
         z["probe_kind"] = np.array([p[1] for p in pr], dtype=str)
         z["probe_len"] = np.array([p[3] for p in pr], dtype=float)
         z["probe_piece"] = np.array([p[0] for p in pr], dtype=str)
+        z.update(member_arrays(info["film_rows"]))                               # revision 19, part E.3
     return z
+
+
+def member_id(rid):
+    """The integer id of a member's (film's number, member's number) in member_arrays."""
+    return rid[0] * 1000 + rid[1]
+
+
+def member_arrays(film_rows):
+    """The films' strands and cross-threads that a piece kept, for field.npz (revision 19, part E.3): member_pts (all centre lines one after another), member_off (where each starts,
+    and the end), member_piece, member_kind ("strand", "link"), member_id (member_id of its id, unique within its piece), member_join ((k, 2): a cross-thread's two strands' member_id,
+    -1 for a strand)."""
+    rows = [(piece, r) for piece, rs in film_rows.items() for r in rs]
+    off = np.cumsum([0] + [len(r[2]) for _p, r in rows])
+    return dict(member_pts=np.concatenate([r[2] for _p, r in rows]).astype(float) if rows else np.zeros((0, 3)), member_off=off.astype(np.int64),
+                member_piece=np.array([p for p, _r in rows], dtype=str), member_kind=np.array([r[1] for _p, r in rows], dtype=str),
+                member_id=np.array([member_id(r[0]) for _p, r in rows], dtype=np.int64),
+                member_join=np.array([[member_id(w) for w in r[3]] if r[3] else [-1, -1] for _p, r in rows], dtype=np.int64).reshape(-1, 2))
+
+
+def members_of(z):
+    """{piece: rows in film_rows' form, the ids member_id's integers} from field.npz's member arrays."""
+    off = z["member_off"]
+    out = {}
+    for i in range(len(off) - 1):
+        join = None if str(z["member_kind"][i]) == "strand" else tuple(int(w) for w in z["member_join"][i])
+        out.setdefault(str(z["member_piece"][i]), []).append((int(z["member_id"][i]), str(z["member_kind"][i]), z["member_pts"][off[i]:off[i + 1]], join))
+    return out
+
+
+def member_checks(z):
+    """Part E.3: every strand and cross-thread saved with the field is whole in its piece's field (torn_rows), and every piece has some. Returns (lines, failures)."""
+    out, fails = [], []
+    if "member_off" not in z or len(z["member_off"]) < 2:
+        return out, ["ORGANIC_MEMBERS no strand or cross-thread saved with the field: nothing is checked"]
+    fields = piece_fields(z)
+    rows = members_of(z)
+    for piece in rows:
+        if piece not in fields:
+            fails.append(f"ORGANIC_MEMBERS members are saved for the piece {piece}, which the field does not have")
+    for piece, d in fields.items():
+        rs = rows.get(piece, [])
+        if not rs:
+            fails.append(f"ORGANIC_MEMBERS {piece}: no strand or cross-thread saved for the piece: nothing is checked")
+            continue
+        torn = torn_rows(d, z["xs"], z["ys"], z["zs"], rs)
+        out.append(f"Нити плёнок куска {piece}: нитей {sum(1 for r in rs if r[1] == 'strand')}, поперечных {sum(1 for r in rs if r[1] == 'link')}, не целых {len(torn)}")
+        line_of = {r[0]: r[2] for r in rs}
+        for rid, why in sorted(torn.items()):
+            mid = line_of[rid][len(line_of[rid]) // 2]
+            fails.append(f"ORGANIC_MEMBERS {piece}: the {'strand' if why == 'strand cut' else 'cross-thread'} {rid} is not whole: {why} (its middle at X {mid[0]:.1f}, Y {mid[1]:.1f}, Z {mid[2]:.1f})")
+    return out, fails
 
 
 def strand_arrays(lines):
@@ -1492,6 +1710,9 @@ def check(F, anchors, parts, hware, lines, z):
     c_lines, c_fails = layer_clearance_checks(z)
     out += [""] + c_lines
     fails += c_fails
+    m_lines, m_fails = member_checks(z)
+    out += m_lines
+    fails += m_fails
     out.append("")
     out.append(f"{'крепление':14} {'деталь каркаса':18} {'центр площадки X, Y, Z':>26} {'до оси пилота':>14} {'кость':>9} {'стойка, мм':>11} {'до железа':>22} {'до шлангов':>11} {'до шайбы':>9}")
     fails += pad_pilot_failures(anchors, parts)
@@ -1526,7 +1747,9 @@ def check(F, anchors, parts, hware, lines, z):
             out.append(f"  {name:9} {length:5.0f} мм у X {mid[0]:5.0f}, Y {mid[1]:4.0f}, Z {mid[2]:4.0f}: {who} в {dist:.1f} мм")
     else:
         out.append("Ни одна кость не перерезана зазорами.")
+    out.append(f"Кость не пропадает (ревизия 19, F): ни один разрыв не длиннее {BONE_BITTEN_MAX:g} мм, разрывы кости вместе не больше {BONE_BITTEN_SHARE:g} её длины (кольца не режутся вовсе).")
     fails += ring_cut_failures(cuts)
+    fails += bone_cut_failures(cuts, lines)
     out.append("")
     f_lines, f_fails = field_checks(F.d, F.xs, F.ys, F.zs)
     return out + f_lines, fails + f_fails
@@ -1591,7 +1814,7 @@ def main():
     F, anchors, fields, info = build(parts, hware)
     z = saved_arrays(F, anchors, fields, parts, info)
     lines, fails = check(F, anchors, parts, hware, info['lines'], z)
-    lines += [""] + link_report(info) + [""] + flank_report(F, parts, hware) + [""] + list(SIDE_DIFFERENCES)
+    lines += [""] + film_record_lines(info) + [""] + link_report(info) + [""] + flank_report(F, parts, hware) + [""] + list(SIDE_DIFFERENCES)
     b = np.argwhere(F.d < 0)
     lo, hi = b.min(axis=0), b.max(axis=0)
     head = [f"ОРГАНИЧЕСКИЙ СЛОЙ (PETG, запасной вариант ABS), одно поле с шагом {F.vox:g} мм, элементов {info['members']}, время {time.time() - t0:.0f} с",

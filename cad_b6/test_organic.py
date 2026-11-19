@@ -14,6 +14,10 @@ other than `main` fits the bed standing and turned about the vertical, nothing o
 arrays; organic_manifest.py (a moved voxel of `main` is named, a piece in --expect may differ, no manifest is exit 2, an empty piece is not fingerprinted); and in the
 full run organic_strength.load_failures (the own weight judged with the pushes).
 
+Revision 19 (docs/plans/front-and-outline.md, parts B, E, F): material in front of the layer's own front limit (hw.LAYER_FRONT_Y) fails field_checks; organic_frame.member_checks
+finds a strand cut through and a cross-thread whose strand is gone, and the undamaged layer's films have none torn; organic_frame.build_whole builds a film across an empty box
+without the members that cross it and with none torn; organic_frame.bone_cut_failures fails a bone taken out of the field and a bone bitten for 40 mm in one run, and passes today's.
+
 One line per case: PASS/FAIL, name, the failure that was expected, what was reported. Exit status 1 if any case fails, or if the number of cases is not EXPECTED_CASES.
 """
 from __future__ import annotations
@@ -34,7 +38,8 @@ import organic_frame as of  # noqa: E402
 
 FIELD = os.path.join(os.path.dirname(HERE), "out", "organic", "field.npz")
 # The number of cases a run records, pinned so that a reviewer sees it change in the diff that adds or removes cases (quick: the field and piece cases only).
-EXPECTED_CASES = {"quick": 43, "full": 65}       # revision 18: 32 and 51 before; the plug's room, the four new checks of the saved arrays, the cross-threads' rule, and in the full run the probes' solver cases
+EXPECTED_CASES = {"quick": 52, "full": 74}       # revision 18: 32 and 51 before; the plug's room, the four new checks of the saved arrays, the cross-threads' rule, and in the full run the probes' solver cases.
+                                                 # Revision 19: 43 and 65 before; nine added (the layer's front limit; five of whole strands and cross-threads; three of bones that vanish)
 RESULTS: list[tuple[bool, str]] = []
 
 
@@ -129,6 +134,13 @@ def field_cases(f):
     for name, box in of.EMPTY_BOXES.items():
         case(f"material in {name}", f"слой стоит в {name}", field_fails(damaged(f, lambda g, b=box: put_material(g, b))), f"слой стоит в {name}")
 
+    def ahead(g):                                        # revision 19 (part B.3): a lump 3 mm in front of the layer's front limit, at X 0 by the bone `card`
+        p = of.bp(of.CARD_BONE_U + 1, of.CARD_BONE_N + 1, 0.0)
+        sl, m = ball_mask(g, (0.0, hw.LAYER_FRONT_Y - 3.0, p[2]), 2.0)
+        g["d"][sl][m] = -1.0
+    case(f"material in front of the layer's front limit Y {hw.LAYER_FRONT_Y:g}", f"слой стоит перед своей передней границей Y {hw.LAYER_FRONT_Y:g}",
+         field_fails(damaged(f, ahead)), "слой стоит перед своей передней границей")
+
     # the left ring cut through by a carve: bitten finds the run of its centre line outside the layer and ring_cut_failures makes it a failure (the full build's path)
     from types import SimpleNamespace
     _members, lines = of.bone_members()
@@ -141,10 +153,125 @@ def field_cases(f):
     cut_F = SimpleNamespace(d=g["d"], xs=g["xs"], ys=g["ys"], zs=g["zs"], vox=whole.vox)
     case("the left ring cut by a carve (bitten)", "кольцо ring_L перерезано", of.ring_cut_failures(of.bitten(cut_F, rings, [], hware)), "кольцо ring_L перерезано")
 
+    # revision 19 (part F): a named bone cannot vanish. Every bone of both pieces, the field as saved
+    bones = {**lines, **of.panel_frame()[1]}
+    got = of.bone_cut_failures(of.bitten(whole, bones, [], hware), bones)
+    check(f"today's {len(bones)} bones pass part F (no run outside the layer over {of.BONE_BITTEN_MAX:g} mm, none more than half outside)", not got, "no failure", got or "none")
+
+    def no_card(g):                                      # the bone `card` taken out of the field: nothing within its end radius and two voxels of its centre line
+        for p in sc_spline(of.CARD, 3.0):
+            sl, m = ball_mask(g, p, of.BONE_R["card"][0] + 2 * whole.vox)
+            g["d"][sl][m] = 1.0
+    g = damaged(f, no_card)
+    gone_F = SimpleNamespace(d=g["d"], xs=g["xs"], ys=g["ys"], zs=g["zs"], vox=whole.vox)
+    case("the bone `card` taken out of the field", "ORGANIC_BONES card: a run of ... mm ... outside the layer", of.bone_cut_failures(of.bitten(gone_F, {"card": lines["card"]}, [], hware), lines),
+         "ORGANIC_BONES card", "outside the layer")
+    lip0 = np.array(of.bp(of.LIP_U - 1, of.FACE_N + 1, 0.0))
+
+    def bite(g):                                         # the lip, straight along X between its middle control points (X -60..60), cut for 40 mm: X -20..20, 12 mm round its centre line
+        X, Y, Z = g["xs"][:, None, None], g["ys"][None, :, None], g["zs"][None, None, :]
+        g["d"][...] = np.where((np.abs(X) <= 20.0) & (np.abs(Y - lip0[1]) <= 12.0) & (np.abs(Z - lip0[2]) <= 12.0), np.maximum(g["d"], 1.0), g["d"])
+    g = damaged(f, bite)
+    bite_F = SimpleNamespace(d=g["d"], xs=g["xs"], ys=g["ys"], zs=g["zs"], vox=whole.vox)
+    case("the lip bitten for 40 mm in one run (X -20..20)", f"ORGANIC_BONES lip: a run of ... mm ... (at most {of.BONE_BITTEN_MAX:g})",
+         of.bone_cut_failures(of.bitten(bite_F, {"lip": lines["lip"]}, [], hware), lines), "ORGANIC_BONES lip: a run of", f"at most {of.BONE_BITTEN_MAX:g}")
+
     # the bisections of the bundle and of the hand report the true largest value up to their limit, the limit included
     import zone_access as za
     bad = [(t, za.largest(lambda r, t=t: r <= t, 10, 60)) for t in range(0, 80) if za.largest(lambda r, t=t: r <= t, 10, 60) != (0 if t < 10 else min(t, 60))]
     check("largest(): the true largest radius from 10 up to the limit of 60, 0 below 10", not bad, "no mismatch for thresholds 0..79", bad or "none")
+
+
+def sc_spline(ctrl, step):
+    return of.sc.spline(ctrl, step=step)
+
+
+def without_member(f, k):
+    """A copy of the field dict with the k-th saved strand or cross-thread taken out of the member arrays."""
+    off = f["member_off"]
+    keep = [i for i in range(len(off) - 1) if i != k]
+    g = dict(f)
+    g["member_pts"] = np.concatenate([f["member_pts"][off[i]:off[i + 1]] for i in keep])
+    g["member_off"] = np.cumsum([0] + [int(off[i + 1] - off[i]) for i in keep]).astype(np.int64)
+    for key in ("member_piece", "member_kind", "member_id", "member_join"):
+        g[key] = f[key][keep]
+    return g
+
+
+def revision19_cases(f):
+    """Revision 19 (part E): no torn strand or cross-thread. member_checks on the saved arrays, and build_whole on a small film."""
+    _l, fails = of.member_checks(f)
+    rows = of.members_of(f)
+    check("the undamaged layer's strands and cross-threads are all whole", not fails and len(rows.get("main", [])) > 0 and len(rows.get("rear_panel", [])) > 0,
+          "no failure; members saved for main and rear_panel", f"{fails or 'none'}; " + ", ".join(f"{k} {len(v)}" for k, v in rows.items()))
+    kinds, pieces, off = [str(k) for k in f["member_kind"]], [str(p) for p in f["member_piece"]], f["member_off"]
+    k = next(i for i in range(len(kinds)) if kinds[i] == "strand" and pieces[i] == "main")
+    sid = int(f["member_id"][k])
+    line = f["member_pts"][off[k]:off[k + 1]]
+    mid = line[len(line) // 2]
+
+    def box(d):                                          # a box 16 mm each way round the strand's middle: the strand is cut through
+        sl, m = ball_mask(f, mid, 8.0 * math.sqrt(3.0))
+        X, Y, Z = np.meshgrid(f["xs"][sl[0]], f["ys"][sl[1]], f["zs"][sl[2]], indexing="ij")
+        inside = (np.abs(X - mid[0]) <= 8.0) & (np.abs(Y - mid[1]) <= 8.0) & (np.abs(Z - mid[2]) <= 8.0)
+        d[sl] = np.where(inside, np.maximum(d[sl], 1.0), d[sl])
+    case(f"a strand of main (id {sid}) cut through by a 16 mm box at its middle (X {mid[0]:.1f}, Y {mid[1]:.1f}, Z {mid[2]:.1f})",
+         f"ORGANIC_MEMBERS main: the strand {sid} is not whole: strand cut", of.member_checks(damaged_piece(f, "main", box))[1], f"the strand {sid} is not whole: strand cut")
+    # the shortest cross-thread: within MEMBER_END of an end the layer within a voxel is enough, and a cross-thread under 8 mm long was all end (the review of revision 19)
+    arc = {i: float(np.linalg.norm(np.diff(f["member_pts"][off[i]:off[i + 1]], axis=0), axis=1).sum()) for i in range(len(kinds)) if kinds[i] == "link" and pieces[i] == "main"}
+    ks_ = min(arc, key=arc.get)
+    short = f["member_pts"][off[ks_]:off[ks_ + 1]]
+    smid, shid = short[len(short) // 2], int(f["member_id"][ks_])
+
+    tang = (short[-1] - short[0]) / np.linalg.norm(short[-1] - short[0])
+
+    def nick(d):                                         # a slice 3 mm thick across the cross-thread at its middle, 7 mm round its axis: it is cut through, and what stands either side
+        sl, m = ball_mask(f, smid, 7.0)                  # of the cut is within a voxel of the centre line (a 5 mm box is found by the end rule too: nothing is left within a voxel)
+        X, Y, Z = np.meshgrid(f["xs"][sl[0]], f["ys"][sl[1]], f["zs"][sl[2]], indexing="ij")
+        along = (X - smid[0]) * tang[0] + (Y - smid[1]) * tang[1] + (Z - smid[2]) * tang[2]
+        d[sl] = np.where(m & (np.abs(along) <= 1.5), np.maximum(d[sl], 1.0), d[sl])
+    case(f"the shortest cross-thread of main (id {shid}, {arc[ks_]:.1f} mm) cut through by a 3 mm slice at its middle", f"ORGANIC_MEMBERS main: the cross-thread {shid} is not whole: cross-thread cut",
+         of.member_checks(damaged_piece(f, "main", nick))[1], f"the cross-thread {shid} is not whole: cross-thread cut")
+    j = next(i for i in range(len(kinds)) if kinds[i] == "link" and pieces[i] == "main")
+    lid, strand = int(f["member_id"][j]), int(f["member_join"][j][0])
+    ks = next(i for i in range(len(kinds)) if int(f["member_id"][i]) == strand and pieces[i] == "main")
+    case(f"a cross-thread of main (id {lid}) whose strand {strand} is gone from the saved members", f"ORGANIC_MEMBERS main: the cross-thread {lid} is not whole: cross-thread on a strand that is cut or gone",
+         of.member_checks(without_member(f, ks))[1], f"the cross-thread {lid} is not whole", "on a strand that is cut or gone")
+    # build_whole on a small film: two straight bones 100 mm apart, 8 strands and 6 cross-threads between them, an empty box across the strands near bone A (Y 10..20, X 30..90): it cuts
+    # strands and none of the cross-threads (they stand a quarter to three quarters along their strands), so a cross-thread goes only because its strand went
+    vox = of.VOX
+    a_ctrl = [(0.0, 0.0, 0.0), (60.0, 0.0, 0.0), (120.0, 0.0, 0.0)]
+    b_ctrl = [(0.0, 100.0, 0.0), (60.0, 100.0, 0.0), (120.0, 100.0, 0.0)]
+    film = of.film_members(a_ctrl, b_ctrl, 8, seed=5, r_a=6.0, r_b=6.0, sag=(0.0, 0.0, 1.0), sag_mm=4.0, links=6)
+    empty = (30.0, 90.0, 10.0, 20.0, -20.0, 20.0)
+    grid = [np.arange(lo, hi + vox / 2, vox, dtype=np.float32) for lo, hi in ((-20.0, 140.0), (-20.0, 120.0), (-25.0, 25.0))]
+
+    def make(kept):
+        F = of.Field.__new__(of.Field)
+        F.vox, (F.xs, F.ys, F.zs) = vox, grid
+        F.d = np.full((len(grid[0]), len(grid[1]), len(grid[2])), 1e9, dtype=np.float32)
+        for fm in kept:
+            for m in fm:
+                F.add(m)
+        F.carve_world_box(empty, 0.0)
+        return F
+    F, kept, rows, rec = of.build_whole(make, [film])
+    raw = of.film_rows([film])
+
+    def depth_in(line):                                  # how deep the centre line goes into the empty box (negative: it stays outside by that much)
+        p = np.asarray(line, dtype=float)
+        inside = np.minimum.reduce([p[:, 0] - empty[0], empty[1] - p[:, 0], p[:, 1] - empty[2], empty[3] - p[:, 1], p[:, 2] - empty[4], empty[5] - p[:, 2]])
+        return float(inside.max())
+    crossing = {r[0] for r in raw if depth_in(r[2]) > 2 * vox}
+    near_box = {r[0] for r in raw if depth_in(r[2]) > -vox}
+    others = {rid: why for rid, why in rec["gone"].items() if rid not in near_box}
+    torn_now = of.torn_rows(F.d, F.xs, F.ys, F.zs, rows)
+    check(f"a film across an empty box is built without the members that cross it and with none torn ({len(raw)} made, {len(crossing)} cross the box, {len(rec['gone'])} taken out, "
+          f"{rec['builds']} builds)",
+          crossing and crossing <= set(rec["gone"]) and others and all(w == "cross-thread on a strand that is cut or gone" for w in others.values()) and not torn_now
+          and not any(depth_in(r[2]) > 0 for r in rows) and 0 < len(rows) < len(raw) and rec["builds"] <= of.MAX_BUILDS,
+          "every member crossing the box taken out, and cross-threads on a strand that went (at least one); none torn in the built field; some kept",
+          f"gone {sorted(rec['gone'].items())}; crossing {sorted(crossing)}; torn after {torn_now or 'none'}; kept {len(rows)} of {len(raw)}")
 
 
 def piece_cases(f):
@@ -566,6 +693,7 @@ def main():
     field_cases(f)
     piece_cases(f)
     revision18_cases(f)
+    revision19_cases(f)
     manifest_cases(f)
     mode = "quick" if "--quick" in sys.argv else "full"
     if mode == "full":
