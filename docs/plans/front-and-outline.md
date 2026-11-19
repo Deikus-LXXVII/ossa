@@ -364,4 +364,6 @@ Built by the implementer (Opus) from the specification above, rerun whole by the
 
 **Budgets.** The layer's volume is over the recorded figure's margin (2321.1 against 2218.7 + 2 %), as foreseen, from the owner's design: re-recorded in a commit of its own, with the strength run's load cases (868). The strength run took 1950 s against the recorded 1196 s. Other work was using this machine's processor then (the fast suite took 689 s beside it and 413 s once it had gone, against the recorded 347 s), but the sketch's strength run of `main` alone (1943 s, before that work began) says the strength run is slower for real. The times are warnings; the recorded times are left as they are so that the warning stands until the cause is dealt with.
 
+**The owner on the render of the built model (19 Nov 2026):** "the look suits me". Revision 19's look is accepted.
+
 **Left open.** The sketches that patch the layer from outside (`beam_out_sketch.py`, `cable_gate_sketch.py`, `straight_sketch.py`, `front_sketch.py`, `no_arcs_sketch.py`) read names this revision removed and no longer run against the tree; they stay as the record of what was tried. The front film's strands now pass in front of the card's fans, 12 mm and more from them; what that costs the card's airflow is not modelled. The strength run's time on this machine.
