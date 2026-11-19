@@ -1,0 +1,8 @@
+cables.py's own checks: pass
+main in front of the front plane: 0.0 cm3, as far as Y 1.0
+the bone `card`'s centre line at X 0 is solid
+main: 1939.3 cm3 in 1 bodies [1939.3]
+rear_panel: 304.5 cm3 in 1 bodies [304.5]
+saved out/organic/sketch_beam_rev19d.npz
+organic_frame's own checks: pass
+the bone `card`: centre line u 92.0, n 167.5 at the middle (the fans' plane u 75.6, the card's top n 150, the socket u 119); its back -21.4 mm in front of the fans' plane; world Y 6.6, Z 213.5; its front at Y 1.6 at the middle and Y 0.1 at the ends (the front plane Y 0)

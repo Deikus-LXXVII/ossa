@@ -245,4 +245,21 @@ Pictures: `render_rev19b_hero.png`, `render_rev19b_front_left.png`, `render_rev1
 
 **Said to the owner with the render:** the 35 mm straight is the usual advice for a 12V-2x6 plug (the plug seats evenly and does not heat); with a bend 10 mm from the plug, seating it to the click and keeping the cable from pulling it sideways is on his side.
 
-**Waiting for:** the owner's yes on the render. Then a specification (the per-section bend in `cables.py`, the bone and the films in `organic_frame.py`, `PLUG_ZONE`, the tests), Grok's check of it, the implementer, the full reruns with the strength run.
+**Third try (the same day).** The owner on the second sketch: "I would like the beam to be level with the plane of the card's fans; to free a little room, move the beam a little forward relative to the fans". The fans' face is the card's u 75.6 (the backplate is u 126.6, the socket u 119) and looks forward and down, so the bone leaves the place over the socket altogether and goes to the card's front corner. The cable is the second try's (straight 2, bend 12) and no longer passes under a bone.
+
+What stands in the way: the card's front corner (u 75.6, n 150) is at Y 7.4, and the layer is cut at the case's front plane Y 0 (`organic_frame.py`, "front plane"; its grid starts at Y -8). A bone in front of the fans' plane, 10 mm clear of the card, is in front of Y 0. The first run (`runs/14_beam_at_fans_layer.txt`, the bone at u 68, n 169) came out with no bone `card` at all and the front posts cut off, and **the layer's own checks passed all the same**: nothing checks that the bone `card` is there. Two variants were then built and rendered:
+
+| | C: in front of the fans' plane | D: inside the front plane | Evidence |
+|---|---|---|---|
+| The bone's centre line at the middle | u 68, n 167.5: its back 2.6 mm in front of the fans' plane | u 92, n 167.5: 16.4 mm behind the fans' plane, 27 mm in front of the socket's u | `runs/14b_beam_ahead_of_fans_layer.txt`, `runs/15_beam_inside_front_plane_layer.txt` |
+| In the world | Y -10.4, Z 196.5 (revision 18: Y 24.6, Z 232) | Y 6.6, Z 213.5 | the same |
+| The bone's front | Y -15.4 at the middle, Y -16.9 at the ends | Y 1.6 and Y 0.1 | the same |
+| The layer in front of Y 0 | 150.8 cm³, as far as Y -23 (the front posts lean out to the bone's ends); the sketch loads `organic_frame.py` with the front cut moved 24 mm forward | nothing | the same |
+| `main` | 1987.3 cm³, one body | 1939.3 cm³, one body | the same |
+| `cables.py`'s and `organic_frame.py`'s own checks | pass | pass | the same |
+
+Pictures: `render_rev19c_*.png` (C) and `render_rev19d_*.png` (D), three views each. `SK_BEAM_U=91 SK_FRONT_OUT=0` gives D; the script's defaults give C.
+
+**Not run on either:** `organic_strength.py` (the front posts end 35 mm lower and 35 mm farther forward in C, 18 mm lower and 18 mm farther forward in D), `zone_access.py`, `test_organic.py`. C needs the front plane's rule changed for the layer (the cut, the grid's start in `shell_concepts.py`, whatever reads the front plane as the case's depth), which is the owner's call. A check that the bone `card` is whole belongs to either build.
+
+**Waiting for:** the owner's choice between C and D (or a correction). Then a specification (the per-section bend in `cables.py`, the bone and the films in `organic_frame.py`, `PLUG_ZONE`, the tests), Grok's check of it, the implementer, the full reruns with the strength run.
