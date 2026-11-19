@@ -8,7 +8,8 @@
 The figures:
   - the skeleton's ABS at 4 walls and 20 % infill (frame_v0.mass_estimate over every ABS part; the frame is built, about 20 s),
   - the organic layer's solid volume, from out/organic/field.npz (organic_frame.py writes it),
-  - the fast test suite's counts of expensive operations and its wall time, from out/test_checks/fast.json (test_checks.py writes it).
+  - the fast test suite's counts of expensive operations and its wall time, from out/test_checks/fast.json (test_checks.py writes it),
+  - the strength run of the organic layer: its load cases and its wall time, from out/organic/strength.json (organic_strength.py writes it).
 
 The rule (owner, 17 Nov 2026): a budget is the present figure, recorded in budgets.json. A figure may grow by the
 stated margin; past it the budget fails. Wall time is noisy, so it only warns; the suite is gated on its counts.
@@ -21,6 +22,10 @@ volume more than 5 % under its record (an empty field, a part left out). --write
 --accept-lower says the saving is meant. A count may grow by 10 % rounded down, and always by one (count_limit).
 The suite's record must be of the code in the working tree (its digest, suite_record.py), of the Python and the packages
 installed now, hold the whole suite (test_checks.EXPECTED_CASES) and be of a clean fast run.
+The strength run's record must be of a full run (step 1) that passed, on the layer as it is now (organic_manifest.py's fingerprint
+of the grid and of every piece, and the saved probes) and by organic_strength.py as it is now (its SHA-256). Its load cases gate: more of them is a longer run, fewer is a push or a probe that was lost. Its
+wall time only warns, and is the pieces' own (the unjudged earlier model of --earlier is not counted). The size of what it solves
+follows the layer's volume, which has its own budget above.
 """
 from __future__ import annotations
 
@@ -37,6 +42,7 @@ import suite_record as sr  # noqa: E402
 BUDGETS = os.path.join(HERE, "budgets.json")
 FIELD = os.path.join(ROOT, "out", "organic", "field.npz")
 SUITE = os.path.join(ROOT, "out", "test_checks", "fast.json")
+STRENGTH = os.path.join(ROOT, "out", "organic", "strength.json")
 STOCK_LIMIT = 0.9               # a hard limit: at most this share of the owner's stock of a filament
 MASS_FLOOR = 0.95               # a mass or a volume under this share of its record fails: a saving is recorded on purpose (--write --accept-lower)
                                 # a count fails under its recorded figure itself: the suite did less work than its record
@@ -111,9 +117,63 @@ def suite_record(path=SUITE, root=ROOT, pinned=None):
     return read_suite(path, root, pinned)[0]
 
 
-def gather(field=FIELD, suite=SUITE, skeleton=skeleton_abs_g):
+RERUN_STRENGTH = "rerun cad_b6/organic_strength.py"
+
+
+def run_prints(path=FIELD):
+    """organic_strength.run_prints of the field and the script as they are now: what a strength record must be a run of."""
+    import organic_strength
+
+    return organic_strength.run_prints(path)
+
+
+def whole(x):
+    """A whole number that is not a bool (True == 1 in Python, and a record is read from JSON)."""
+    return type(x) is int
+
+
+def read_strength(path=STRENGTH, field=FIELD, root=ROOT, prints=run_prints):
+    """(the strength run's load cases and wall time, None) or (None, why it is not a figure of this layer): no record, an unreadable one, not a full run,
+    a run that failed, a record with no piece, or one that is not of the layer and the script as they are now (a piece, the grid, the probes or
+    organic_strength.py differs)."""
+    if not os.path.exists(path):
+        return None, f"no {os.path.relpath(path, root)}: {RERUN_STRENGTH}"
+    try:
+        with open(path, encoding="utf-8") as fh:
+            rec = json.load(fh)
+    except (OSError, ValueError) as e:
+        return None, f"unreadable record {os.path.relpath(path, root)} ({type(e).__name__}): {RERUN_STRENGTH}"
+    if not isinstance(rec, dict):
+        return None, f"unreadable record {os.path.relpath(path, root)} (not an object): {RERUN_STRENGTH}"
+    if not (whole(rec.get("step")) and rec["step"] == 1):
+        return None, f"the record is of a run at step {rec.get('step')!r}, the budget is of the full one (step 1): {RERUN_STRENGTH}"
+    if rec.get("passed") is not True:
+        return None, f"the record is of a run that failed its checks: fix the layer and {RERUN_STRENGTH}"
+    pieces = rec.get("pieces")
+    if not isinstance(pieces, dict) or not pieces or not all(
+            isinstance(p, dict) and whole(p.get("load_cases")) and p["load_cases"] > 0 and type(p.get("seconds")) in (int, float) and p["seconds"] >= 0 for p in pieces.values()):
+        return None, f"the record has no piece, or a piece with no load case or no time: {RERUN_STRENGTH}"
+    if not os.path.exists(field):
+        return None, f"no {os.path.relpath(field, root)} to hold the record against: run cad_b6/organic_frame.py, then {RERUN_STRENGTH}"
+    try:
+        now = prints(field)
+    except Exception as e:      # noqa: BLE001  a field that cannot be fingerprinted is not the field the record was run on
+        return None, f"the field cannot be fingerprinted ({type(e).__name__}: {e}): run cad_b6/organic_frame.py, then {RERUN_STRENGTH}"
+    then = rec.get("of") if isinstance(rec.get("of"), dict) else {}
+    was, is_ = (x.get("field") if isinstance(x.get("field"), dict) else {} for x in (then, now))
+    moved = sorted(k for k in set(was) | set(is_) if was.get(k) != is_.get(k)) + [k for k in ("probes", "script") if then.get(k) != now.get(k) or now.get(k) is None]
+    if not is_ or set(pieces) != set(is_) - {"grid"}:
+        moved.append("its pieces")
+    if moved:
+        return None, (f"the record is not of the layer and the script as they are now ({', '.join(moved)} differ; `script` is cad_b6/organic_strength.py, "
+                      f"the rest is out/organic/field.npz): {RERUN_STRENGTH}")
+    return dict(load_cases=sum(p["load_cases"] for p in pieces.values()), wall_s=float(sum(p["seconds"] for p in pieces.values())), finished=rec.get("finished")), None
+
+
+def gather(field=FIELD, suite=SUITE, skeleton=skeleton_abs_g, strength=STRENGTH):
     rec, why = read_suite(suite)
-    return dict(skeleton_abs_g=skeleton(), organic_cm3=organic_cm3(field), suite=rec, suite_why=why)
+    st, st_why = read_strength(strength, field)
+    return dict(skeleton_abs_g=skeleton(), organic_cm3=organic_cm3(field), suite=rec, suite_why=why, strength=st, strength_why=st_why)
 
 
 def petg_density():
@@ -158,14 +218,18 @@ def count_limit(n, margin):
     return max(n + 1, int(n * (1 + margin) + 1e-9))
 
 
+STRENGTH_CASES = "strength run, load cases"
+
+
 def floors(budgets):
     """{budget line: (floor, why a figure under it fails)} for the lines that have a floor."""
-    sk, org, su = budgets["skeleton_abs_g"], budgets["organic_cm3"], budgets["suite"]
+    sk, org, su, st = budgets["skeleton_abs_g"], budgets["organic_cm3"], budgets["suite"], budgets["strength"]
     mass = lambda fig, unit: (MASS_FLOOR * fig, f"more than {100 * (1 - MASS_FLOOR):g} % under its record (floor {MASS_FLOOR * fig:.3f} {unit}): "      # noqa: E731
                               "a wrong input (an empty field, a part left out) until a saving is recorded on purpose")
     out = {"skeleton ABS, ratchet": mass(sk["figure"], "g"), "organic layer, ratchet": mass(org["figure"], "cm3")}
     for key, n in su["counts"].items():
         out[f"test suite, {key}"] = (n, f"under its recorded {n}: the suite did less work than its record (a section that did not run, a loop cut short)")
+    out[STRENGTH_CASES] = (st["load_cases"], f"under its recorded {st['load_cases']}: the run pushed less than its record (a push point or a film member's probe lost)")
     return out
 
 
@@ -195,6 +259,14 @@ def judge(fig, budgets, abs_stock, petg_rho):
                         note=f"recorded {n}, limit {lim} (the larger of + 1 and + {100 * su['count_margin']:g} % rounded down), floor {n}" if rec is not None else why))
     rows.append(row("test suite, wall time", None if rec is None else rec["wall_s"], su["wall_s"] * (1 + su["wall_margin"]), "s", "warning", verdict_over=WARN,
                     note=f"recorded {su['wall_s']:.0f} s + {100 * su['wall_margin']:g} %, noisy: a warning, never a failure" if rec is not None else why))
+    st = budgets["strength"]
+    rec = fig.get("strength")
+    why = fig.get("strength_why") or "no clean out/organic/strength.json: run organic_strength.py"
+    lim = count_limit(st["load_cases"], st["count_margin"])
+    rows.append(row(STRENGTH_CASES, None if rec is None else rec["load_cases"], lim, "", "gate", floor=fl[STRENGTH_CASES][0], floor_why=fl[STRENGTH_CASES][1],
+                    note=f"recorded {st['load_cases']}, limit {lim} (+ {100 * st['count_margin']:g} % rounded down), floor {st['load_cases']}" if rec is not None else why))
+    rows.append(row("strength run, wall time", None if rec is None else rec["wall_s"], st["wall_s"] * (1 + st["wall_margin"]), "s", "warning", verdict_over=WARN,
+                    note=f"recorded {st['wall_s']:.0f} s + {100 * st['wall_margin']:g} %, noisy: a warning, never a failure" if rec is not None else why))
     return rows
 
 
@@ -214,6 +286,7 @@ def lows(fig, budgets):
     got = {"skeleton ABS, ratchet": fig.get("skeleton_abs_g"), "organic layer, ratchet": fig.get("organic_cm3")}
     for key in budgets["suite"]["counts"]:
         got[f"test suite, {key}"] = None if fig.get("suite") is None else fig["suite"]["counts"].get(key)
+    got[STRENGTH_CASES] = None if fig.get("strength") is None else fig["strength"]["load_cases"]
     return [(name, got[name], floor, why) for name, (floor, why) in floors(budgets).items() if under_floor(got[name], floor)]
 
 
@@ -222,9 +295,9 @@ def write(fig, budgets, path=BUDGETS, abs_stock=None, petg_rho=None, accept_lowe
     (recording it would move the ratchet up past the stock, and a later figure a little smaller would pass it), and when a figure is
     under its floor (a count under its record, a mass or volume more than 5 % under it) unless accept_lower says the saving is meant:
     recorded by accident, a wrong input would lower the ratchet and the floor with it. Returns (the new budgets, the lower figures accepted)."""
-    missing = [k for k in ("skeleton_abs_g", "organic_cm3", "suite") if fig.get(k) is None]
+    missing = [k for k in ("skeleton_abs_g", "organic_cm3", "suite", "strength") if fig.get(k) is None]
     if missing:
-        raise SystemExit(f"--write refused: input missing for {', '.join(missing)}" + (f" ({fig['suite_why']})" if fig.get("suite_why") else ""))
+        raise SystemExit(f"--write refused: input missing for {', '.join(missing)}" + "".join(f" ({fig[k]})" for k in ("suite_why", "strength_why") if fig.get(k)))
     for k in budgets["suite"]["counts"]:
         if k not in fig["suite"]["counts"]:
             raise SystemExit(f"--write refused: the suite's record has no count '{k}', which budgets.json holds: the record would drop a gate")
@@ -243,6 +316,9 @@ def write(fig, budgets, path=BUDGETS, abs_stock=None, petg_rho=None, accept_lowe
     new["suite"]["counts"] = dict(fig["suite"]["counts"])
     new["suite"]["wall_s"] = round(fig["suite"]["wall_s"], 1)
     new["suite"]["recorded_from"] = f"fast run of {fig['suite']['finished']}, {fig['suite']['workers']} workers"
+    new["strength"]["load_cases"] = int(fig["strength"]["load_cases"])
+    new["strength"]["wall_s"] = round(fig["strength"]["wall_s"], 1)
+    new["strength"]["recorded_from"] = f"full run of {fig['strength']['finished']}"
     sr.write_json_atomic(path, new)
     return new, low
 
@@ -254,12 +330,13 @@ def main(argv=None, skeleton=skeleton_abs_g):
     ap.add_argument("--budgets", default=BUDGETS)
     ap.add_argument("--field", default=FIELD)
     ap.add_argument("--suite", default=SUITE)
+    ap.add_argument("--strength", default=STRENGTH)
     args = ap.parse_args(argv)
     if args.accept_lower and not args.write:
         ap.error("--accept-lower goes with --write")
     with open(args.budgets, encoding="utf-8") as fh:
         budgets = json.load(fh)
-    fig = gather(args.field, args.suite, skeleton)
+    fig = gather(args.field, args.suite, skeleton, args.strength)
     if args.write:
         budgets, low = write(fig, budgets, args.budgets, accept_lower=args.accept_lower)
         print(f"recorded the present figures in {os.path.relpath(args.budgets, ROOT)}")
@@ -271,7 +348,8 @@ def main(argv=None, skeleton=skeleton_abs_g):
     fails = [r for r in rows if r[0] == FAIL]
     warns = [r for r in rows if r[0] == WARN]
     print(f"\n{len(rows) - len(fails) - len(warns)} PASS, {len(warns)} WARN, {len(fails)} FAIL. Gates fail the run; the wall time only warns."
-          + (f" Suite record: {fig['suite']['finished']}, {fig['suite']['workers']} workers." if fig["suite"] else ""))
+          + (f" Suite record: {fig['suite']['finished']}, {fig['suite']['workers']} workers." if fig["suite"] else "")
+          + (f" Strength record: {fig['strength']['finished']}." if fig["strength"] else ""))
     return 1 if fails else 0
 
 

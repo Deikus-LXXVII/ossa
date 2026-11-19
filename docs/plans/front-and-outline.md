@@ -196,7 +196,7 @@ The four new checks of the layer, run on the layer as it was committed before (`
 Grok's review of the built change found two checks that passed when they had nothing to check (a piece with no probe saved in `organic_strength.py`, a field with no pad in `pilot_checks`); both fail now, each with a case. It also found sentences of the report that still described the sill as present; they are marked as history.
 
 Left open:
-- `organic_strength.py` takes 34 minutes on the Mac, where it took 5: 400 s of processor time, the rest waiting for memory. The solve of `main` went from 89 s to 973 s for 8 % more unknowns. Half of the run is the model of before revision 17, which is printed and not judged.
+- `organic_strength.py` takes 34 minutes on the Mac, where it took 5: 400 s of processor time, the rest waiting for memory. The solve of `main` went from 89 s to 973 s for 8 % more unknowns. Half of the run is the model of before revision 17, which is printed and not judged. **Done on 19 Nov 2026** (the owner: "yes, remove it"): that model runs only with `--earlier`; the run takes 1197 s, the pieces' report is line for line what it was apart from the times, and `check_budgets.py` holds the run's load cases (844) and warns on its time. The solve of `main` is still bound by memory (1116 s of wall for 234 s of processor time over the whole run).
 - `PLUG_ZONE`'s half widths (30 and 14 mm) are typed numbers, not built from the socket's tolerance.
 - The module may grow 12.55 mm to the rear by check 20's room; the cables are routed for 2.5 mm of it only.
 

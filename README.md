@@ -67,7 +67,7 @@ python3 -m venv .venv
 .venv/bin/python cad_b6/test_checks.py --diff out/test_checks/serial.json out/test_checks/fast.json  # compare two runs: the case lists must be identical
 .venv/bin/python cad_b6/test_runner.py   # the runner on a fake suite: a dropped or emptied section, a short --diff, a file that moves during the run, and, in worker processes, a section that raises or a worker that dies, all fail
 .venv/bin/python cad_b6/test_budgets.py  # each budget fails when exceeded, when its input is missing, when a figure falls under its floor, and when the suite's record is of other code, other packages or another Python
-.venv/bin/python cad_b6/check_budgets.py # one line per budget of the skeleton's ABS, the organic layer and the suite's counts; exit 1 on a FAIL
+.venv/bin/python cad_b6/check_budgets.py # one line per budget of the skeleton's ABS, the organic layer, the suite's counts and the strength run's load cases; exit 1 on a FAIL
 .venv/bin/python cad_b6/organic_trial.py # the boxed trial of the organic layer is one closed piece with its pad inside; writes out/organic/trial_base_mid_R.stl
 .venv/bin/python cad_b6/test_properties.py  # property tests of the helper functions; ends PASS (a known failure is listed, not hidden)
 .venv/bin/python cad_b6/test_organic.py  # 65 cases, 43 with --quick: the organic layer's checks fail when the field is damaged
@@ -78,7 +78,7 @@ python3 -m venv .venv
 .venv/bin/python cad_b6/render_vtk.py    # previews/b6_v0_*.png
 .venv/bin/python cad_b6/render_full.py   # previews/b6_full_*.png, the whole design
 .venv/bin/python cad_b6/render_blender.py # meshes for the Blender render (cad_b6/blender_scene.py, previews/b6_render_*.png)
-.venv/bin/python cad_b6/organic_strength.py  # about 34 minutes on the Mac (it took 5), most of it waiting for memory: judges each piece, a 30 N push and a probe on each film strand and cross-thread; run once per revision, not after every edit; exits with an error if a push is over the allowable stress or the piece moves more than 5 mm
+.venv/bin/python cad_b6/organic_strength.py  # about 20 minutes on the Mac, most of it waiting for memory: judges each piece, a 30 N push and a probe on each film strand and cross-thread; run once per revision, not after every edit; exits with an error if a push is over the allowable stress or the piece moves more than 5 mm
 .venv/bin/python cad_b6/strength.py 7 2  # strength and plastic, about 3.5 minutes on Apple silicon (Accelerate through the macldlt package)
 ```
 

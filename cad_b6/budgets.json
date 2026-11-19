@@ -25,5 +25,13 @@
   "wall_margin": 0.25,
   "what": "the fast test_checks.py (out/test_checks/fast.json): counts of expensive operations gate, the wall time only warns",
   "recorded_from": "fast run of 2026-11-18 18:48:02, 6 workers"
+ },
+ "strength": {
+  "load_cases": 844,
+  "count_margin": 0.1,
+  "wall_s": 1196.4,
+  "wall_margin": 0.25,
+  "what": "the full run of organic_strength.py (out/organic/strength.json): its load cases over every piece gate (more is a longer run, fewer is a push point or a probe lost), the pieces' wall time only warns; the size of what it solves follows the organic layer's volume, budgeted above",
+  "recorded_from": "full run of 2026-11-19 04:59:25"
  }
 }

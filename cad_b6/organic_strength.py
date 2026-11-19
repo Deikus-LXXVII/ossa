@@ -1,15 +1,16 @@
 #!/usr/bin/env python3
 """How weak is the organic layer? Push on it everywhere and see what gives.
 
-Run:  .venv/bin/python cad_b6/organic_strength.py [step]      (after organic_frame.py, which writes out/organic/field.npz)
-Out:  cad_b6/report_organic_strength.txt, out/organic/strength.npz
+Run:  .venv/bin/python cad_b6/organic_strength.py [step] [--earlier]      (after organic_frame.py, which writes out/organic/field.npz)
+Out:  cad_b6/report_organic_strength.txt, out/organic/strength.npz, and at step 1 out/organic/strength.json (the run's record, which check_budgets.py reads)
 
 step = 1 uses the field's own grid (1.5 mm), 2 uses every second point (3 mm, quick, too stiff for thin strands).
 
 Revision 17 (docs/plans/rear-panel.md): one run per piece of the layer (the field's `pieces`): the piece's own field (d_<piece>), fixed at its own pads (`pad_piece`),
 N_POINTS pushes on it, the same limits. The report gives each piece's worst stress and largest movement and a headline; the script fails if any piece fails.
-Those runs are the judgment. Beside them the load model of before revision 17 is run as well and its headline printed, labelled and not judged (REVIEW.md row 11):
-the whole field `d` at once, held at every pad, N_POINTS pushes over its whole surface.
+Those runs are the judgment. With --earlier the load model of before revision 17 is run beside them and its headline printed, labelled and not judged (REVIEW.md row 11):
+the whole field `d` at once, held at every pad, N_POINTS pushes over its whole surface. It judged nothing and took half of the run's time, so since 19 Nov 2026 (the owner's
+agreement) it runs only when asked for: ask for it when the load model changes.
 The layer's own weight is judged with the pushes, per piece, against the same two limits (it was reported only until revision 17's second step).
 Revision 18 (docs/plans/front-and-outline.md, part I): the judgment stops depending on its sample. organic_frame.py saves the middle of every film strand and cross-thread of both pieces
 (`probes`, `probe_kind`, `probe_len`, `probe_piece` in field.npz); each piece is pushed at its own probes as well, at the nearest surface node that is not held within PROBE_REACH of the
@@ -27,6 +28,9 @@ creep near warm parts, impact, and anyone lifting the PC by the organic layer, w
 """
 from __future__ import annotations
 
+import argparse
+import hashlib
+import json
 import os
 import sys
 import time
@@ -152,6 +156,7 @@ def load_failures(res):
 
 
 FIELD = os.path.join(ROOT, "out", "organic", "field.npz")
+RECORD = os.path.join(ROOT, "out", "organic", "strength.json")
 WHOLE = "весь слой"                         # the label of the earlier model's run (the whole field d, every pad), for the report and strength.npz
 
 
@@ -161,6 +166,33 @@ def field_pieces(path=FIELD):
     if "pieces" not in f.files:
         raise SystemExit(f"{path} has no pieces: run cad_b6/organic_frame.py (revision 17 or later) first")
     return [str(p) for p in f["pieces"]]
+
+
+def run_prints(path=FIELD):
+    """What a run's result depends on, as JSON holds it, so that its record can be held against the layer and the script as they are later:
+    `field`, organic_manifest.py's fingerprint of the grid and of every piece (the SHA-256 of its solid mask, its pads); `probes`, the number of the saved probes and
+    a SHA-256 of them (piece, kind, point and length to 4 decimals); `script`, the SHA-256 of this file (N_POINTS, PROBE_REACH, the limits and the method)."""
+    import organic_manifest as om
+    import suite_record as sr
+
+    z = np.load(path)
+    rows = []
+    if "probes" in z.files:
+        rows = [[str(pc), str(k), *(round(float(c), 4) + 0.0 for c in p), round(float(L), 4) + 0.0] for p, k, L, pc in zip(z["probes"], z["probe_kind"], z["probe_len"], z["probe_piece"])]
+    probes = dict(n=len(rows), sha256=hashlib.sha256(json.dumps(rows).encode("utf-8")).hexdigest())
+    return json.loads(json.dumps(dict(field=om.build_manifest(z)["items"], probes=probes, script=sr.file_sha(os.path.abspath(__file__)))))
+
+
+def write_record(path, step, earlier, fails, heads, prints):
+    """The run's record for check_budgets.py: what it was a run of (run_prints), whether it passed, and per piece what it solved and how long it took. `heads` holds the
+    judged pieces only, so the earlier model of --earlier is in no figure. Written whole or not at all."""
+    rec = dict(step=step, earlier=bool(earlier), passed=not fails, finished=time.strftime("%Y-%m-%d %H:%M:%S"), of=prints,
+               pieces={k: dict(elements=int(v["elements"]), unknowns=int(v["unknowns"]), load_cases=int(v["cases"]), probes_pushed=int(v["probes_pushed"]),
+                               seconds=round(float(v["seconds"]), 1)) for k, v in heads.items()})
+    import suite_record as sr
+
+    sr.write_json_atomic(path, rec)
+    return rec
 
 
 def voxel_mesh(step, piece):
@@ -397,7 +429,7 @@ def run_piece(piece, step, n_points=N_POINTS):
                       probe_len=np.array([r_[1] for r_ in probe_rows], dtype=float), probe_move=np.array([r_[3] for r_ in probe_rows], dtype=float),
                       probe_stress=np.array([r_[4] for r_ in probe_rows], dtype=float), probe_carved=np.array([q for _k, q, _L in carved], dtype=float).reshape(-1, 3))
     head = dict(stress=ws[3], stress_push=ws[1], stress_at=ws[4], move=worst[2], move_push=worst[1], seconds=time.time() - t0,
-                weight_move=res[0][2], weight_stress=res[0][3], weight_at=res[0][4], elements=ne, pads=len(pads),
+                weight_move=res[0][2], weight_stress=res[0][3], weight_at=res[0][4], elements=ne, pads=len(pads), unknowns=len(free), cases=Bm.shape[1],
                 probes=len(probes), probes_pushed=len(probe_meta), probes_carved=len(carved),
                 probe_stress=max((r_[4] for r_ in probe_rows), default=None), probe_move=max((r_[3] for r_ in probe_rows), default=None))
     return out, fails, arrays, head
@@ -411,9 +443,14 @@ def headline(v):
             f"Y {v['move_push'][1]:.0f}, Z {v['move_push'][2]:.0f}); собственный вес {v['weight_stress']:.2f} МПа, {v['weight_move']:.3f} мм{probes}; {v['seconds']:.0f} с")
 
 
-def main():
-    step = int(sys.argv[1]) if len(sys.argv) > 1 else 1
+def main(argv=None):
+    ap = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
+    ap.add_argument("step", nargs="?", type=int, default=1, help="1: the field's own grid (the judgment); 2: every second point (quick, too stiff for thin strands)")
+    ap.add_argument("--earlier", action="store_true", help="also run the load model of before revision 17 (the whole field, every pad), reported and not judged; about as long again")
+    args = ap.parse_args(argv)
+    step = args.step
     t0 = time.time()
+    prints = run_prints()                                    # of the field and this file as they are now, before the run: the record says what was judged, and by what
     body, fails, arrays, heads = [], [], {}, {}
     for piece in field_pieces():
         lines, fl, arr, hd = run_piece(piece, step)          # one piece at a time: its matrices are freed before the next is built
@@ -422,14 +459,18 @@ def main():
         heads[piece] = hd
         for k, v in arr.items():
             arrays[f"{k}_{piece}"] = v
-    lines, fl_whole, arr, whole = run_piece(None, step)      # the earlier model, reported beside the pieces and not judged (REVIEW.md row 11)
-    body += lines + ["  (модель до ревизии 17 не судится: судят прогоны по кускам выше; её отказы только для сведения)", ""]
-    for k, v in arr.items():
-        arrays[f"{k}_whole"] = v
+    if args.earlier:                                         # the earlier model, reported beside the pieces and not judged (REVIEW.md row 11)
+        lines, fl_whole, arr, whole = run_piece(None, step)
+        body += lines + ["  (модель до ревизии 17 не судится: судят прогоны по кускам выше; её отказы только для сведения)", ""]
+        for k, v in arr.items():
+            arrays[f"{k}_whole"] = v
+        earlier = (f"Для сведения, модель до ревизии 17 (поле d целиком, закреплено у всех {whole['pads']} площадок, {N_POINTS} точек по всей поверхности; не судится): "
+                   f"{headline(whole)}; за пределами {len(fl_whole)} строк" + (": " + "; ".join(fl_whole) if fl_whole else ""))
+    else:
+        earlier = ("Модель до ревизии 17 (поле d целиком, все площадки) в этом прогоне не считалась: она ничего не судит и занимала половину времени. "
+                   "Её считает ключ --earlier; он нужен, когда меняется модель нагрузки (REVIEW.md, строка 11).")
     head = ["ПРОЧНОСТЬ ОРГАНИЧЕСКОГО СЛОЯ ПО КУСКАМ (" + ("НЕ ПРОЙДЕНА" if fails else "пройдена") + f"; допустимо {ALLOW:g} МПа и {MOVE_MAX:g} мм под толчком {PUSH_N:g} Н "
-            "и под собственным весом): " + "; ".join(f"{k} - {headline(v)}" for k, v in heads.items()),
-            f"Для сведения, модель до ревизии 17 (поле d целиком, закреплено у всех {whole['pads']} площадок, {N_POINTS} точек по всей поверхности; не судится): "
-            f"{headline(whole)}; за пределами {len(fl_whole)} строк" + (": " + "; ".join(fl_whole) if fl_whole else ""), ""]
+            "и под собственным весом): " + "; ".join(f"{k} - {headline(v)}" for k, v in heads.items()), earlier, ""]
     out = head + body
     out.append("ПРОВЕРКИ НЕ ПРОЙДЕНЫ:" if fails else "Проверки пройдены: ни один толчок ни на одном куске не выше допустимого напряжения и предела смещения.")
     out += ["  - " + f for f in fails]
@@ -438,7 +479,9 @@ def main():
     with open(os.path.join(HERE, "report_organic_strength.txt"), "w", encoding="utf-8") as fh:
         fh.write(text + "\n")
     print(text)
-    np.savez_compressed(os.path.join(ROOT, "out", "organic", "strength.npz"), pieces=np.array(list(heads)), **arrays)      # *_whole: the earlier model
+    np.savez_compressed(os.path.join(ROOT, "out", "organic", "strength.npz"), pieces=np.array(list(heads)), **arrays)      # *_whole: the earlier model, with --earlier only
+    if step == 1:                                            # a quick run is not the judgment and leaves the full run's record as it was
+        write_record(RECORD, step, args.earlier, fails, heads, prints)
     if fails:
         sys.exit(1)
 

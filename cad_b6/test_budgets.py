@@ -4,7 +4,9 @@ a missing input (no field, no suite record, a record of a failed or serial run) 
 its floor fails (a count under its record, a mass or a volume more than 5 % under it: a saving is recorded on purpose),
 the suite's record is refused when it is of other code (its digest) or of other packages or another Python, short of the
 pinned number of cases or half written, and --write records no figure that fails a hard limit or is under its floor
-(unless --accept-lower).
+(unless --accept-lower). The strength run's record: more load cases than its limit fail, fewer than its record fail, a slow
+run only warns, and a record of a quick run, of a failed run, of another field, of other probes or of another organic_strength.py
+is refused; the record organic_strength.write_record writes is read back as the pieces' sums.
 
     .venv/bin/python cad_b6/test_budgets.py          # a few seconds; builds no frame; exit status 1 on a failure
 """
@@ -24,13 +26,17 @@ import check_budgets as cb  # noqa: E402
 RESULTS = []
 BUDGETS = dict(skeleton_abs_g=dict(figure=1600.0, margin=0.02),
                organic_cm3=dict(figure=1700.0, margin=0.02, petg_stock_g=4000.0),
-               suite=dict(counts=dict(frame_builds=20, run_checks=200, cable_routings=10), count_margin=0.10, wall_s=500.0, wall_margin=0.25))
+               suite=dict(counts=dict(frame_builds=20, run_checks=200, cable_routings=10), count_margin=0.10, wall_s=500.0, wall_margin=0.25),
+               strength=dict(load_cases=600, count_margin=0.10, wall_s=1000.0, wall_margin=0.25))
+PRINTS = dict(field=dict(grid=dict(shape=[4, 4, 4], first=[0.0, 0.0, 0.0], vox=1.5), main=dict(sha256="a" * 64, voxels=10), rear_panel=dict(sha256="b" * 64, voxels=5)),
+              probes=dict(n=101, sha256="d" * 64), script="e" * 64)
 ABS_STOCK, RHO = 2000.0, 1.27
 ENV = cb.sr.environment({"cadquery", "numpy"})       # the interpreter running this test: cadquery and numpy as installed now
 
 
 def figures(**over):
-    fig = dict(skeleton_abs_g=1600.0, organic_cm3=1700.0, suite=dict(counts=dict(frame_builds=20, run_checks=200, cable_routings=10), wall_s=500.0, finished="t", workers=8))
+    fig = dict(skeleton_abs_g=1600.0, organic_cm3=1700.0, suite=dict(counts=dict(frame_builds=20, run_checks=200, cable_routings=10), wall_s=500.0, finished="t", workers=8),
+               strength=dict(load_cases=600, wall_s=1000.0, finished="t"))
     fig.update(over)
     return fig
 
@@ -60,6 +66,17 @@ def suite_file(path, n_cases=3, sections=(("prelude", 1), ("a", 2)), sources=Non
     rec = dict(mode="fast", errors=[], short=[], counts=dict(BUDGETS["suite"]["counts"]), passed=n_cases, total=n_cases, wall_s=500.0, finished="t", workers=8,
                sources=sources, environment=env, digest=cb.sr.digest(sources, env) if digest is None else digest,
                sections=[dict(title=t, n_cases=n) for t, n in sections], cases=[dict(name=f"c{k}", ok=True, expected="", reported="") for k in range(n_cases)])
+    rec.update(over)
+    with open(path, "w") as fh:
+        json.dump(rec, fh)
+    return path
+
+
+def strength_file(path, **over):
+    """A record of a full strength run that passed on the field PRINTS, at `path`, unless told otherwise."""
+    rec = dict(step=1, earlier=False, passed=True, finished="t", of=PRINTS,
+               pieces=dict(main=dict(elements=10, unknowns=30, load_cases=495, probes_pushed=87, seconds=900.0),
+                           rear_panel=dict(elements=5, unknowns=15, load_cases=105, probes_pushed=14, seconds=100.0)))
     rec.update(over)
     with open(path, "w") as fh:
         json.dump(rec, fh)
@@ -117,12 +134,24 @@ def main():
     expect("the line of a count states its limit and floor", "recorded 9, limit 10 (the larger of + 1 and + 10 % rounded down), floor 9" in next(
         r[7] for r in cb.judge(figures(suite=suite_with(frame_builds=9)), small, ABS_STOCK, RHO) if r[1] == "test suite, frame_builds"), True)
 
+    # the strength run: its load cases gate both ways, its wall time warns
+    st = lambda **kw: figures(strength=dict(dict(load_cases=600, wall_s=1000.0, finished="t"), **kw))      # noqa: E731
+    expect("strength run: 661 load cases against 600 recorded (over its limit 660): fails", only(verdicts(st(load_cases=661)), cb.STRENGTH_CASES, cb.FAIL), True)
+    expect("strength run: 660 load cases (its limit): passes", only(verdicts(st(load_cases=660)), cb.STRENGTH_CASES, cb.PASS), True)
+    expect("strength run: 599 load cases, one under its recorded 600 (a probe lost): fails", only(verdicts(st(load_cases=599)), cb.STRENGTH_CASES, cb.FAIL), True)
+    expect("the failure of load cases under their record says the run pushed less",
+           "the run pushed less than its record" in next(r[7] for r in cb.judge(st(load_cases=599), BUDGETS, ABS_STOCK, RHO) if r[1] == cb.STRENGTH_CASES), True)
+    expect("strength run 26 % slower than recorded: a warning, not a failure", only(verdicts(st(wall_s=1260.0)), "strength run, wall time", cb.WARN), True)
+    expect("strength run 24 % slower: passes", only(verdicts(st(wall_s=1240.0)), "strength run, wall time", cb.PASS), True)
+    expect("no strength record: both strength budgets fail, the wall time too", {k: x for k, x in verdicts(figures(strength=None)).items() if x != cb.PASS},
+           {cb.STRENGTH_CASES: cb.FAIL, "strength run, wall time": cb.FAIL})
+
     expect("a budget file with no counts recorded fails (nothing would gate the suite)",
            verdicts(figures(), dict(BUDGETS, suite=dict(BUDGETS["suite"], counts={})))["test suite, counts"], cb.FAIL)
 
     # missing inputs fail, through the files, and main() exits 1
     with tempfile.TemporaryDirectory() as tmp:
-        nofield, nosuite = os.path.join(tmp, "field.npz"), os.path.join(tmp, "fast.json")
+        nofield, nosuite, nostrength = os.path.join(tmp, "field.npz"), os.path.join(tmp, "fast.json"), os.path.join(tmp, "no_strength.json")
         expect("no field.npz: organic_cm3 is None", cb.organic_cm3(nofield), None)
         expect("no suite record: suite_record is None", cb.suite_record(nosuite), None)
         for label, rec in (("a failed run", dict(mode="fast", errors=[], counts={"run_checks": 1}, passed=285, total=286, wall_s=1.0)),
@@ -132,6 +161,72 @@ def main():
                 json.dump(rec, fh)
             expect(f"the record of {label} is not a figure", cb.suite_record(nosuite), None)
         os.remove(nosuite)
+
+        # the strength run's record must be of a full run that passed, on the field as it is now
+        srec, sfield = os.path.join(tmp, "strength.json"), os.path.join(tmp, "sfield.npz")
+        now = lambda _path: json.loads(json.dumps(PRINTS))      # noqa: E731
+        got, why = cb.read_strength(srec, sfield, prints=now)
+        expect("no strength record: not a figure, and the reason says to rerun", (got, "rerun cad_b6/organic_strength.py" in str(why)), (None, True))
+        got, why = cb.read_strength(strength_file(srec), sfield, prints=now)
+        expect("a record with no field to hold it against: refused", (got, "organic_frame.py" in str(why)), (None, True))
+        open(sfield, "w").close()
+        got, why = cb.read_strength(strength_file(srec), sfield, prints=now)
+        expect("a full run that passed on the present field: its load cases are the pieces' sum, its time the pieces' own",
+               (got, why), (dict(load_cases=600, wall_s=1000.0, finished="t"), None))
+        got, why = cb.read_strength(strength_file(srec, earlier=True), sfield, prints=now)
+        expect("a record that says the earlier model ran as well: the same figure", got, dict(load_cases=600, wall_s=1000.0, finished="t"))
+        three = dict(main=dict(load_cases=495, seconds=900.0), rear_panel=dict(load_cases=105, seconds=100.0), **{"весь слой": dict(load_cases=321, seconds=980.0)})
+        got, why = cb.read_strength(strength_file(srec, pieces=three), sfield, prints=now)
+        expect("a record that holds the earlier model as a piece (not a piece of the field): refused", (got, "its pieces differ" in str(why)), (None, True))
+        import organic_strength as ost
+        heads = dict(main=dict(elements=10, unknowns=30, cases=495, probes_pushed=87, seconds=900.04), rear_panel=dict(elements=5, unknowns=15, cases=105, probes_pushed=14, seconds=99.96))
+        ost.write_record(srec, 1, True, [], heads, PRINTS)
+        got, why = cb.read_strength(srec, sfield, prints=now)
+        expect("the record organic_strength.write_record writes for two pieces is read back as their sums", (got["load_cases"], got["wall_s"], why), (600, 1000.0, None))
+        ost.write_record(srec, 1, False, ["main: ORGANIC_STRENGTH 1 of 320 pushes are over the allowable"], heads, PRINTS)
+        got, why = cb.read_strength(srec, sfield, prints=now)
+        expect("the record write_record writes for a run with a failure: refused", (got, "failed" in str(why)), (None, True))
+        got, why = cb.read_strength(strength_file(srec, step=2), sfield, prints=now)
+        expect("a record of a quick run (step 2): refused", (got, "step 2" in str(why)), (None, True))
+        got, why = cb.read_strength(strength_file(srec, passed=False), sfield, prints=now)
+        expect("a record of a run that failed its checks: refused", (got, "failed" in str(why)), (None, True))
+        NOT_NOW = "not of the layer and the script as they are now"
+        other = dict(PRINTS, field=dict(PRINTS["field"], main=dict(sha256="c" * 64, voxels=11)))
+        got, why = cb.read_strength(strength_file(srec, of=other), sfield, prints=now)
+        expect("a record of another field (main's mask differs): refused, the reason names the piece", (got, NOT_NOW + " (main differ" in str(why)), (None, True))
+        got, why = cb.read_strength(strength_file(srec, of=dict(PRINTS, probes=dict(n=101, sha256="f" * 64))), sfield, prints=now)
+        expect("a record of other probes (the same masks and pads): refused, the reason names the probes", (got, NOT_NOW + " (probes differ" in str(why)), (None, True))
+        got, why = cb.read_strength(strength_file(srec, of=dict(PRINTS, script="0" * 64)), sfield, prints=now)
+        expect("a record of another organic_strength.py (N_POINTS or PROBE_REACH may have changed): refused, the reason names the script",
+               (got, NOT_NOW + " (script differ" in str(why)), (None, True))
+        for label, of in (("does not say what it was a run of", None), ("names its field as a string", dict(PRINTS, field="main")), ("has no script digest", {k: v for k, v in PRINTS.items() if k != "script"})):
+            got, why = cb.read_strength(strength_file(srec, of=of), sfield, prints=now)
+            expect(f"a record that {label}: refused", (got, NOT_NOW in str(why)), (None, True))
+        got, why = cb.read_strength(strength_file(srec, pieces=dict(main=dict(load_cases=495, seconds=900.0))), sfield, prints=now)
+        expect("a record that lacks a piece of the field: refused", (got, "its pieces differ" in str(why)), (None, True))
+        for label, over in (("step true", dict(step=True)), ("step 1.0", dict(step=1.0)), ("passed 1", dict(passed=1)),
+                            ("a piece's load cases true", dict(pieces=dict(main=dict(load_cases=True, seconds=1.0), rear_panel=dict(load_cases=599, seconds=1.0)))),
+                            ("a piece that is not an object", dict(pieces=dict(main=495, rear_panel=dict(load_cases=105, seconds=1.0)))),
+                            ("pieces as a list", dict(pieces=[dict(load_cases=600, seconds=1.0)]))):
+            got, why = cb.read_strength(strength_file(srec, **over), sfield, prints=now)
+            expect(f"a record edited by hand to {label}: refused, not read as a figure", (got, why is not None), (None, True))
+        with open(srec, "w") as fh:
+            json.dump([1, 2], fh)
+        got, why = cb.read_strength(srec, sfield, prints=now)
+        expect("a record that is not an object: refused", (got, "unreadable" in str(why)), (None, True))
+        got, why = cb.read_strength(strength_file(srec, pieces={}), sfield, prints=now)
+        expect("a record with no piece: refused", (got, "no piece" in str(why)), (None, True))
+        got, why = cb.read_strength(strength_file(srec, pieces=dict(main=dict(load_cases=0, seconds=1.0), rear_panel=dict(load_cases=105, seconds=1.0))), sfield, prints=now)
+        expect("a record with a piece that solved no load case: refused", (got, "no load case" in str(why)), (None, True))
+
+        def boom(_path):
+            raise ValueError("no pieces")
+        got, why = cb.read_strength(strength_file(srec), sfield, prints=boom)
+        expect("a field that cannot be fingerprinted: refused", (got, "cannot be fingerprinted" in str(why)), (None, True))
+        with open(srec, "w") as fh:
+            fh.write('{"step": 1, "pas')
+        got, why = cb.read_strength(srec, sfield, prints=now)
+        expect("a half-written strength record: refused as unreadable", (got, "unreadable" in str(why)), (None, True))
 
         # the suite's record must be of this code, whole, and written whole
         rec = os.path.join(tmp, "rec.json")
@@ -233,6 +328,16 @@ def main():
                (None, 800.0, 199, ["organic layer, ratchet", "test suite, run_checks"]))
         why, now, low = try_write(figures(organic_cm3=0.96 * 1700.0, suite_why=None))
         expect("--write with the organic layer at 96 % (inside its floor): recorded without the flag", (why, now["organic_cm3"]["figure"], low), (None, round(0.96 * 1700.0, 1), []))
+        why, now, _ = try_write(figures(strength=dict(load_cases=599, wall_s=900.0, finished="t"), suite_why=None))
+        expect("--write with 599 load cases against 600 recorded: refused, budgets.json as it was",
+               ("strength run, load cases 599 under its floor 600" in str(why), now), (True, BUDGETS))
+        why, now, low = try_write(figures(strength=dict(load_cases=330, wall_s=450.0, finished="t2"), suite_why=None), accept_lower=True)
+        expect("--write --accept-lower with fewer load cases: the strength figures are recorded",
+               (why, now["strength"]["load_cases"], now["strength"]["wall_s"], now["strength"]["recorded_from"], [x[0] for x in low]),
+               (None, 330, 450.0, "full run of t2", [cb.STRENGTH_CASES]))
+        why, now, _ = try_write(figures(strength=None, strength_why="no out/organic/strength.json", suite_why=None))
+        expect("--write with no strength record: refused, says why, budgets.json as it was",
+               ("input missing for strength" in str(why) and "no out/organic/strength.json" in str(why), now), (True, BUDGETS))
         why, now, _ = try_write(figures(suite=dict(suite_with(), counts=dict(frame_builds=20, run_checks=200)), suite_why=None))
         expect("--write with a record that lacks a count budgets.json holds: refused (the gate would be dropped)", ("no count 'cable_routings'" in str(why), now), (True, BUDGETS))
 
@@ -246,11 +351,11 @@ def main():
         with open(bpath, "w") as fh:
             json.dump(BUDGETS, fh)
         with contextlib.redirect_stdout(io.StringIO()) as out:
-            code = cb.main(["--budgets", bpath, "--field", nofield, "--suite", nosuite], skeleton=lambda: 1600.0)
-        expect("main() with no field and no suite record exits 1", code, 1)
+            code = cb.main(["--budgets", bpath, "--field", nofield, "--suite", nosuite, "--strength", nostrength], skeleton=lambda: 1600.0)
+        expect("main() with no field, no suite record and no strength record exits 1", code, 1)
         try:
             with contextlib.redirect_stdout(io.StringIO()):
-                cb.main(["--write", "--budgets", bpath, "--field", nofield, "--suite", nosuite], skeleton=lambda: 1600.0)
+                cb.main(["--write", "--budgets", bpath, "--field", nofield, "--suite", nosuite, "--strength", nostrength], skeleton=lambda: 1600.0)
             refused = False
         except SystemExit as e:
             refused = "refused" in str(e)
@@ -259,7 +364,7 @@ def main():
         expect("the output says which lines are gates and which a warning", "[gate]" in out.getvalue() and "[warning]" in out.getvalue(), True)
         try:
             with contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(io.StringIO()):
-                cb.main(["--accept-lower", "--budgets", bpath, "--field", nofield, "--suite", nosuite], skeleton=lambda: 1600.0)
+                cb.main(["--accept-lower", "--budgets", bpath, "--field", nofield, "--suite", nosuite, "--strength", nostrength], skeleton=lambda: 1600.0)
             code = 0
         except SystemExit as e:
             code = e.code
