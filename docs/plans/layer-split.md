@@ -47,10 +47,23 @@ Picture of v3: `pictures/split_v3_front_left.png`, `split_v3_front_right.png`, `
    - *Separate:* each piece on its own pads with a 3 mm gap to its neighbours, as the rear panel is. Costs: new pads and inserts in the skeleton (the rings have one pad each, the posts one, the front panel none), and the front still needs joints, because nothing stands behind it: a half of the lip that ends free is a 190 mm bar, about 34 MPa under the 30 N push by hand.
    - The main session recommends joined pieces, with the rear pieces left separate where three pads already hold them.
 
+## The joint: a first probe (20 Nov 2026)
+
+`docs/plans/sketches/joint_probe.py` builds a half-lap by itself: a knot of radius 10 over a lap of 24 mm, parted by a plane through the bar's axis with 0.3 mm between the faces, a 3.4 mm clearance bore in one half and a blind 4.5 mm insert pilot in the other, on the layer's grid and through the layer's mesher (`shell_concepts.mesh`, which also smooths). What comes out (`runs/23_joint_probe.txt`):
+
+| | Grid 1.5 mm (the layer's), two placements | Grid 0.75 mm |
+|---|---|---|
+| A lap face, asked at ±0.15 mm | mean within 0.06 mm of it, points from 0.01 to 0.27 mm off the parting plane | mean within 0.01 mm, points within 0.04 mm |
+| The 3.4 mm bore | mean 3.0 to 3.1 mm, least 2.5 mm: an M3 screw does not pass | mean 3.37 mm, least 3.26 mm |
+| The 4.5 mm pilot | mean 4.33 to 4.38 mm, from 3.7 to 4.9 mm | mean 4.46 mm, from 4.27 to 4.62 mm |
+
+So the flat faces of a lap are good enough on the layer's grid, and its holes are not: they come out small and uneven, which `cables-and-organic.md` already says of the pads' bores ("the real holes belong in the printable pieces"). A piece that is meshed for printing at 0.75 mm gets holes an insert and a screw can use; a piece of at most 290 mm is 58 million points at that step, which fits in memory. That export step is needed whichever way the pieces hold together, for the pads' own bores.
+
 ## Not looked at yet
 
 - The joint itself (its size, where its screw goes, whether a 1.5 mm grid prints a fit).
 - The films that hang between bones of two pieces: the right ring's film to the post, the left ring's ties to the post and to the rail, the outer strands of the films over the card. Each either moves to one piece or becomes a joint.
 - Print orientation and supports per piece; the bed check today stands a piece as built and turns it about the vertical only.
 - Strength of each piece on its own (while it is handled) and of the joined layer.
-- Grok's map of the machinery a piece goes through (pads, checks, manifests, strength, budgets) is being written; it goes here when it lands.
+- Grok's map of the machinery a piece goes through is back (20 Nov 2026; kept outside the repository because it quotes local paths). Its headline, read by the main session; the body is not read yet and is not relied on here: a piece is a name in `PIECES`, an entry written by hand in `build`'s `frames`, and the pads whose fourth field is that name; a later piece is carved back from the earlier ones by 3 mm; a film belongs wholly to one piece; `main` is the only name exempt from the bed check, every other name is judged against 290 mm standing and turned about Z; no committed plan names seams, joints or a print orientation for pieces of `main`.
+- Grok is looking up which joints people use between printed PETG parts (a half-lap, a spigot, a butt joint with a screw, a dovetail), with clearances and the wall an insert needs.

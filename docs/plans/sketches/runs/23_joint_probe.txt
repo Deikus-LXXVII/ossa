@@ -1,0 +1,9 @@
+grid 1.5 mm, shifted 0.0:
+  upper: lap face Z +0.141 (asked +0.15), spread +0.037..+0.219, 62 points; hole diameter asked 3.4: mean 3.09, least 2.67, largest 3.39 (26 points)
+  lower: lap face Z -0.093 (asked -0.15), spread -0.176..-0.012, 60 points; hole diameter asked 4.5: mean 4.33, least 3.70, largest 4.85 (28 points)
+grid 1.5 mm, shifted 0.6:
+  upper: lap face Z +0.141 (asked +0.15), spread +0.055..+0.269, 70 points; hole diameter asked 3.4: mean 3.00, least 2.51, largest 3.46 (30 points)
+  lower: lap face Z -0.121 (asked -0.15), spread -0.180..-0.056, 70 points; hole diameter asked 4.5: mean 4.38, least 3.94, largest 4.89 (29 points)
+grid 0.75 mm, shifted 0.3:
+  upper: lap face Z +0.154 (asked +0.15), spread +0.143..+0.170, 288 points; hole diameter asked 3.4: mean 3.37, least 3.26, largest 3.43 (146 points)
+  lower: lap face Z -0.156 (asked -0.15), spread -0.181..-0.114, 288 points; hole diameter asked 4.5: mean 4.46, least 4.27, largest 4.62 (118 points)
