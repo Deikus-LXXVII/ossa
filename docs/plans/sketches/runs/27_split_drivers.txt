@@ -1,0 +1,13 @@
+lip_L    the driver's way from X -127 Y 52 Z 278 along (-0.01 -0.71  0.71): free
+card_L   the driver's way from X -127 Y -17 Z 203 along (-0.01 -0.71  0.71): free
+low_L    the driver's way from X -127 Y 15 Z 67 along ( 0.00 -0.71  0.71): free
+post_L   the driver's way from X -167 Y -15 Z 149 along ( 0.01 -0.99 -0.13): free
+rail_L   the driver's way from X -172 Y 165 Z -4 along (-1.00 -0.02  0.00): free
+sweep_L  the driver's way from X -242 Y 292 Z 212 along (-0.82  0.57  0.09): free
+lip_R    the driver's way from X 127 Y 52 Z 278 along ( 0.01 -0.71  0.71): free
+card_R   the driver's way from X 127 Y -17 Z 203 along ( 0.01 -0.71  0.71): free
+low_R    the driver's way from X 140 Y 15 Z 67 along ( 0.00 -0.71  0.71): free
+post_R   the driver's way from X 167 Y -15 Z 149 along (-0.01 -0.99 -0.13): free
+rail_R   the driver's way from X 172 Y 165 Z -4 along ( 1.00 -0.02  0.00): free
+sweep_R  the driver's way from X 242 Y 292 Z 212 along ( 0.82  0.57  0.09): free
+tie3_L   the driver's way from X -240 Y 157 Z 55 along (-0.78 -0.43 -0.45): free

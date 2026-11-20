@@ -47,6 +47,8 @@ Picture of v3: `pictures/split_v3_front_left.png`, `split_v3_front_right.png`, `
    - *Separate:* each piece on its own pads with a 3 mm gap to its neighbours, as the rear panel is. Costs: new pads and inserts in the skeleton (the rings have one pad each, the posts one, the front panel none), and the front still needs joints, because nothing stands behind it: a half of the lip that ends free is a 190 mm bar, about 34 MPa under the 30 N push by hand.
    - The main session recommends joined pieces, with the rear pieces left separate where three pads already hold them.
 
+**Decided by the owner, 20 Nov 2026:** seams near the corners (the face and the hood whole), and the pieces screwed to each other. The skeleton and its twelve pads stay as they are.
+
 ## The joint: a first probe (20 Nov 2026)
 
 `docs/plans/sketches/joint_probe.py` builds a half-lap by itself: a knot of radius 10 over a lap of 24 mm, parted by a plane through the bar's axis with 0.3 mm between the faces, a 3.4 mm clearance bore in one half and a blind 4.5 mm insert pilot in the other, on the layer's grid and through the layer's mesher (`shell_concepts.mesh`, which also smooths). What comes out (`runs/23_joint_probe.txt`):
@@ -70,10 +72,75 @@ Grok looked up joints between printed parts (printer makers' design guides, Stra
 
 Picture: `pictures/split_joint_together.png` and `split_joint_apart.png`, one joint drawn on the lip at X 128 on a 0.75 mm grid: a knot of radius 10 over 36 mm (the bone there is about 5.5), a lap of 24 mm, an M3 from the front and above with its head sunk in the knot, the insert in the lower half. The loose shards beside it are film strands the picture's crude cut went through; the films are not laid for a seam yet.
 
+## The second sketch: the layer built with its joints (20 Nov 2026)
+
+`docs/plans/sketches/split_layer_sketch.py` loads `organic_frame`, replaces its `bone_members` and `film_list`, and builds the layer as it would be: a knot on every bone a seam crosses, no film across a seam. Nothing in `cad_b6/` is edited. Runs: `runs/24_split_layer.txt` (the build), `runs/25_split_pieces.txt` (the cut), `runs/26_split_strength.txt` (the strength run), `runs/27_split_drivers.txt` (the drivers' ways). Pictures: the pieces in colours, `pictures/split_pieces_front_left.png`, `split_pieces_front_right.png`, `split_pieces_left.png` (blue the front panel, green the corner pieces, orange the left foot and the right post, magenta the right rail's front, red the rear pieces); the look, `pictures/render_split_a_hero.png`, `render_split_a_front_left.png`, `render_split_a_front_right.png`.
+
+**Eight pieces, not nine, and not the nine of v3.** The right ring's film lands on the front post, and a film may not hang between two pieces. So the top of each front post goes with its ring (a corner piece), and the post is cut at Z 150, below the film:
+
+| Piece | What it is | Pads | Joints |
+|---|---|---|---|
+| `front` | the lip, the bone over the card and `front_low` between the front seams, their films, the hood | 0 | 6 |
+| `corner_R`, `corner_L` | the ring, the side bone, the post above Z 150, the outer ends of the lip and of the bone over the card, the films and ties on them | 1 each (`neck_top`) | 4 and 5 |
+| `foot_L` | the left post below Z 150, the outer end of `front_low`, the front of the base rail, the ring's tie to the rail | 2 | 4 |
+| `post_R` | the right post below Z 150 with the outer end of `front_low` | 1 (`front_post_R`) | 2 |
+| `rail_R` | the front of the right base rail | 1 (`front_foot_R`) | 1 |
+| `rear_R`, `rear_L` | the rear sweep, the rest of the base rail, the film between them | 3 each | 2 each |
+
+On the right the post's foot and the base rail do not join (known since revision 18: `front-and-outline.md`, "The front posts' feet hang"; measured again on today's field), so they are two pieces there. On the left they are one body.
+
+**Thirteen joints.** Each is a knot of radius 10 over a lap of 20 mm (24 in the first picture), tapering to the bone over 8 mm each side, 36 mm in all:
+
+| Joint | Where | The screw is driven from | Head in |
+|---|---|---|---|
+| `lip_L`, `lip_R` | the lip at X ±127 | the front and above (the board's normal) | `front` |
+| `card_L`, `card_R` | the bone over the card at X ±127 | the same | `front` |
+| `low_L`, `low_R` | `front_low` at X -127 and X 140 | the same | `front` |
+| `post_L`, `post_R` | the front posts at Z 150 | the front | the corner piece |
+| `rail_L`, `rail_R` | the base rails at Y 165 | the side | the rail's front |
+| `sweep_L`, `sweep_R` | the rear sweeps, 24 mm from the ring | the side | the corner piece |
+| `tie3_L` | the left ring's tie to the rail, 24 mm from the ring | the side | the corner piece |
+
+All six joints of the front panel part across the same direction, so the panel goes on last, straight along the board's normal. The order on the skeleton: rear pieces, the rail's front and the feet, the corner pieces, the front panel; the piece that goes on later carries the head.
+
+**What had to move for the joints.**
+
+- The lip lies 3 mm under the radiator's edge (the layer keeps `GAP_HW` from it), so a knot round the lip's axis would lose its upper side. The lip's knots stand 7 mm lower along the board's u; built, the layer has 1.03 and 0.90 of their two halves (left), 1.09 and 0.95 (right).
+- On the right the hood's roof ended at X 143 and the post stands at X 155: no room for a lap between them. The roof's centre line ends at X 104 instead of 117 (its cap 26 beyond; the cheek at X 117 is still under it), and the lap is X 130 to 150.
+- The two films between the bone over the card and the lip are each an inner film (the front panel's) and an outer film of two strands (the corner piece's). The front film is hung between X -103 and 103 (it was ±150) with 9 strands and 8 cross-threads (13 and 12): between X 103 and the posts the front is open, because a strand there would run from `front_low`'s end (a foot piece) to the bone over the card (a corner piece).
+- The right ring's film lands on the post above Z 172 and round its knee on to the leg up to the lip (it landed between Z 152 and 195).
+
+**What the build shows.** `organic_frame`'s own checks pass. `main` is 1977.0 cm3 (2015.5 today: fewer strands, thirteen knots), 56 strands and 27 cross-threads made (63 and 36 today), 2 taken out as torn (one strand, and the cross-thread on it), none left torn. Cut at the joints, the pieces touch nowhere but in the laps, each is one body, and each has the pads it is meant to have. No voxel of the layer stands in a driver's way to any of the thirteen screws (a cylinder of the head's radius, 45 mm out from the knot), and neither does any skeleton part or piece of hardware (their exact solids cut with the same cylinders: all thirteen free). The hoses and the cables are not in that check. One voxel of `corner_L` in a lap is loose from the piece: the lap is cut here on the 1.5 mm grid by which side of the parting plane a voxel's centre is, and the export of a piece cuts it exactly.
+
+**Fit on the bed (290 mm).** Every piece fits in more than one position:
+
+| Piece | cm3 | Standing as on the case | Lying (the lowest position that fits) |
+|---|---|---|---|
+| `front` | 494.0 | 255 x 255 on the bed, 273 tall | on its back: 232 x 287, 179 tall; face down or up along Y: 273 x 286, 94 tall |
+| `corner_R` | 325.0 | over (300 tall) | on its side: 284 x 284, 141 tall; on its back: 232 x 232, 248 tall |
+| `corner_L` | 267.3 | over (321 tall) | on its side: 250 x 285, 141 tall; on its back: 232 x 231, 248 tall |
+| `foot_L` | 89.8 | 174 x 176, 177 tall | on its side: 185 x 185, 122 tall |
+| `post_R` | 48.9 | 47 x 48, 177 tall | 137 x 137, 46 tall |
+| `rail_R` | 22.5 | 103 x 104, 36 tall | on its side: 110 x 109, 21 tall |
+| `rear_R` | 352.0 | 172 x 171, 252 tall | on its side: 252 x 251, 87 tall |
+| `rear_L` | 377.6 | 173 x 173, 252 tall | on its side: 252 x 231, 87 tall |
+
+"On its back" is the board's normal up; a side is the span of the solid's voxel centres plus the cube's own width along it, at the best whole degree of turn. The tight ones are the front panel lying (287, 286) and the corner pieces on their sides (284, 285); each has a roomier position. Which position each piece is printed in is not decided: it sets where supports go and which way each lap's faces and each insert's hole lie.
+
+**Strength of the joined layer** (`organic_strength.py`'s run of `main` on the sketch's field, the knots solid): largest stress 5.2 MPa (6.1 today), largest displacement 2.34 mm (2.62 today), own weight 0.25 MPa; the push on every strand and cross-thread, 81 of 81, at most 4.6 MPa and 0.98 mm (5.8 MPa and 0.67 mm today). It passes against the 10 MPa allowable. 760 s.
+
+That run reads a joint as a solid knot. It does not prove the joints: a half of a lap at its root is a half disc of radius 10, whose section modulus across the parting plane is 0.19 R^3 = 191 mm3, about that of a round bone of radius 6.2 (the lip is 5.5 to 7, the rings 6.5), less the screw's hole. So by hand a joint is about as strong in bending as the bone it sits on, if the screw holds the halves shut. Whether it does (the insert in PETG, the clamp across the layers) no source measured, and the strength run cannot say: **one joint is to be printed and tried by hand before the pieces are printed.**
+
+**Not in this sketch.** The holes (the bore, the head's recess, the insert's pilot: they belong in the 0.75 mm export of a piece); the gap at a lap's shoulders; a piece's strength while it is handled alone; the print position of each piece; where in the code a joint and a printable piece live.
+
 ## Not looked at yet
 
-- The joint itself (its size, where its screw goes, whether a 1.5 mm grid prints a fit).
-- The films that hang between bones of two pieces: the right ring's film to the post, the left ring's ties to the post and to the rail, the outer strands of the films over the card. Each either moves to one piece or becomes a joint.
-- Print orientation and supports per piece; the bed check today stands a piece as built and turns it about the vertical only.
-- Strength of each piece on its own (while it is handled) and of the joined layer.
-- Grok's map of the machinery a piece goes through is back (20 Nov 2026; kept outside the repository because it quotes local paths). Its headline, read by the main session; the body is not read yet and is not relied on here: a piece is a name in `PIECES`, an entry written by hand in `build`'s `frames`, and the pads whose fourth field is that name; a later piece is carved back from the earlier ones by 3 mm; a film belongs wholly to one piece; `main` is the only name exempt from the bed check, every other name is judged against 290 mm standing and turned about Z; no committed plan names seams, joints or a print orientation for pieces of `main`.
+- The joint's holes and fits as printed (the first probe: holes need the 0.75 mm mesh), and a trial print of one joint.
+- Print position and supports per piece; the bed check today stands a piece as built and turns it about the vertical only.
+- The hoses and the cables in a driver's way to each joint's screw; the order the pieces go on, tried.
+- Strength of each piece on its own (while it is handled).
+- Where a joint and a printable piece live in `organic_frame.py` (today a piece is a body of its own on its own pads, 3 mm from the others), the fastener bill for thirteen more screws and inserts, and the checks and tests that go with them. Grok's map of that machinery (20 Nov 2026) is kept outside the repository because it quotes local paths; the main session read it in full.
+
+## Waiting on the owner
+
+The look of the joined layer, from the three renders: the front film narrower with open corners, the hood's roof 13 mm shorter on the right, thirteen knots. Nothing goes into `cad_b6/` before he has seen them.

@@ -110,10 +110,46 @@ def plan_v3(kind, name, pts):
     return np.full(len(pts), "front" if abs(float(x.mean())) < FRONT_X else "post_" + ("L" if x.mean() < 0 else "R"))
 
 
-PLANS = {"v1": plan_v1, "v2": plan_v2, "v3": plan_v3}
+POST_CUT = float(os.environ.get("SK_POST_CUT", 140.0))      # v4: a front post is cut at this height
+TIE3_CUT = float(os.environ.get("SK_TIE3_CUT", 0.45))       # v4: the left ring's tie to the base rail is cut this far along it from the ring (a share of its length)
+
+
+def plan_v4(kind, name, pts):
+    """Seven pieces (the owner, 20 Nov 2026: seams near the corners, pieces screwed to each other). The front panel whole between X -FRONT_X and FRONT_X; a corner piece each side
+    (the ring, the side bone, the top of the front post above POST_CUT, the ends of the lip and of the bone over the card, the films and ties that hang on them: so the right ring's
+    film to the post stays in one piece); a foot piece each side (the post below POST_CUT, the end of front_low, the front of the base rail); a rear piece each side."""
+    x, y, z = pts[:, 0], pts[:, 1], pts[:, 2]
+    tags = np.where(x < 0, "L", "R")
+    inner = np.abs(x) < FRONT_X
+    if kind == "bone":
+        if name in ("lip", "card"):
+            return np.where(inner, "front", np.char.add("corner_", tags))
+        if name == "front_low":
+            return np.where(inner, "front", np.char.add("foot_", tags))
+        tag = name[-1] if name[-1] in "LR" else name.split("_")[-1][0]
+        if name.startswith("base_"):
+            return np.where(y < BASE_CUT_Y, "foot_" + tag, "rear_" + tag)
+        if name.startswith("rear_"):
+            return np.full(len(pts), "rear_" + tag)
+        if name.startswith("front_"):
+            return np.where(z < POST_CUT, "foot_" + tag, "corner_" + tag)
+        if name == "ring_tie_L3":
+            return np.where(np.arange(len(pts)) < TIE3_CUT * len(pts), "corner_L", "foot_L")
+        return np.full(len(pts), "corner_" + tag)
+    owner = {2: "front", 3: "corner_L", 4: "rear_L", 5: "corner_R", 6: "corner_R", 7: "rear_R"}
+    if name in owner:
+        if name == 2 and not (len(pts) > 40 and np.ptp(x) > 60) and abs(float(x.mean())) >= FRONT_X:
+            return np.full(len(pts), "foot_" + ("L" if x.mean() < 0 else "R"))
+        return np.full(len(pts), owner[name])
+    if len(pts) > 40 and np.ptp(x) > 60:                    # a film's bar along a bone: each point by its place
+        return np.where(inner, "front", np.char.add("corner_", tags))
+    return np.full(len(pts), "front" if abs(float(x.mean())) < FRONT_X else "corner_" + ("L" if x.mean() < 0 else "R"))
+
+
+PLANS = {"v1": plan_v1, "v2": plan_v2, "v3": plan_v3, "v4": plan_v4}
 COLOURS = {"front": (0.20, 0.45, 0.80), "post_L": (0.90, 0.55, 0.10), "post_R": (0.90, 0.55, 0.10), "ring_L": (0.20, 0.65, 0.35), "ring_R": (0.20, 0.65, 0.35),
            "rail_L": (0.80, 0.25, 0.60), "rail_R": (0.80, 0.25, 0.60), "rear_L": (0.75, 0.20, 0.20), "rear_R": (0.75, 0.20, 0.20), "front_L": (0.20, 0.45, 0.80),
-           "front_R": (0.35, 0.70, 0.90), "side_L": (0.20, 0.65, 0.35), "side_R": (0.20, 0.65, 0.35), "foot_L": (0.80, 0.25, 0.60), "foot_R": (0.80, 0.25, 0.60)}
+           "front_R": (0.35, 0.70, 0.90), "corner_L": (0.20, 0.65, 0.35), "corner_R": (0.20, 0.65, 0.35), "side_L": (0.20, 0.65, 0.35), "side_R": (0.20, 0.65, 0.35), "foot_L": (0.80, 0.25, 0.60), "foot_R": (0.80, 0.25, 0.60)}
 
 
 def picture(f, names, lab, prefix):
@@ -223,6 +259,29 @@ def best_turn(xyz):
     return best
 
 
+C45 = float(np.sqrt(0.5))
+UP = {"Z (standing)": (0, 0, 1), "X (on its side)": (1, 0, 0), "Y (on its back wall)": (0, 1, 0), "the board's normal (on its back)": (0, -C45, C45), "the board's u": (0, C45, C45)}
+
+
+def best_lie(xyz):
+    """The piece put on the bed with one of UP's directions vertical and turned about it by whole degrees: (largest horizontal side, which direction is up, degrees, the two
+    horizontal sides, the height), the choice with the smallest largest side among those no taller than BED."""
+    best = None
+    for what, up in UP.items():
+        up = np.array(up, dtype=float)
+        a = np.cross(up, (1.0, 0.0, 0.0) if abs(up[0]) < 0.9 else (0.0, 1.0, 0.0))
+        a /= np.linalg.norm(a)
+        b = np.cross(up, a)
+        h = float(np.ptp(xyz @ up))
+        pa, pb = xyz @ a, xyz @ b
+        for deg in range(0, 180):
+            c, s = np.cos(np.radians(deg)), np.sin(np.radians(deg))
+            sides = (float(np.ptp(pa * c + pb * s)), float(np.ptp(-pa * s + pb * c)))
+            if h <= BED and (best is None or max(sides) < best[0] - 1e-6):
+                best = (max(sides), what, deg, sides, h)
+    return best
+
+
 def report(f, rows, names, lab):
     vox = float(f["xs"][1] - f["xs"][0])
     pad_pos = {str(n): np.asarray(p[:3], dtype=float) for n, p, pc in zip(f["names"], f["pads"], f["pad_piece"]) if str(pc) == "main"}
@@ -233,11 +292,14 @@ def report(f, rows, names, lab):
         lo, hi = xyz.min(axis=0) - vox / 2, xyz.max(axis=0) + vox / 2
         _l, n = ndimage.label(lab == k, structure=np.ones((3, 3, 3)))
         big, ax, deg, sides = best_turn(xyz[:: max(1, len(xyz) // 20000)])
+        lie = best_lie(xyz[:: max(1, len(xyz) // 20000)])
         tree = cKDTree(xyz)
         pads = sorted(p for p, q in pad_pos.items() if tree.query(q)[0] < 12.0)
         out.append(f"{name:8s} {len(idx) * vox ** 3 / 1000:7.1f} cm3  X {lo[0]:5.0f}..{hi[0]:5.0f} Y {lo[1]:5.0f}..{hi[1]:5.0f} Z {lo[2]:5.0f}..{hi[2]:5.0f}  "
                    f"box {hi[0] - lo[0]:3.0f} x {hi[1] - lo[1]:3.0f} x {hi[2] - lo[2]:3.0f}; turned {deg:2d} deg about {ax}: {sides[0] + vox:3.0f} x {sides[1] + vox:3.0f} x {sides[2] + vox:3.0f} "
                    f"({'fits' if sides[0] + vox <= BED else 'OVER'} {BED:g}); bodies {n}; pads {len(pads)}: {', '.join(pads) or 'none'}")
+        out.append(f"         lying, up {lie[1]}, turned {lie[2]} deg: {lie[3][0] + 2 * vox:.0f} x {lie[3][1] + 2 * vox:.0f} on the bed, {lie[4] + vox:.0f} tall "
+                   f"({'fits' if lie[0] + 2 * vox <= BED else 'OVER'} {BED:g})")
     cut = [(what, sorted(set(p))) for _k, _n, what, _pts, p in rows if len(set(p)) > 1]
     out.append("members the seams cut: " + ("; ".join(f"{what} ({'/'.join(ps)})" for what, ps in cut) or "none"))
     lost = int((f["d_main"] < 0).sum() - (lab >= 0).sum())

@@ -1,0 +1,8 @@
+saved out/split/a.npz
+main: 1977.0 cm3 in 1 bodies
+rear_panel: 305.5 cm3 in 1 bodies
+Нити плёнок (ревизия 19, E): целая нить — вся её ось внутри своего куска (у концов, в 4 мм, слой в пределах вокселя); поперечная — ещё и обе её нити на месте:
+  main: сделано нитей 56 и поперечных 27; убрано 2 (cross-thread on a strand that is cut or gone: 1, strand cut: 1); построено раз: 2
+  rear_panel: сделано нитей 9 и поперечных 5; убрано 0; построено раз: 1
+organic_frame's own checks: pass
+exit 0

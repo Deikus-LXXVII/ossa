@@ -1,0 +1,32 @@
+`main` 1977.0 cm3, cut at 13 joints into 8 pieces (lap 20, knot radius 10):
+rear_R     352.0 cm3  X   153..  240 Y   155..  386 Z   -16..  236; bodies 1; pads 3; joints 2
+          standing: 172 x 171 on the bed, 252 tall, turned 42; on its side: 252 x 251 on the bed, 87 tall, turned 7; on its back: 238 x 240 on the bed, 242 tall, turned 42; on its rear: 207 x 205 on the bed, 231 tall, turned 53
+rear_L     377.6 cm3  X  -239.. -152 Y   155..  386 Z   -16..  236; bodies 1; pads 3; joints 2
+          standing: 173 x 173 on the bed, 252 tall, turned 48; on its side: 252 x 231 on the bed, 87 tall, turned 0; on its back: 241 x 240 on the bed, 242 tall, turned 48; on its rear: 207 x 205 on the bed, 231 tall, turned 36
+rail_R      22.5 cm3  X   153..  174 Y    35..  174 Z   -14..   22; bodies 1; pads 1; joints 1
+          standing: 103 x 104 on the bed, 36 tall, turned 43; on its side: 110 x 109 on the bed, 21 tall, turned 45; on its back: 80 x 80 on the bed, 110 tall, turned 43; on its rear: 33 x 33 on the bed, 140 tall, turned 51
+post_R      48.9 cm3  X   130..  178 Y   -13..   33 Z   -16..  161; bodies 1; pads 1; joints 2
+          standing: 47 x 48 on the bed, 177 tall, turned 1; on its side: 136 x 136 on the bed, 48 tall, turned 52; on its back: 93 x 94 on the bed, 150 tall, turned 42; on its rear: 137 x 137 on the bed, 46 tall, turned 46
+foot_L      89.8 cm3  X  -239.. -117 Y   -13..  176 Z   -16..  161; bodies 1; pads 2; joints 4
+          standing: 174 x 176 on the bed, 177 tall, turned 67; on its side: 185 x 185 on the bed, 122 tall, turned 3; on its back: 149 x 150 on the bed, 251 tall, turned 74; on its rear: 137 x 136 on the bed, 189 tall, turned 44
+corner_R   325.0 cm3  X   117..  258 Y   -24..  300 Z    67..  367; bodies 1; pads 1; joints 4
+          standing: 261 x 261 on the bed, 300 tall, turned 27 OVER; on its side: 284 x 284 on the bed, 141 tall, turned 60; on its back: 232 x 232 on the bed, 248 tall, turned 30; on its rear: 230 x 230 on the bed, 324 tall, turned 34 OVER
+corner_L   267.3 cm3  X  -258.. -117 Y   -24..  300 Z    46..  367; bodies 2 (the rest 0.00 cm3 in 1); pads 1; joints 5
+          standing: 261 x 261 on the bed, 321 tall, turned 63 OVER; on its side: 250 x 285 on the bed, 141 tall, turned 43; on its back: 232 x 231 on the bed, 248 tall, turned 60; on its rear: 242 x 238 on the bed, 324 tall, turned 51 OVER
+front      494.0 cm3  X  -137..  150 Y   -22..   72 Z    11..  284; bodies 1; pads 0; joints 6
+          standing: 255 x 255 on the bed, 273 tall, turned 45; on its side: 209 x 208 on the bed, 286 tall, turned 36; on its back: 232 x 287 on the bed, 179 tall, turned 0; on its rear: 273 x 286 on the bed, 94 tall, turned 0
+lip_L    corner_L |front     head in front     at X  -127.1 Y   59.2 Z  271.1; of the knot's two halves the layer has 1.03 and 0.90; layer in the driver's way: 0 voxels
+card_L   corner_L |front     head in front     at X  -127.0 Y  -10.4 Z  195.7; of the knot's two halves the layer has 0.96 and 1.01; layer in the driver's way: 0 voxels
+low_L    foot_L   |front     head in front     at X  -127.0 Y   22.0 Z   60.0; of the knot's two halves the layer has 0.89 and 1.06; layer in the driver's way: 0 voxels
+post_L   foot_L   |corner_L  head in corner_L  at X  -167.2 Y   -4.6 Z  150.0; of the knot's two halves the layer has 0.99 and 1.02; layer in the driver's way: 0 voxels
+rail_L   foot_L   |rear_L    head in foot_L    at X  -162.4 Y  165.0 Z   -4.0; of the knot's two halves the layer has 0.99 and 1.00; layer in the driver's way: 0 voxels
+sweep_L  corner_L |rear_L    head in corner_L  at X  -233.6 Y  285.8 Z  211.3; of the knot's two halves the layer has 0.99 and 1.01; layer in the driver's way: 0 voxels
+lip_R    front    |corner_R  head in front     at X   127.0 Y   59.2 Z  271.1; of the knot's two halves the layer has 1.09 and 0.95; layer in the driver's way: 0 voxels
+card_R   front    |corner_R  head in front     at X   127.0 Y  -10.4 Z  195.7; of the knot's two halves the layer has 1.01 and 1.01; layer in the driver's way: 0 voxels
+low_R    front    |post_R    head in front     at X   140.0 Y   22.0 Z   60.0; of the knot's two halves the layer has 0.89 and 1.06; layer in the driver's way: 0 voxels
+post_R   post_R   |corner_R  head in corner_R  at X   167.2 Y   -4.6 Z  150.0; of the knot's two halves the layer has 0.99 and 1.02; layer in the driver's way: 0 voxels
+rail_R   rail_R   |rear_R    head in rail_R    at X   162.4 Y  165.0 Z   -4.0; of the knot's two halves the layer has 1.03 and 0.98; layer in the driver's way: 0 voxels
+sweep_R  corner_R |rear_R    head in corner_R  at X   233.6 Y  285.8 Z  211.3; of the knot's two halves the layer has 1.00 and 1.01; layer in the driver's way: 0 voxels
+tie3_L   corner_L |foot_L    head in corner_L  at X  -232.4 Y  161.6 Z   59.7; of the knot's two halves the layer has 1.00 and 1.01; layer in the driver's way: 0 voxels
+   a loose bit of rail_R, 1.19 cm3 round X 165 Y 27 Z -8, lies against post_R and goes to it
+pieces touch outside the laps: nowhere
