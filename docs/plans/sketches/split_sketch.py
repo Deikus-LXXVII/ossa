@@ -7,6 +7,7 @@ between the pieces, and reports each piece: its size, the smallest box it fits i
 Run from the repository root:
   .venv/bin/python docs/plans/sketches/split_sketch.py report [PLAN]              the table, one line per piece
   .venv/bin/python docs/plans/sketches/split_sketch.py field OUT.npz [PLAN]       the field with d_<piece> for every piece (organic_strength.py reads it), and the table
+  .venv/bin/python docs/plans/sketches/split_sketch.py joint PREFIX               one half-lap joint drawn on the lip, put together and apart: PREFIX_together.png, PREFIX_apart.png
   .venv/bin/python docs/plans/sketches/split_sketch.py picture PREFIX [PLAN]      the pieces in colours over the skeleton, three views PREFIX_<view>.png, and the table
 """
 import os
@@ -244,8 +245,101 @@ def report(f, rows, names, lab):
     return out
 
 
+KNOT_R, LAP, LAP_GAP, KNOT_MORE = 10.0, 24.0, 0.3, 6.0     # the joint: a knot of this radius, a lap this long, this far between its faces, the knot this much longer than the lap each end
+BORE, HEAD_D, HEAD_H, PILOT, PILOT_DEPTH = 3.4, 6.5, 3.5, 4.5, 6.7
+
+
+def joint_picture(f, prefix, bone="lip", at_x=None):
+    """One half-lap joint drawn where a seam crosses a bone (the lip at X FRONT_X by default), on a grid of 0.75 mm, as a printable piece would be meshed: the two halves in two
+    colours, put together and drawn apart, with the screw. A picture of what a joint looks like; nothing of it is in the model."""
+    import vtk
+    import hose_routes
+    import shell_concepts as sc
+
+    _m, lines = of.bone_members()
+    line = np.asarray(lines[bone], dtype=float)
+    k = int(np.argmin(np.abs(line[:, 0] - (FRONT_X if at_x is None else at_x))))
+    P = line[k]
+    e1 = line[k + 1] - line[k - 1]
+    e1 /= np.linalg.norm(e1)
+    out = np.array([0.0, -np.sqrt(0.5), np.sqrt(0.5)])               # the board's outward normal: the screw is driven from the front and above
+    e3 = out - e1 * (out @ e1)
+    e3 /= np.linalg.norm(e3)
+    half = 36.0                                                      # the knot and a stub of the bone each side: the films round it are not laid for a seam yet and would only confuse the picture
+    sl = tuple(slice(int(np.searchsorted(g, c - half)), int(np.searchsorted(g, c + half))) for g, c in zip((f["xs"], f["ys"], f["zs"]), P))
+    d0 = ndimage.zoom(f["d_main"][sl].astype(np.float32), 2, order=1)
+    vox = float(f["xs"][1] - f["xs"][0]) / 2
+    grid = [g[s_][0] + vox * (np.arange(n) - 0.25) for g, s_, n in zip((f["xs"], f["ys"], f["zs"]), sl, d0.shape)]
+    X, Y, Z = np.meshgrid(*grid, indexing="ij")
+    R_ = np.stack([X - P[0], Y - P[1], Z - P[2]], axis=-1)
+    a_, c_ = R_ @ e1, R_ @ e3
+    rad = np.sqrt(np.maximum((R_ ** 2).sum(axis=-1) - a_ ** 2, 0.0))
+    knot = np.maximum(rad - KNOT_R, np.abs(a_) - (LAP / 2 + KNOT_MORE))
+    body = np.minimum(d0, knot)
+    axis_r = np.sqrt(np.maximum(rad ** 2 - c_ ** 2, 0.0) + a_ ** 2)       # distance from the screw's axis (through P along e3)
+    halves = {}
+    for name, s_ in (("upper", 1.0), ("lower", -1.0)):
+        region = np.minimum(s_ * a_ + LAP / 2, np.maximum(s_ * a_ - (LAP / 2 - LAP_GAP), LAP_GAP / 2 - s_ * c_))
+        d = np.maximum(body, region)
+        if s_ > 0:
+            hole = np.minimum(BORE / 2 - axis_r, c_)                                              # the clearance bore, above the parting plane
+            hole = np.maximum(hole, np.minimum(HEAD_D / 2 - axis_r, c_ - (KNOT_R - HEAD_H)))      # and the head's recess
+        else:
+            hole = np.minimum(PILOT / 2 - axis_r, c_ + PILOT_DEPTH)                               # the insert's pilot, blind
+        halves[name] = np.maximum(d, hole).astype(np.float32)
+    sc.VOX = vox
+    shells = {name: sc.mesh(grid[0], grid[1], grid[2], d) for name, d in halves.items()}
+    colours = {"upper": (0.20, 0.45, 0.80), "lower": (0.90, 0.55, 0.10)}
+    for tag, lift in (("together", 0.0), ("apart", 22.0)):
+        ren = vtk.vtkRenderer()
+        ren.SetBackground(1, 1, 1)
+        for name, shell in shells.items():
+            m = vtk.vtkPolyDataMapper()
+            m.SetInputData(shell)
+            m.ScalarVisibilityOff()
+            a = vtk.vtkActor()
+            a.SetMapper(m)
+            a.GetProperty().SetColor(*colours[name])
+            a.GetProperty().SetAmbient(0.3)
+            a.GetProperty().SetDiffuse(0.7)
+            if name == "upper":
+                a.SetPosition(*(e3 * lift))
+            ren.AddActor(a)
+        top = P + e3 * (KNOT_R + lift + (0.0 if lift == 0 else 14.0))
+        ren.AddActor(hose_routes.tube_actor(np.array([top - e3 * HEAD_H, top]), 2.75, (0.75, 0.75, 0.78)))                      # the screw's head
+        if lift:
+            ren.AddActor(hose_routes.tube_actor(np.array([top - e3 * (HEAD_H + 12.0), top - e3 * HEAD_H]), 1.5, (0.75, 0.75, 0.78)))   # and its shank
+            ren.AddActor(hose_routes.tube_actor(np.array([P - e3 * 4.2, P - e3 * 0.2]), 2.48, (0.85, 0.70, 0.25)))                # the brass insert, flush with the lower face
+        win = vtk.vtkRenderWindow()
+        win.SetOffScreenRendering(1)
+        win.SetSize(1400, 1000)
+        win.SetMultiSamples(0)
+        win.AddRenderer(ren)
+        c = ren.GetActiveCamera()
+        c.SetFocalPoint(*P)
+        c.SetPosition(*(P + 400.0 * np.array([0.35, -0.80, 0.55])))
+        c.SetViewUp(0, 0, 1)
+        c.ParallelProjectionOn()
+        ren.ResetCamera()
+        c.Zoom(1.1)
+        win.Render()
+        w2i = vtk.vtkWindowToImageFilter()
+        w2i.SetInput(win)
+        w2i.Update()
+        wr = vtk.vtkPNGWriter()
+        wr.SetFileName(f"{prefix}_{tag}.png")
+        wr.SetInputConnection(w2i.GetOutputPort())
+        wr.Write()
+        print("saved", f"{prefix}_{tag}.png")
+    print(f"joint on `{bone}` at X {P[0]:.0f}, Y {P[1]:.0f}, Z {P[2]:.0f}: knot radius {KNOT_R:g} over {LAP + 2 * KNOT_MORE:g} mm (the bone there is about 5.5), lap {LAP:g}, "
+          f"{LAP_GAP:g} between the faces; M3 from the front and above into an insert in the lower half")
+
+
 def main():
     mode = sys.argv[1]
+    if mode == "joint":
+        joint_picture(np.load(FIELD), sys.argv[2])
+        return
     plan = PLANS[sys.argv[-1]] if sys.argv[-1] in PLANS else plan_v1
     f = np.load(FIELD)
     rows = members(plan)

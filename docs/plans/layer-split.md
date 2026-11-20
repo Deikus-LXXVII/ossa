@@ -59,6 +59,17 @@ Picture of v3: `pictures/split_v3_front_left.png`, `split_v3_front_right.png`, `
 
 So the flat faces of a lap are good enough on the layer's grid, and its holes are not: they come out small and uneven, which `cables-and-organic.md` already says of the pads' bores ("the real holes belong in the printable pieces"). A piece that is meshed for printing at 0.75 mm gets holes an insert and a screw can use; a piece of at most 290 mm is 58 million points at that step, which fits in memory. That export step is needed whichever way the pieces hold together, for the pads' own bores.
 
+## The joint: what others do, and a picture (20 Nov 2026)
+
+Grok looked up joints between printed parts (printer makers' design guides, Stratasys on sectioned FDM tools, CNC Kitchen's insert tests, a PETG data sheet). Its answer, with the sources' limits:
+
+- **A stepped half-lap pulled shut by a screw into an insert** is the joint to use. Stratasys prefers a lap for sectioned parts; a spigot, a dovetail or a butt joint needs a sliding fit of about 0.2 mm, which is less than this surface's error, so it would bind in one place and rattle in another, and a butt joint with a screw on the bar's axis does not resist bending until its faces touch.
+- The faces the screw closes need no slip gap. Shoulders that must not meet first get about 0.5 mm (inferred, not tested). One screw is enough if the step has shoulders both ways; two stop it turning by themselves.
+- Layers along the bar, the insert's hole vertical when printed. Bambu's PETG bends at 75 MPa in the layer plane and 56 MPa across the layers (one maker's sheet).
+- The owner's insert is the short Voron kind: the maker's hole is 4.4 mm, the least wall about 1.3 mm (a reseller's copy of the maker's table). An M3 insert in PETG pulled out at about 119 kg in one maker's test, a longer insert than this one; the moment here asks about 20 to 30 kg of the screw (inferred). No source measured this insert in PETG, nor a half-lap in bending.
+
+Picture: `pictures/split_joint_together.png` and `split_joint_apart.png`, one joint drawn on the lip at X 128 on a 0.75 mm grid: a knot of radius 10 over 36 mm (the bone there is about 5.5), a lap of 24 mm, an M3 from the front and above with its head sunk in the knot, the insert in the lower half. The loose shards beside it are film strands the picture's crude cut went through; the films are not laid for a seam yet.
+
 ## Not looked at yet
 
 - The joint itself (its size, where its screw goes, whether a 1.5 mm grid prints a fit).
@@ -66,4 +77,3 @@ So the flat faces of a lap are good enough on the layer's grid, and its holes ar
 - Print orientation and supports per piece; the bed check today stands a piece as built and turns it about the vertical only.
 - Strength of each piece on its own (while it is handled) and of the joined layer.
 - Grok's map of the machinery a piece goes through is back (20 Nov 2026; kept outside the repository because it quotes local paths). Its headline, read by the main session; the body is not read yet and is not relied on here: a piece is a name in `PIECES`, an entry written by hand in `build`'s `frames`, and the pads whose fourth field is that name; a later piece is carved back from the earlier ones by 3 mm; a film belongs wholly to one piece; `main` is the only name exempt from the bed check, every other name is judged against 290 mm standing and turned about Z; no committed plan names seams, joints or a print orientation for pieces of `main`.
-- Grok is looking up which joints people use between printed PETG parts (a half-lap, a spigot, a butt joint with a screw, a dovetail), with clearances and the wall an insert needs.
