@@ -54,7 +54,10 @@ PROBE_REACH = 8.0                           # mm: a probe is pushed at the neare
 PAD_FIX_H = 2.0                             # nodes this far above a skeleton face, inside the pad, are held
 PAD_R = 8.0
 G = 9810.0                                  # mm/s2
-CHUNK = 32                                  # load cases solved together where memory is short (Accelerate, SuperLU)
+CHUNK = 64                                  # load cases solved together where memory is short (Accelerate, SuperLU). It was 32 until 20 Nov 2026: at step 1 the factor of `main`
+                                            # (9 GB on an 18 GB machine) is partly paged out, and each block is one pass over it. Measured back to back on the first blocks:
+                                            # 80 s for a block of 32, 118 s for one of 64 (about 40 s a pass and 1.2 s a case), and a run with blocks of 8 did not end in an hour.
+                                            # Solved in place, a block of 64 holds 1.15 GB beside the factor, where 32 with its two copies held 1.7 GB.
 
 
 def cube_stiffness(h):
@@ -115,7 +118,8 @@ def factorize(Kff):
     if not rel < 1e-6:
         raise RuntimeError(f"Accelerate LDLT residual {rel:.1e}")
     # macldlt 0.0.1 traps on a one-column block
-    return (lambda B: ldlt.solve(B[:, 0]).reshape(B.shape) if B.shape[1] == 1 else ldlt.solve(np.asfortranarray(B))), "Accelerate LDLT", CHUNK
+    # the block is solved in place, in the column order the solver wants: a copy to that order and a second array for the answer stood beside the 9 GB factor (1.7 GB at 32 cases)
+    return (lambda B: ldlt.solve(B[:, 0]).reshape(B.shape) if B.shape[1] == 1 else ldlt.solve(np.asfortranarray(B), inplace=True)), "Accelerate LDLT", CHUNK
 
 
 def von_mises(sig):
@@ -349,7 +353,7 @@ def run_piece(piece, step, n_points=N_POINTS):
     for j in range(Bm.shape[1]):
         if j % block == 0:                                     # a block of right-hand sides at a time, so the answers need not all sit in memory
             t1 = time.time()
-            U = solve(Bf[:, j:j + block].toarray())
+            U = solve(Bf[:, j:j + block].toarray(order="F"))
             t_solve += time.time() - t1
         u = np.zeros(3 * nn)
         u[free] = U[:, j % block]

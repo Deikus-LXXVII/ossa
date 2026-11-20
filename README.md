@@ -78,7 +78,7 @@ python3 -m venv .venv
 .venv/bin/python cad_b6/render_vtk.py    # previews/b6_v0_*.png
 .venv/bin/python cad_b6/render_full.py   # previews/b6_full_*.png, the whole design
 .venv/bin/python cad_b6/render_blender.py # meshes for the Blender render (cad_b6/blender_scene.py, previews/b6_render_*.png)
-.venv/bin/python cad_b6/organic_strength.py  # about 33 minutes on the Mac (1950 s on 19 Nov 2026, 1925 s of it the piece `main`): judges each piece, a 30 N push and a probe on each film strand and cross-thread; run once per revision, not after every edit; exits with an error if a push is over the allowable stress or the piece moves more than 5 mm
+.venv/bin/python cad_b6/organic_strength.py  # about 18 minutes on the Mac (1100 s on 20 Nov 2026, 1075 s of it the piece `main`; 1950 s before its load cases were solved 64 at a time): judges each piece, a 30 N push and a probe on each film strand and cross-thread; run once per revision, not after every edit; exits with an error if a push is over the allowable stress or the piece moves more than 5 mm
 .venv/bin/python cad_b6/strength.py 7 2  # strength and plastic, about 3.5 minutes on Apple silicon (Accelerate through the macldlt package)
 ```
 

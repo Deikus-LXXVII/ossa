@@ -32,6 +32,6 @@
   "wall_s": 1196.4,
   "wall_margin": 0.25,
   "what": "the full run of organic_strength.py (out/organic/strength.json): its load cases over every piece gate (more is a longer run, fewer is a push point or a probe lost), the pieces' wall time only warns; the size of what it solves follows the organic layer's volume, budgeted above",
-  "recorded_from": "load cases: full run of 2026-11-19 21:36:18 (revision 19); wall time: full run of 2026-11-19 04:59:25 (the later run's 1950.6 s is not recorded, so that it keeps warning)"
+  "recorded_from": "load cases: full run of 2026-11-19 21:36:18 (revision 19); wall time: full run of 2026-11-19 04:59:25 (revision 19's run took 1950.6 s with blocks of 32 load cases and 1100.3 s with blocks of 64 on 20 Nov 2026; neither is recorded)"
  }
 }
