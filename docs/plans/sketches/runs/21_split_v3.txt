@@ -1,0 +1,11 @@
+front      572.2 cm3  X  -153..  153 Y   -22..   72 Z    11..  284  box 306 x  94 x 273; turned 42 deg about Z: 273 x 268 x 253 (fits 290); bodies 9; pads 0: none
+post_L      88.3 cm3  X  -197.. -114 Y   -24..   75 Z   -16..  289  box  82 x  99 x 304; turned 36 deg about X: 225 x 221 x  82 (fits 290); bodies 2; pads 1: front_post_L
+post_R     106.7 cm3  X   111..  199 Y   -24..   77 Z   -16..  290  box  88 x 100 x 306; turned 36 deg about X: 226 x 221 x  88 (fits 290); bodies 4; pads 1: front_post_R
+rail_L      25.2 cm3  X  -174.. -152 Y    23..  192 Z   -16..   23  box  22 x 170 x  39; turned 48 deg about X: 130 x 128 x  22 (fits 290); bodies 2; pads 2: front_foot_L, front_post_L
+rail_R      23.5 cm3  X   117..  174 Y    23..  192 Z   -16..   22  box  57 x 170 x  38; turned 48 deg about X: 133 x 128 x  57 (fits 290); bodies 3; pads 2: front_foot_R, front_post_R
+rear_L     370.0 cm3  X  -252.. -155 Y   191..  386 Z   -16..  236  box  98 x 195 x 252; turned 54 deg about Y: 212 x 208 x 194 (fits 290); bodies 1; pads 3: base_mid_L, rear_foot_L, rear_post_L
+rear_R     344.9 cm3  X   154..  252 Y   191..  386 Z   -16..  236  box  98 x 195 x 252; turned 36 deg about Y: 210 x 206 x 194 (fits 290); bodies 1; pads 3: base_mid_R, rear_foot_R, rear_post_R
+ring_L     206.4 cm3  X  -258.. -152 Y   -16..  291 Z   -14..  367  box 106 x 308 x 381; turned 36 deg about X: 284 x 280 x 106 (fits 290); bodies 1; pads 1: neck_top_L
+ring_R     239.2 cm3  X   157..  258 Y   -18..  291 Z    67..  367  box 100 x 309 x 300; turned 60 deg about X: 273 x 272 x 100 (fits 290); bodies 1; pads 1: neck_top_R
+members the seams cut: lip (front/post_L/post_R); base_R (rail_R/rear_R); base_L (rail_L/rear_L); front_low (front/post_L/post_R); card (front/post_L/post_R); film 0 bar 0 (front/post_L); film 0 bar 1 (front/post_L); film 1 bar 0 (front/post_R); film 1 bar 1 (front/post_R)
+taken out by the gaps: 39.3 cm3
