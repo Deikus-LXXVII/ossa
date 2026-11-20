@@ -135,9 +135,9 @@ That run reads a joint as a solid knot. It does not prove the joints: a half of 
 
 ## The trial joint (20 Nov 2026)
 
-`docs/plans/sketches/joint_trial.py` makes one joint by itself to print and try by hand: the size the second sketch builds on the layer (bone radius 6, knot radius 10, lap 20, taper 8), each half with a 35 mm stub to hold it by, 69 mm long and about 9 cm3. It is meshed at 0.4 mm, with the layer's mesher. The head's half has a 3.4 mm bore and a 6.5 mm recess that leaves 5 mm of plastic under the head (what the layer's pads clamp, so the screw is the pads' M3 x 10); the insert's half has the skeleton's pilot (4.5 mm, 6.7 deep, 3.3 mm of plastic under it). The faces the screw closes have no gap; a tongue's tip stands 0.5 mm off the other half's shoulder.
+`docs/plans/sketches/joint_trial.py` makes one joint by itself to print and try by hand: the size the second sketch builds on the layer (bone radius 6, knot radius 10, lap 20, taper 8), each half with a 35 mm stub to hold it by, 69 mm long and about 9 cm3. It is meshed at 0.4 mm, with the layer's mesher. The head's half has a 3.4 mm bore and a 7.8 mm recess (the skeleton's counterbore for a head on its washer) that leaves 5 mm of plastic under the washer (what the layer's pads clamp, so the screw is the pads' M3 x 10 and goes 4.5 mm into the insert); the insert's half has the skeleton's pilot (4.5 mm, 6.7 deep, 3.3 mm of plastic under it). The faces the screw closes have no gap; a tongue's tip stands 0.5 mm off the other half's shoulder.
 
-Measured on the meshes (`runs/28_joint_trial.txt`): the lap faces within 0.005 mm of the parting plane, the bore 3.40 mm (3.36 to 3.44), the recess 6.50 (6.46 to 6.56), the pilot 4.49 (4.44 to 4.53), its floor 6.70 deep, the tongues' tips at 9.50; each half one closed body, its triangles facing outward.
+Measured on the meshes (`runs/28_joint_trial.txt`): the lap faces within 0.005 mm of the parting plane, the bore 3.40 mm (3.36 to 3.44), the recess 7.80 (7.73 to 7.85), the pilot 4.49 (4.44 to 4.53), its floor 6.70 deep, the tongues' tips at 9.50; each half one closed body, its triangles facing outward.
 
 Three files in `out/trial/joint/` (not in the repository), the same two halves lying three ways, because a piece of the layer has up to six joints that point different ways and cannot lie well for all of them; picture `pictures/joint_trial.png` (blue, orange, grey):
 
@@ -146,6 +146,8 @@ Three files in `out/trial/joint/` (not in the repository), the same two halves l
 - `joint_down.stl`: the lap's faces down, on supports. The worst case.
 
 What the trial is to answer: whether the halves seat without filing in each position, whether the insert goes in straight and holds when the screw is tightened, whether the knot splits along its layers, and how the closed joint takes a bend by hand against a bare bone of the same size.
+
+**The screws and inserts are in stock.** Thirteen joints take thirteen M3 x 10, washers and inserts more: M3 x 10 from 16 to 29 (the owner has 105, the model may use 84), washers 93 to 106 (380, 304), inserts 104 to 117 (220, 176); figures of today from `cad_b6/report_frame_v0.txt`.
 
 ## Not looked at yet
 

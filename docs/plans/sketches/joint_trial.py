@@ -1,8 +1,8 @@
 """A joint of the organic layer to print and try by hand before the layer's pieces are printed (docs/plans/layer-split.md).
 
 One half-lap joint by itself, the size split_layer_sketch.py builds on the layer: a bone of radius BONE_R thickened to a knot of radius KNOT_R over a lap LAP long, the knot tapering to
-the bone over TAPER; the two halves parted by the plane through the knot's axis; one M3 x 10 through a clearance bore in the half with the head, its head sunk so that CLAMP of
-plastic is under it (the layer's pads clamp the same 5 mm), into a heat-set insert in the other half. Each half has a stub of bone STUB long to hold it by.
+the bone over TAPER; the two halves parted by the plane through the knot's axis; one M3 x 10 with its washer through a clearance bore in the half with the head, the head sunk so that
+CLAMP of plastic is under the washer (the layer's pads clamp the same 5 mm), into a heat-set insert in the other half. Each half has a stub of bone STUB long to hold it by.
 
 Three files, the same two halves lying three ways, because a piece of the layer has up to six joints that point different ways and cannot lie well for all of them:
   joint_up.stl      the lap's faces up (the top surface of the print), the screw upright: the best case
@@ -28,7 +28,7 @@ VOX = 0.4
 BONE_R, KNOT_R, LAP, TAPER, STUB = 6.0, 10.0, 20.0, 8.0, 35.0
 SHOULDER = 0.5                              # between a tongue's tip and the other half's shoulder; the faces the screw closes get none
 CLAMP = hw.ORGANIC_PAD_H                    # plastic under the screw's head, as at the layer's pads
-BORE, HEAD_D = 3.4, 6.5                     # the clearance bore and the recess for an M3 cap head (5.5)
+BORE, HEAD_D = hw.M3_CLEAR_D, hw.M3_WASHER_D + 0.8      # the clearance bore, and the recess for the head on its washer: the skeleton's counterbore (frame_v0.M3_CB_D, 7.8)
 PILOT, PILOT_DEPTH = hw.M3_PILOT_D, hw.M3_PILOT_DEPTH      # the insert's pilot, as the skeleton drills it
 END = LAP / 2 + TAPER + STUB                # a half's far end, from the screw
 
