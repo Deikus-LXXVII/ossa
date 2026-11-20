@@ -1,0 +1,5 @@
+head: 8.9 cm3, 54872 triangles, open or doubled edges 0, bodies 1; lap face at -0.000 (-0.002..+0.002); tongue's tip at 9.50 from the screw (asked 9.5); bore asked 3.4: 3.40 (3.36..3.44); head's recess asked 6.5: 6.50 (6.46..6.56)
+insert: 9.0 cm3, 54324 triangles, open or doubled edges 0, bodies 1; lap face at +0.000 (-0.005..+0.002); tongue's tip at 9.50 from the screw (asked 9.5); pilot asked 4.5: 4.49 (4.44..4.53), its floor 6.70 below the face (asked 6.7), 3.30 of plastic under it
+saved /Volumes/Crucial/Sisters/Gema-CAD-3D-Printing/pc-case-b5/out/trial/joint/joint_up.stl: 69 x 52 x 20 mm, 5.5 MB; volume by its triangles 17.9 cm3 (positive: they face outward); flat faces: up 639 mm2, down 59, upright 66
+saved /Volumes/Crucial/Sisters/Gema-CAD-3D-Printing/pc-case-b5/out/trial/joint/joint_wall.stl: 69 x 52 x 20 mm, 5.5 MB; volume by its triangles 17.9 cm3 (positive: they face outward); flat faces: up 32 mm2, down 34, upright 699
+saved /Volumes/Crucial/Sisters/Gema-CAD-3D-Printing/pc-case-b5/out/trial/joint/joint_down.stl: 69 x 52 x 20 mm, 5.5 MB; volume by its triangles 17.9 cm3 (positive: they face outward); flat faces: up 59 mm2, down 639, upright 66

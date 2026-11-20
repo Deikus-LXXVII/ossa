@@ -133,6 +133,20 @@ That run reads a joint as a solid knot. It does not prove the joints: a half of 
 
 **Not in this sketch.** The holes (the bore, the head's recess, the insert's pilot: they belong in the 0.75 mm export of a piece); the gap at a lap's shoulders; a piece's strength while it is handled alone; the print position of each piece; where in the code a joint and a printable piece live.
 
+## The trial joint (20 Nov 2026)
+
+`docs/plans/sketches/joint_trial.py` makes one joint by itself to print and try by hand: the size the second sketch builds on the layer (bone radius 6, knot radius 10, lap 20, taper 8), each half with a 35 mm stub to hold it by, 69 mm long and about 9 cm3. It is meshed at 0.4 mm, with the layer's mesher. The head's half has a 3.4 mm bore and a 6.5 mm recess that leaves 5 mm of plastic under the head (what the layer's pads clamp, so the screw is the pads' M3 x 10); the insert's half has the skeleton's pilot (4.5 mm, 6.7 deep, 3.3 mm of plastic under it). The faces the screw closes have no gap; a tongue's tip stands 0.5 mm off the other half's shoulder.
+
+Measured on the meshes (`runs/28_joint_trial.txt`): the lap faces within 0.005 mm of the parting plane, the bore 3.40 mm (3.36 to 3.44), the recess 6.50 (6.46 to 6.56), the pilot 4.49 (4.44 to 4.53), its floor 6.70 deep, the tongues' tips at 9.50; each half one closed body, its triangles facing outward.
+
+Three files in `out/trial/joint/` (not in the repository), the same two halves lying three ways, because a piece of the layer has up to six joints that point different ways and cannot lie well for all of them; picture `pictures/joint_trial.png` (blue, orange, grey):
+
+- `joint_up.stl`: the lap's faces up, the screw upright. The best case.
+- `joint_wall.stl`: the lap's faces upright, printed as walls, the screw lying.
+- `joint_down.stl`: the lap's faces down, on supports. The worst case.
+
+What the trial is to answer: whether the halves seat without filing in each position, whether the insert goes in straight and holds when the screw is tightened, whether the knot splits along its layers, and how the closed joint takes a bend by hand against a bare bone of the same size.
+
 ## Not looked at yet
 
 - The joint's holes and fits as printed (the first probe: holes need the 0.75 mm mesh), and a trial print of one joint.
